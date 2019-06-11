@@ -1,8 +1,8 @@
---go @ luajit -jp *
+
 local time = require'time'
 local ui = require'ui'
 local color = require'color'
-ui.use_google_fonts = true
+--ui.use_google_fonts = true
 ui = ui()
 
 local win = ui:window{
@@ -96,7 +96,7 @@ local function test_layerlib()
 		background_extend   = 'reflect',
 
 		text = 'Hello',
-		font = 'Open Sans Bold',
+		font = 'Open Sans',
 		font_size = 100,
 
 		script = 'Zyyy',
@@ -254,7 +254,6 @@ ui:runevery(1, function()
 		win:invalidate()
 	end
 end)
-
 
 --test_layerlib()
 --test_flex()

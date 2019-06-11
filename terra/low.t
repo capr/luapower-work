@@ -1773,6 +1773,10 @@ ffi.metatype(']]..name..[[', {
 		return self:binpath(modulename..'.'..soext[ffi.os])
 	end
 
+	function self:afile()
+		return self:binpath(modulename..'.a')
+	end
+
 	function self:saveobj()
 		zone'saveobj'
 		terralib.saveobj(self:objfile(), 'object', saveobj_table)
@@ -1788,6 +1792,8 @@ ffi.metatype(']]..name..[[', {
 		local linkargs = linkto and '-l'..concat(linkto, ' -l') or ''
 		local cmd = 'gcc '..self:objfile()..' -shared '..'-o '..self:sofile()
 			..' -L'..self:binpath()..' '..linkargs
+		os.execute(cmd)
+		local cmd = 'ar rcs '..self:afile()..' '..self:objfile()
 		os.execute(cmd)
 		zone()
 	end

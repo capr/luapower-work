@@ -1,2 +1,6 @@
 *.exe
 .bundle-tmp
+SciTEDirectory.properties
+layerlib.dll
+layerlib.a
+layerlib_h.lua
