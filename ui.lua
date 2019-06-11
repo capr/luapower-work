@@ -276,8 +276,8 @@ end
 local ui = object:subclass'ui'
 ui.object = object
 
-function ui:override_create(inherited) --singleton
-	local instance = inherited(self)
+function ui:override_create(inherited, ...) --singleton
+	local instance = inherited(self, ...)
 	function self:create() return instance end
 	return instance
 end
