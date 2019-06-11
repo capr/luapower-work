@@ -146,7 +146,7 @@ compile_dir_module() {
 	name=$f f=$o.dir compile_bin_module "$@"
 }
 
-sayt() { [ "$VERBOSE" ] && printf "  %-15s %s\n" "$1" "$2"; }
+sayt() { [ "$VERBOSE" ] && printf "  %-16s %s\n" "$1" "$2"; }
 
 # usage: mtype=type [osuffix=] $0 file[.lua]|.c|.dasl|.* CFLAGS... -> file.o
 compile_module() {
