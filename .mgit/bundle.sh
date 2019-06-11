@@ -510,11 +510,22 @@ usage() {
 	exit
 }
 
+detect_platform() {
+	local O
+	local A
+	[ "$PROCESSOR_ARCHITECTURE" = "AMD64" -o "$PROCESSOR_ARCHITEW6432" = "AMD64" ] && { O=mingw; A=64; } || {
+		[ "$OSTYPE" = "msys" ] && { O=mingw; A=32; } || {
+			A=32; [ "$(uname -m)" = "x86_64" ] && A=64
+			[ "${OSTYPE#darwin}" != "$OSTYPE" ] && O=osx || O=linux
+		}
+	}
+	P=$O$A
+}
+
 # usage: $0 [force_32bit]
 set_platform() {
 
-	# detect platform
-	P=`.mgit/platform.sh`
+	detect_platform
 	[ "$P" ] || die "Unable to set platform."
 	[ "$1" ] && P=${P/64/32}
 
