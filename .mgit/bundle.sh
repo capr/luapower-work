@@ -32,8 +32,8 @@ ALIBS="luajit"
 MODULES="bundle_loader"
 BIN_MODULES=
 DIR_MODULES=
-ICON_mingw=csrc/bundle/luapower.ico
-ICON_osx=csrc/bundle/luapower-icon.png
+ICON_mingw=media/icons/luapower.ico
+ICON_osx=media/icons/luapower-icon.png
 OSX_ICON_SIZES="16 32 128" # you can add 256 and 512 but the icns will be 0.5M
 
 IGNORE_ODIR=
@@ -312,7 +312,7 @@ compile_all() {
 	compile_bundle_appversion
 
 	# embed the luajit manifest file
-	compile_manifest "bin/mingw32/luajit.exe.manifest"
+	compile_manifest "bin/$P/luajit.exe.manifest"
 
 	# generate a VERSIONINFO resource (Windows)
 	compile_version_info "$VERSIONINFO"
@@ -439,7 +439,7 @@ make_osx_app() {
 compress_exe() {
 	[ "$COMPRESS_EXE" ] || return
 	say "Compressing $EXE..."
-	which upx >/dev/null || { say "UPX not found."; return; }
+	which upx >/dev/null 2>/dev/null || { say "UPX not found."; return; }
 	upx -qqq "$EXE"
 }
 
@@ -511,15 +511,13 @@ usage() {
 }
 
 detect_platform() {
-	local O
-	local A
-	[ "$PROCESSOR_ARCHITECTURE" = "AMD64" -o "$PROCESSOR_ARCHITEW6432" = "AMD64" ] && { O=mingw; A=64; } || {
-		[ "$OSTYPE" = "msys" ] && { O=mingw; A=32; } || {
+	[ "$PROCESSOR_ARCHITECTURE" = "AMD64" -o "$PROCESSOR_ARCHITEW6432" = "AMD64" ] && { OS=mingw; A=64; } || {
+		[ "$OSTYPE" = "msys" ] && { OS=mingw; A=32; } || {
 			A=32; [ "$(uname -m)" = "x86_64" ] && A=64
-			[ "${OSTYPE#darwin}" != "$OSTYPE" ] && O=osx || O=linux
+			[ "${OSTYPE#darwin}" != "$OSTYPE" ] && OS=osx || OS=linux
 		}
 	}
-	P=$O$A
+	P=$OS$A
 }
 
 # usage: $0 [force_32bit]
@@ -530,7 +528,6 @@ set_platform() {
 	[ "$1" ] && P=${P/64/32}
 
 	# set platform-specific variables
-	OS=${P%[0-9][0-9]}
 	[ "$DLIBS" ]   || eval DLIBS=\$DLIBS_$OS
 	[ "$APREFIX" ] || eval APREFIX=\$APREFIX_$OS
 	[ "$ICON" ]    || eval ICON=\$ICON_$OS
@@ -556,7 +553,7 @@ parse_opts() {
 			-D | --dir-modules)
 				DIR_MODULES="$DIR_MODULES $1"; shift;;
 			-M  | --main)
-				MAIN="$1"; MODULES="$MODULES $1"; shift;;
+				MAIN="$1"; shift;;
 			-a  | --alibs)
 				[ "$1" = -- ] && ALIBS= || \
 					[ "$1" = --all ] && ALIBS="$(alibs)" || \
