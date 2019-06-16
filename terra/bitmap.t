@@ -76,7 +76,7 @@ terra Bitmap:init()
 end
 
 terra Bitmap:free()
-	free(self.pixels)
+	dealloc(self.pixels)
 	self:init()
 end
 
@@ -92,7 +92,7 @@ terra Bitmap:realloc(w: int, h: int, format: enum, stride: int)
 	self.stride = stride
 	var new_size = self.size
 	if new_size ~= old_size then
-		free(self.pixels) --free pixels to avoid copying them
+		dealloc(self.pixels) --dealloc pixels to avoid copying them
 		self.pixels = realloc(self.pixels, new_size)
 	end
 end

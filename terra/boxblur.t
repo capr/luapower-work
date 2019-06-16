@@ -45,7 +45,7 @@ terra Blur:free()
 	self.bmp1_parent:free()
 	self.bmp2_parent:free()
 	self.blurx_parent:free()
-	free(self.sumx)
+	dealloc(self.sumx)
 	self:init(self.format)
 end
 
@@ -192,8 +192,8 @@ terra Blur:blur()
 	return self.dst
 end
 
-terra Blur:free_and_deallocate()
-	free(self)
+terra Blur:release()
+	release(self)
 end
 
 function Blur:build()
@@ -204,10 +204,10 @@ function Blur:build()
 	public(bitmap.new, 'bitmap')
 	public:getenums(_M, '^BITMAP_')
 	public(Blur, {
-		free_and_deallocate='free',
+		release='free',
 		invalidate = {'invalidate', 'invalidate_rect'},
 		blur=1,
-	}, true)
+	}, {opaque = true})
 
 	local terra blur(format: enum)
 		var b = alloc(Blur)

@@ -78,6 +78,9 @@ end
 
 terra Layout:wrap(w: num)
 
+	assert(self.state >= STATE_SHAPED)
+	self.state = STATE_WRAPPED
+
 	var lines = &self.lines
 	lines.len = 0
 	self.h = 0

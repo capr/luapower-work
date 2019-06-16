@@ -17,6 +17,7 @@ end)
 
 --NOTE: doesn't take into account side bearings, so it's not 100% accurate!
 terra Layout:clip(x: num, y: num, w: num, h: num)
+	assert(self.state >= STATE_ALIGNED)
 	var lines = &self.lines
 	x = x - self.x
 	y = y - self.y - self.baseline

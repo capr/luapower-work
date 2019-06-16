@@ -159,6 +159,7 @@ local map_type = memoize(function(
 	function map.metamethods.__for(h, body)
 		if is_map then
 			return quote
+				var h = &h --workaround for terra issue #368
 				for i = 0, h.n_buckets do
 					if h:has_at_index(i) then
 						[ body(`&h.keys[i], `&h.vals[i]) ]
@@ -167,6 +168,7 @@ local map_type = memoize(function(
 			end
 		else
 			return quote
+				var h = &h --see terra#368
 				for i = 0, h.n_buckets do
 					if h:has_at_index(i) then
 						[ body(`&h.keys[i]) ]

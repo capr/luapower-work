@@ -4189,7 +4189,7 @@ function terra.constant(typ,init)
     end
     local orig = init -- hold anchor until we capture the value
     if type(init) ~= "cdata" or terra.typeof(init) ~= typ then
-        init = terra.cast(typ,init)
+		  init = terra.cast(typ,init)
     end
     if not typ:isaggregate() then
         return terra.newquote(newobject(anchor,T.constant,init,typ))

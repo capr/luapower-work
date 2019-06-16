@@ -5,7 +5,10 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 
-terra Layout:align(x: num, y: num, w: num, h: num, align_x: enum, align_y: enum)
+terra Layout:align(x: num, y: num, w: num, h: num, align_x: int, align_y: int)
+
+	assert(self.state >= STATE_WRAPPED)
+	self.state = STATE_ALIGNED
 
 	var lines = &self.lines
 	if lines.len == 0 then return self end

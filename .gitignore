@@ -4,3 +4,4 @@ SciTEDirectory.properties
 layerlib.dll
 layerlib.a
 layerlib_h.lua
+terra/*.png

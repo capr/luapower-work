@@ -184,6 +184,9 @@ terra Layout:shape()
 
 	var r = self.r
 	var segs = &self.segs
+
+	self.state = STATE_SHAPED
+
 	segs.len = 0
 	self.lines.len = 0
 	self._min_w = -inf
@@ -294,6 +297,7 @@ terra Layout:shape()
 	r.linebreaks.len = len + 1
 	var lang_spans = r:lang_spans(len)
 	for offset, len, lang in lang_spans do
+		self.text:index(offset + len - 1)
 		set_linebreaks_utf32(str + offset, len + 1,
 			r:ub_lang(lang), r.linebreaks:at(offset))
 	end

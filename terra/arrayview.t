@@ -106,6 +106,7 @@ local function view_type(T, size_t, cmp)
 
 	view.metamethods.__for = function(self, body)
 		return quote
+			var self = &self --workaround for terra issue #368
 			for i = 0, self.len do
 				[ body(i, `&self.elements[i]) ]
 			end
@@ -115,6 +116,7 @@ local function view_type(T, size_t, cmp)
 	local struct backwards_iter { view: &view; }
 	backwards_iter.metamethods.__for = function(self, body)
 		return quote
+			var self = &self --workaround for terra issue #368
 			for i = self.view.len-1, -1, -1 do
 				[ body(i, `&self.view.elements[i]) ]
 			end

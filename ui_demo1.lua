@@ -195,12 +195,16 @@ local function test_grid()
 
 	}
 
-	for i = 1, 15 do
+	for i = 1, 2 do
 		local r = math.random(30)
 		local b = ui:layer{
 			parent = grid,
 
 			--align_x = 'right',
+
+			text = 'Hello',
+			font_size = 12,
+			font = 'Open Sans',
 
 			layout = 'textbox',
 			text_align_y = 'bottom',
@@ -216,6 +220,20 @@ local function test_grid()
 			snap_x = false,
 		}
 	end
+
+end
+
+local function test_text()
+
+	local t = ui:layer{
+		parent = win,
+		layout = 'textbox',
+		text = 'Hello',
+		border_width = 10,
+		min_cw = 100,
+		min_ch = 100,
+	}
+	--print(t.l)
 
 end
 
@@ -257,13 +275,14 @@ end)
 
 --test_layerlib()
 --test_flex()
-test_grid()
+--test_grid()
+test_text()
 
 ui:run()
 
 ui:free()
 
-require'layerlib_h'.memreport()
+require'layer_h'.memreport()
 
 --[[
 

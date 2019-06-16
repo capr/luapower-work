@@ -98,7 +98,7 @@ struct Font (gettersandsetters) {
 	r: &Renderer;
 	--loading and unloading
 	file_data: &opaque;
-	file_size: int64;
+	file_size: size_t;
 	refcount: int;
 	--freetype & harfbuzz font objects
 	hb_font: &hb_font_t;
@@ -113,8 +113,8 @@ struct Font (gettersandsetters) {
 	size_changed: {&Font} -> {};
 }
 
-FontLoadFunc   = {font_id, &&opaque, &int64} -> {}
-FontLoadFunc  .__typename_ffi = 'FontLoadFunc'
+FontLoadFunc = {int, &&opaque, &size_t} -> {}
+FontLoadFunc.cname = 'tr_font_load_func'
 
 --layout type ----------------------------------------------------------------
 
@@ -208,12 +208,19 @@ struct Line {
 	visible: bool; --entirely clipped or not
 }
 
-struct Layout {
+STATE_SHAPED  = 1
+STATE_WRAPPED = 2
+STATE_ALIGNED = 3
+
+struct Layout (gettersandsetters) {
 	r: &Renderer;
 	--input
 	spans: arr(Span);
 	text: arr(codepoint);
 	maxlen: int;
+	--state
+	state: enum; --STATE_*
+	clip_valid: bool;
 	--shaping output: segments and bidi info
 	segs: arr(Seg);
 	bidi: bool; --`true` if the text is bidirectional.
@@ -230,7 +237,6 @@ struct Layout {
 	x: num;
 	y: num;
 	align_x: enum;
-	clip_valid: bool;
 	--cached computed values
 	_min_w: num;
 	_max_w: num;

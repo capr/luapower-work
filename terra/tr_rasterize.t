@@ -120,6 +120,7 @@ local struct glyph_surfaces {
 }
 glyph_surfaces.metamethods.__for = function(self, body)
 	return quote
+		var self = &self --workaround for terra issue #368
 		var gr = self.gr
 		for i = self.i, self.j do
 			var g = gr.glyphs:at(i)

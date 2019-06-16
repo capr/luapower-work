@@ -35,6 +35,8 @@ end
 
 terra Layout:paint(cr: &GraphicsContext)
 
+	assert(self.state >= STATE_ALIGNED)
+
 	var segs = &self.segs
 	var lines = &self.lines
 

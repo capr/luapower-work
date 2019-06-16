@@ -18,7 +18,7 @@ local bit = require'bit'
 local nw = require'nw'
 local time = require'time'
 local cairo = require'cairo'
-local C = require'layerlib_h'
+local C = require'layer_h'
 
 local zone = glue.noop
 local zone = require'jit.zone' --enable for profiling
@@ -178,12 +178,7 @@ function object:stored_property(prop, after_set)
 	assert(not self.__getters[prop])
 	local priv = '_'..prop
 	self['get_'..prop] = function(self)
-		local v = self[priv]
-		if v ~= nil then
-			return v
-		else
-			return self.super[prop]
-		end
+		return self[priv]
 	end
 	if after_set then
 		self['set_'..prop] = function(self, val)
@@ -411,7 +406,7 @@ function ui:after_init()
 
 	self.fonts = {} --{font_id->font}
 
-	self.load_font = ffi.cast('FontLoadFunc', function(font_id, data_ptr, size_ptr)
+	self.load_font = ffi.cast('tr_font_load_func', function(font_id, data_ptr, size_ptr)
 		local font = self.fonts[font_id]
 		if font.file then
 			font.data = self:load_file(font.file)
@@ -421,7 +416,7 @@ function ui:after_init()
 		size_ptr[0] = font.size
 	end)
 
-	self.unload_font = ffi.cast('FontLoadFunc', function(font_id, data_ptr, size_ptr)
+	self.unload_font = ffi.cast('tr_font_load_func', function(font_id, data_ptr, size_ptr)
 		local font = self.fonts[font_id]
 		if font.file then
 			font.data = false
@@ -1008,20 +1003,26 @@ function element:override_create(inherited, ...)
 	local dt = {} --hash part
 	local at --array part
 
-	--statically inherit class defaults for writable properties, to be applied
-	--automatically by init_fields().
+	--statically inherit class defaults for writable properties, to be set by
+	--init_fields() if if they were user-supplied.
 	--NOTE: adding more default values to the class after the first
 	--instantiation has no effect on further instantiations because we make
 	--a shortlist of only the properties that have defaults.
-	if not rawget(self, '__props_with_defaults') then
-		self.__props_with_defaults = {} --make a shortlist
-		for k in pairs(self.__setters) do --prop has a setter
-			if self[k] ~= nil then --prop has a class default
-				push(self.__props_with_defaults, k)
+	local wt = rawget(self, '__writable_props_with_defaults')
+	if not wt then
+		wt = {}
+		self.__writable_props_with_defaults = wt --make a shortlist
+		local setters = self.__setters
+		while setters do
+			for k in pairs(setters) do --prop has a setter
+				if self[k] ~= nil then --prop has a class default
+					push(wt, k)
+				end
 			end
+			setters = setters.__index
 		end
 	end
-	for _,k in ipairs(self.__props_with_defaults) do
+	for _,k in ipairs(wt) do
 		dt[k] = self[k]
 	end
 
@@ -2996,7 +2997,7 @@ layer:stored_properties({
 
 function layer:after_set_text(s)
 	s = s or ''
-	--self.l:set_text_utf8(s, #s)
+	self.l:set_text_utf8(s, #s)
 	self:fire'text_changed'
 end
 
@@ -4415,7 +4416,7 @@ local hit_test_areas = index{
 	text_selection = C.HIT_TEXT_SELECTION,
 }
 
-local layer_buf = ffi.new'Layer*[1]'
+local layer_buf = ffi.new'layer_t*[1]'
 function view:hit_test(x, y, reason)
 	local area = self.l:hit_test(self.window.cr, x, y, hit_test_bits[reason], layer_buf)
 	local layer = self.ui.layers[addr(layer_buf[0])]

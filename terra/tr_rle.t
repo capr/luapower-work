@@ -18,6 +18,7 @@ function rle_iterator(iter)
 		local continue    = label()
 		local done        = label()
 		return quote
+				var self = &self --workaround for terra issue #368
 				var i = self.i
 				var j = self.j
 				if i >= j then goto [done] end

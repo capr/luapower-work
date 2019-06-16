@@ -1,8 +1,19 @@
+--[[
 
---Lua+Terra standard library & flat vocabulary of tools.
---Written by Cosmin Apreutesei. Public domain.
+	Lua+Terra standard library & flat vocabulary of tools.
+	Written by Cosmin Apreutesei. Public domain.
 
---Intended to be used as global environment: setfenv(1, require'terra/low').
+	Intended to be used as global environment:
+
+		setfenv(1, require'terra/low')
+
+	Allocation and initialization vocabulary:
+
+		alloc(T[, len])  --> dealloc(p)          allocate   --> deallocate
+		obj:init(...)    --> obj:free()          initialize --> release contents
+		new(T, ...)      --> release(p[, len])   alloc+init --> free+dealloc
+		container:elem() --> elem:release()      alloc+init --> free+dealloc
+]]
 
 if not ... then require'terra/low_test'; return; end
 
@@ -1179,24 +1190,15 @@ alloc = macro(function(T, len, oldp, label)
 	end
 end)
 
-realloc = macro(function(p, len, label) --works as free() when len = 0
+realloc = macro(function(p, len, label) --works as dealloc() when len = 0
 	label = label or ''
 	local T = p:getpointertype()
 	return `alloc(T, len, p, label)
 end)
 
---Note the necessity to pass a `len` if freeing an array of objects that have
---a free() method otherwise only the first element of the array will be freed!
-free = macro(function(p, len, nilvalue)
-	nilvalue = nilvalue or `nil
-	len = len or 1
-	return quote
-		if p ~= nil then
-			call(p, 'free', len)
-			realloc(p, 0)
-			p = nilvalue
-		end
-	end
+dealloc = macro(function(p, len, label)
+	label = label or ''
+	return `realloc(p, 0, label)
 end)
 
 new = macro(function(T, ...)
@@ -1205,6 +1207,20 @@ new = macro(function(T, ...)
 		var obj = alloc(T)
 		obj:init([args])
 		in obj
+	end
+end)
+
+--Note the necessity to pass a `len` if freeing an array of objects that have
+--a free() method otherwise only the first element of the array will be freed!
+release = macro(function(p, len, nilvalue)
+	nilvalue = nilvalue or `nil
+	len = len or 1
+	return quote
+		if p ~= nil then
+			call(p, 'free', len)
+			dealloc(p)
+			p = nilvalue
+		end
 	end
 end)
 
@@ -1347,25 +1363,31 @@ end)
 
 --readfile -------------------------------------------------------------------
 
-local terra treadfile(name: rawstring): {&opaque, int64}
-	var f = fopen(name, 'rb')
-	defer fclose(f)
-	if f ~= nil then
-		if fseek(f, 0, SEEK_END) == 0 then
-			var filesize = ftell(f)
-			if filesize > 0 then
-				rewind(f)
-				var out = [&opaque](alloc(uint8, filesize))
-				if out ~= nil and fread(out, 1, filesize, f) == filesize then
-					return out, filesize
+local treadfile
+readfile = macro(function(name)
+	--creating treadfile on first call to readfile() in order to allow alloc()
+	--to be replace before the treadfile is compiled.
+	--eager type checking getting in our way yet again...
+	treadfile = terra(name: rawstring): {&opaque, int64}
+		var f = fopen(name, 'rb')
+		defer fclose(f)
+		if f ~= nil then
+			if fseek(f, 0, SEEK_END) == 0 then
+				var filesize = ftell(f)
+				if filesize > 0 then
+					rewind(f)
+					var out = [&opaque](alloc(uint8, filesize))
+					if out ~= nil and fread(out, 1, filesize, f) == filesize then
+						return out, filesize
+					end
+					realloc(out, 0)
 				end
-				realloc(out, 0)
 			end
 		end
+		return nil, 0
 	end
-	return nil, 0
-end
-readfile = macro(function(name) return `treadfile(name) end, glue.readfile)
+	return `treadfile(name)
+end, glue.readfile)
 
 --freelist -------------------------------------------------------------------
 
@@ -1411,7 +1433,7 @@ end)
 -- * the same tuple definition can appear in multiple modules without error.
 -- * auto-assign methods to types via ffi.metatype.
 -- * enable getters and setters via ffi.metatype.
--- * type name override with `__typename_ffi` metamethod.
+-- * type name override with `name` option.
 -- * deciding which methods to publish via `public_methods` table.
 -- * publishing enum and bitmask values.
 -- * diff-friendly deterministic output.
@@ -1424,11 +1446,13 @@ function publish(modulename)
 	local objects = {}
 	local enums = {}
 
-	function self:__call(T, public_methods, opaque)
+	function self:publish(T, public_methods, opt)
 		if type(T) == 'terrafunction'
 			or (type(T) == 'terratype' and T:isstruct() and not T:istuple())
 		then
-			T.opaque = opaque
+			T.opaque = opt and opt.opaque
+			T.cname = opt and opt.cname
+			T.cprefix = opt and opt.cprefix
 			if type(T) == 'terrafunction' or type(T) == 'overloadedterrafunction' then
 				T.ffi_name = public_methods
 			else
@@ -1449,6 +1473,8 @@ function publish(modulename)
 		end
 		return T
 	end
+
+	self.__call = self.publish
 
 	function self:getenums(moduletable, match)
 		for k,v in pairs(moduletable) do
@@ -1540,7 +1566,7 @@ function publish(modulename)
 		end
 
 		local function typename(T, name)
-			local typename = T.metamethods and T.metamethods.__typename_ffi
+			local typename = T.metamethods and T.cname
 			local typename = typename
 				and (type(typename) == 'string' and typename or typename(T))
 			if T:istuple() then
@@ -1569,7 +1595,7 @@ function publish(modulename)
 				return 'const char *'
 			elseif T:ispointer() then
 				if T:ispointertofunction() then
-					return typename(T.type, T.__typename_ffi)
+					return typename(T.type, T.cname)
 				else
 					return ctype(T.type)..'*'
 				end
@@ -1657,6 +1683,7 @@ function publish(modulename)
 			end
 
 			--declare methods in source code order.
+			--TODO: sort source files in require order instead of alphabetically.
 			local function cmp(k1, k2)
 				local m1 = m[k1]
 				local m2 = m[k2]
@@ -1673,7 +1700,7 @@ function publish(modulename)
 
 			for fname, func in sortedpairs(m, cmp) do
 				if fname then
-					local cname = name..'_'..fname
+					local cname = (T.cprefix or name..'_')..fname
 					cdef_function(func, cname)
 					local t
 					if T.gettersandsetters then
@@ -1777,9 +1804,9 @@ ffi.metatype(']]..name..[[', {
 		return self:binpath(modulename..'.a')
 	end
 
-	function self:saveobj()
+	function self:saveobj(optimize)
 		zone'saveobj'
-		terralib.saveobj(self:objfile(), 'object', saveobj_table)
+		terralib.saveobj(self:objfile(), 'object', saveobj_table, nil, nil, optimize ~= false)
 		zone()
 	end
 
@@ -1810,7 +1837,7 @@ ffi.metatype(']]..name..[[', {
 		opt = opt or {}
 		self:savebinding()
 		if true then
-			self:saveobj()
+			self:saveobj(opt.optimize)
 			self:linkobj(opt.linkto)
 			self:removeobj()
 		else

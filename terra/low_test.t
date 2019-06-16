@@ -94,7 +94,7 @@ local function test_publish()
 		c: rawstring;
 		d: float;
 	};
-	anon.metamethods.__typename_ffi = function() return 'ANON' end
+	anon.cname = function() return 'ANON' end
 	public(anon)
 	struct S (public) {
 		x: int;

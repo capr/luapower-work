@@ -122,6 +122,7 @@ local list_type = memoize(function(T, size_t, context_t, own_elements)
 
 		list.metamethods.__for = function(self, body)
 			return quote
+				var self = &self --workaround for terra issue #368
 				var i = self.first
 				while i ~= -1 do
 					var e = self.links:at(i)
@@ -135,6 +136,7 @@ local list_type = memoize(function(T, size_t, context_t, own_elements)
 		local struct backwards {list: &list}
 		backwards.metamethods.__for = function(self, body)
 			return quote
+				var self = &self --workaround for terra issue #368
 				var i = self.list.last
 				while i ~= -1 do
 					var e = self.list.links:at(i)
