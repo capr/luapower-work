@@ -35,6 +35,10 @@ cairo_argb32_color_t.metamethods.__cast = function(from, to, exp)
 		if from == uint32 or from == int32 then
 			return `cairo_argb32_color_t {uint = exp}
 		end
+	elseif to == uint32 then
+		if from == cairo_argb32_color_t then
+			return `exp.uint
+		end
 	end
 	assert(false, 'invalid conversion from ', from, ' to ', to, ': ', exp)
 end

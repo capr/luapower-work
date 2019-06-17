@@ -80,7 +80,7 @@ BREAK_PARA = 2
 --base types -----------------------------------------------------------------
 
 num = float
-font_id = int16
+font_id_t = int16
 rect = rect(num)
 
 struct Renderer;
@@ -118,11 +118,14 @@ FontLoadFunc.cname = 'tr_font_load_func'
 
 --layout type ----------------------------------------------------------------
 
+FeaturesArray = arr(hb_feature_t)
+
 struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
-	font_id: font_id;
+	font_id: font_id_t;
 	font_size_16_6: uint16;
-	features: arr(hb_feature_t);
+	features: FeaturesArray;
+	features_string: arr(char);
 	script: hb_script_t;
 	lang: hb_language_t;
 	dir: FriBidiParType; --bidi direction for current and subsequent paragraphs.
@@ -140,7 +143,7 @@ Span.empty = `Span {
 	offset = 0;
 	font_id = -1;
 	font_size_16_6 = 0;
-	features = [arr(hb_feature_t).empty];
+	features = [FeaturesArray.empty];
 	script = 0;
 	lang = nil;
 	dir = DIR_AUTO;
@@ -291,7 +294,7 @@ struct GlyphRun (gettersandsetters) {
 	features        : arr(hb_feature_t);
 	lang            : hb_language_t;     --8
 	script          : hb_script_t;       --4
-	font_id         : font_id;           --2
+	font_id         : font_id_t;         --2
 	font_size_16_6  : uint16;            --2
 	rtl             : bool;              --1
 	--resulting glyphs and glyph metrics
@@ -346,7 +349,7 @@ terra GlyphRun.methods.free :: {&GlyphRun, &Renderer} -> {}
 
 struct Glyph (gettersandsetters) {
 	--cache key: no alignment holes between fields!
-	font_id         : font_id;     --2
+	font_id         : font_id_t;   --2
 	font_size_16_6  : uint16;      --2
 	glyph_index     : uint;        --4
 	subpixel_offset_x_8_6 : uint8; --1
@@ -406,7 +409,7 @@ struct Renderer (gettersandsetters) {
 
 	ft_lib: FT_Library;
 
-	fonts: arrayfreelist(Font, font_id);
+	fonts: arrayfreelist(Font, font_id_t);
 	load_font: FontLoadFunc;
 	unload_font: FontLoadFunc;
 

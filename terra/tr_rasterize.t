@@ -79,7 +79,7 @@ end
 local empty_glyph = constant(Glyph.empty)
 
 terra Renderer:rasterize_glyph(
-	font_id: font_id, font_size: num,
+	font_id: font_id_t, font_size: num,
 	glyph_index: uint, ax: num, ay: num
 )
 	if glyph_index == 0 then --freetype code for "missing glyph"

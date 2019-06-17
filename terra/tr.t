@@ -11,7 +11,6 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 
-require'terra/tr_layout'
 require'terra/tr_shape'
 require'terra/tr_linewrap'
 require'terra/tr_align'
@@ -20,6 +19,8 @@ require'terra/tr_rasterize'
 require'terra/tr_paint'
 require'terra/tr_hit_test'
 require'terra/tr_cursor'
+require'terra/tr_layoutedit'
+require'terra/tr_spanedit'
 
 terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	fill(self) --this initializes all arr() types.
