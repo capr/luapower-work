@@ -161,6 +161,12 @@ terra Span:free()
 	self.features:free()
 end
 
+terra Span:copy()
+	var s = [Span.empty]
+	s.features = self.features:copy()
+	return s
+end
+
 struct SubSeg {
 	i: int16;
 	j: int16;
@@ -218,13 +224,13 @@ struct Layout (gettersandsetters) {
 	spans: arr(Span);
 	text: arr(codepoint);
 	maxlen: int;
+	base_dir: FriBidiParType; --base paragraph direction of the first paragraph
 	--state
 	state: enum; --STATE_*
 	clip_valid: bool;
 	--shaping output: segments and bidi info
 	segs: arr(Seg);
 	bidi: bool; --`true` if the text is bidirectional.
-	base_dir: FriBidiParType; --base paragraph direction of the first paragraph
 	--wrap/align output: lines
 	lines: arr(Line);
 	max_ax: num; --text's maximum x-advance (equivalent to text's width).

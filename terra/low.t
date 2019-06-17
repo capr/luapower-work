@@ -886,7 +886,7 @@ lerp = macro(function(x, x0, x1, y0, y1)
 		* (([double](y1)-[double](y0)) / ([double](x1) - [double](x0)))
 end, glue.lerp)
 
---binary search for an insert position that keeps the array sorted.
+--binary search for the first insert position that keeps the array sorted.
 local less = macro(function(t, i, v) return `t[i] <  v end)
 binsearch = macro(function(v, t, lo, hi, cmp)
 	cmp = cmp or less

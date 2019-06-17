@@ -18,6 +18,8 @@ int32_t trlib_font(trlib_t*);
 void trlib_free_font(trlib_t*, int32_t);
 int32_t tr_layout_sizeof();
 void tr_layout_release(tr_layout_t*);
+void tr_layout_set_text_utf32(tr_layout_t*, uint32_t*, int32_t);
+void tr_layout_set_text_utf8(tr_layout_t*, const char *, int32_t);
 void tr_layout_free(tr_layout_t*);
 tr_layout_t* tr_layout_align(tr_layout_t*, float, float, float, float, int32_t, int32_t);
 tr_layout_t* tr_layout_wrap(tr_layout_t*, float);
@@ -56,6 +58,8 @@ ffi.metatype('trlib_t', {
 })
 ffi.metatype('tr_layout_t', {__index = {
 	release = C.tr_layout_release,
+	set_text_utf32 = C.tr_layout_set_text_utf32,
+	set_text_utf8 = C.tr_layout_set_text_utf8,
 	free = C.tr_layout_free,
 	align = C.tr_layout_align,
 	wrap = C.tr_layout_wrap,

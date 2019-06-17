@@ -7,6 +7,8 @@ setfenv(1, require'terra/tr')
 local strlen = includecstring'unsigned long long strlen (const char *str);'.strlen
 local sprintf = includecstring'int sprintf(char* str, const char* format, ...);'.sprintf
 
+do return end
+
 local font_paths_list = {
 	'../media/fonts/OpenSans-Regular.ttf',
 	'../media/fonts/Amiri-Regular.ttf',
@@ -15,13 +17,13 @@ local font_paths_list = {
 }
 local font_paths = constant(`array([font_paths_list]))
 
-terra load_font(font_id: font_id, file_data: &&opaque, file_size: &int64)
+terra load_font(font_id: int, file_data: &&opaque, file_size: &size_t)
 	var font_path = font_paths[font_id]
 	@file_data, @file_size = readfile(font_path)
 end
 
-terra unload_font(font_id: font_id, file_data: &&opaque, file_size: &int64)
-	free(@file_data)
+terra unload_font(font_id: int, file_data: &&opaque, file_size: &size_t)
+	dealloc(@file_data)
 end
 
 local numbers = {}

@@ -11,6 +11,7 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 
+require'terra/tr_layout'
 require'terra/tr_shape'
 require'terra/tr_linewrap'
 require'terra/tr_align'

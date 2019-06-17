@@ -24,17 +24,6 @@ terra Layout:release()
 	release(self)
 end
 
-terra Layout:set_text_utf32(s: &codepoint, len: int)
-	var t = &self.text
-	self.text.len = 0
-	self.text:add(s, min(self.maxlen, len))
-	self.state = 0
-end
-
-terra Layout:set_text_utf8(s: &uint8, len: int)
-
-end
-
 function build()
 	local trlib = publish'tr'
 
@@ -67,6 +56,8 @@ function build()
 		shape=1,
 		wrap=1,
 		align=1,
+		set_text_utf32=1,
+		set_text_utf8=1,
 	}, {
 		cname = 'tr_layout_t',
 		cprefix = 'tr_layout_',

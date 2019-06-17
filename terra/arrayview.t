@@ -29,8 +29,8 @@
 	v:copy(&t) -> &t                            copy to buffer
 	v:copy(&v) -> &v                            copy to view
 
+	v1 == v2                                    equality test
 	v:__cmp(&v) -> -1,0,1                       comparison function
-	v:__eq(&v) -> equal?                        equality function
 	v:__hash32(seed) -> h                       32bit hash function
 	v:__hash64(seed) -> h                       64bit hash function
 
@@ -371,6 +371,7 @@ local function view_type(T, size_t, cmp)
 			view.properties.ge = ge
 		end
 
+		--binary search for the first insert position that keeps the array sorted.
 		view.methods.binsearch = overload'binsearch'
 		view.methods.binsearch:adddefinition(
 		terra(self: &view, v: T, cmp: {&T, &T} -> bool): size_t

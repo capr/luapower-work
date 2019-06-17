@@ -177,7 +177,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		end
 
 		terra arr:set_len(len: size_t)
-			assert(len >= 0)
+			len = max(0, len)
 			self.min_capacity = len
 			if own_elements then
 				if len < self.len then --shrink
@@ -289,7 +289,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		arr.methods.insertn:adddefinition(terra(self: &arr, i: size_t, n: size_t)
 			var len = self.len
 			assert(i >= 0 and i <= len) --no gaps allowed
-			assert(n >= 0)
+			if n <= 0 then return end
 			self.len = len + n
 			var move_n = len - i
 			if move_n > 0 then --move trailing elements if any
@@ -298,7 +298,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		end)
 		arr.methods.insertn:adddefinition(terra(self: &arr, i: size_t, n: size_t, empty_val: T)
 			assert(i >= 0)
-			assert(n >= 0)
+			if n <= 0 then return end
 			var len = self.len
 			self.len = len + n
 			for i = len, i do --fill the gap, if any
@@ -345,7 +345,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		arr.methods.remove = overload'remove'
 		arr.methods.remove:adddefinition(terra(self: &arr, i: size_t, n: size_t)
 			assert(i >= 0)
-			assert(n >= 0)
+			if n <= 0 then return end
 			if own_elements then
 				for i = i, min(self.len, i+n) do
 					self:free_element(i)

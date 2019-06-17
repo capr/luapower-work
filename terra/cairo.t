@@ -39,6 +39,14 @@ cairo_argb32_color_t.metamethods.__cast = function(from, to, exp)
 	assert(false, 'invalid conversion from ', from, ' to ', to, ': ', exp)
 end
 
+cairo_argb32_color_t.metamethods.__eq = macro(function(c1, c2)
+	return `c1.uint == c2.uint
+end)
+
+cairo_argb32_color_t.metamethods.__ne = macro(function(c1, c2)
+	return not (c1 == c2)
+end)
+
 local struct cairo_color_t {
 	red:   double;
 	green: double;
@@ -67,6 +75,10 @@ cairo_color_t.metamethods.__eq = macro(function(c1, c2)
 		and c1.green == c2.green
 		and c1.blue  == c2.blue
 		and c1.alpha == c2.alpha
+end)
+
+cairo_color_t.metamethods.__ne = macro(function(c1, c2)
+	return not (c1 == c2)
 end)
 
 local cr = wrapopaque(cairo_t).methods
