@@ -104,3 +104,5 @@ end
 test()
 
 end
+
+return _M

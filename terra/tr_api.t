@@ -1,6 +1,7 @@
 
 --C/ffi API
 
+require'terra/memcheck'
 require'terra/tr_paint_cairo'
 setfenv(1, require'terra/tr')
 
@@ -30,23 +31,37 @@ function build()
 	trlib(tr_renderer_sizeof)
 	trlib(tr_renderer_new)
 
+	if memtotal then
+		trlib(memtotal)
+		trlib(memreport)
+	end
+
 	trlib(Renderer, {
 		init=1,
 		free=1,
 		release=1,
 
+		get_glyph_run_cache_max_size=1,
+		set_glyph_run_cache_max_size=1,
 		get_glyph_run_cache_size=1,
-		set_glyph_run_cache_size=1,
+		get_glyph_run_cache_count=1,
+
+		get_glyph_cache_max_size=1,
+		set_glyph_cache_max_size=1,
 		get_glyph_cache_size=1,
-		set_glyph_cache_size=1,
+		get_glyph_cache_count=1,
 
 		font=1,
 		free_font=1,
 
 		layout=1, --must call layout:release() if created this way!
+
+		get_paint_glyph_num=1,
+		set_paint_glyph_num=1,
+
 	}, {
-		cname = 'trlib_t',
-		cprefix = 'trlib_',
+		cname = 'tr_renderer_t',
+		cprefix = 'tr_renderer_',
 		opaque = true,
 	})
 
@@ -60,6 +75,8 @@ function build()
 		shape=1,
 		wrap=1,
 		align=1,
+		clip=1,
+		paint=1,
 
 		get_text=1,
 		get_text_len=1,

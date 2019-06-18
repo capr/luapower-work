@@ -44,21 +44,15 @@ terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	self:init_ub_lang()
 end
 
-terra Renderer:get_glyph_run_cache_size()
-	return self.glyph_runs.max_size
-end
+terra Renderer:get_glyph_run_cache_max_size() return self.glyph_runs.max_size end
+terra Renderer:set_glyph_run_cache_max_size(size: int) self.glyph_runs.max_size = size end
+terra Renderer:get_glyph_run_cache_size() return self.glyph_runs.size end
+terra Renderer:get_glyph_run_cache_count() return self.glyph_runs.count end
 
-terra Renderer:set_glyph_run_cache_size(size: int)
-	self.glyph_runs.max_size = size
-end
-
-terra Renderer:get_glyph_cache_size()
-	return self.glyphs.max_size
-end
-
-terra Renderer:set_glyph_cache_size(size: int)
-	self.glyphs.max_size = size
-end
+terra Renderer:get_glyph_cache_max_size() return self.glyphs.max_size end
+terra Renderer:set_glyph_cache_max_size(size: int) self.glyphs.max_size = size end
+terra Renderer:get_glyph_cache_size() return self.glyphs.size end
+terra Renderer:get_glyph_cache_count() return self.glyphs.count end
 
 terra Renderer:free()
 	self.glyphs          :free()
@@ -99,5 +93,9 @@ terra Renderer:free_font(font_id: int)
 	assert(self.fonts:at(font_id).refcount == 0)
 	self.fonts:release(font_id)
 end
+
+terra Renderer:get_paint_glyph_num() return self.paint_glyph_num end
+terra Renderer:set_paint_glyph_num(n: int) self.paint_glyph_num = n end
+
 
 return _M

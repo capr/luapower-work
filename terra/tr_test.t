@@ -42,7 +42,6 @@ local texts_list = {
 }
 local texts = constant(`array([texts_list]))
 
-
 local font_paths_count = #font_paths_list
 local texts_count = #texts_list
 local paint_times = 1

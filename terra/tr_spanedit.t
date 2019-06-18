@@ -52,12 +52,15 @@ end
 local terra cmp_spans_after(s1: &Span, s2: &Span)
 	return s1.offset <= s2.offset  -- < < = = [>] >
 end
-terra Layout:find_span(offset: int)
+terra Layout:find_span(offset: int) --always returns a valid span index
 	offset = max(0, offset)
 	return self.spans:binsearch(Span{offset = offset}, cmp_spans_after) - 1
 end
 
 terra Layout:split_spans(offset: int)
+	if offset >= self.text.len then
+		return self.spans.len --return one-outside-range index
+	end
 	var i = self:find_span(offset)
 	var s = self.spans:at(i)
 	if s.offset < offset then
@@ -140,25 +143,25 @@ terra Span:save_lang(layout: &Layout, out: &rawstring)
 end
 
 local config = {
-	font_id           = {int},
-	font_size         = {double},
-	features          = {rawstring},
-	script            = {},
-	lang              = {rawstring},
-	dir               = {int},
-	line_spacing      = {double},
-	hardline_spacing  = {double},
-	paragraph_spacing = {double},
-	nowrap            = {bool},
-	color             = {uint32},
-	opacity           = {double},
-	operator          = {enum},
+	font_id           = {int       , 0},
+	font_size         = {double    , 0},
+	features          = {rawstring , 0},
+	script            = {int       , 0},
+	lang              = {rawstring , 0},
+	dir               = {int       , 0},
+	line_spacing      = {double    , STATE_WRAPPED},
+	hardline_spacing  = {double    , STATE_WRAPPED},
+	paragraph_spacing = {double    , STATE_WRAPPED},
+	nowrap            = {bool      , STATE_SHAPED},
+	color             = {uint32    , STATE_ALIGNED},
+	opacity           = {double    , STATE_ALIGNED},
+	operator          = {enum      , STATE_ALIGNED},
 }
 
 --generate getters and setters for each text attr that can be set on an offset range.
 for i,FIELD in ipairs(FIELDS) do
 
-	local T = unpack(config[FIELD])
+	local T, MAX_STATE = unpack(config[FIELD])
 	T = T or Span:getfield(FIELD).type
 
 	local SAVE = Span:getmethod('save_'..FIELD)
@@ -191,6 +194,7 @@ for i,FIELD in ipairs(FIELDS) do
 			LOAD(span, self, val)
 		end
 		self:remove_duplicate_spans(i1-1, i2+1)
+		self.state = min(self.state, MAX_STATE)
 	end
 
 end

@@ -214,6 +214,7 @@ struct Line {
 	visible: bool; --entirely clipped or not
 }
 
+--NOTE: the initial not-even-shaped state is 0.
 STATE_SHAPED  = 1
 STATE_WRAPPED = 2
 STATE_ALIGNED = 3
@@ -263,6 +264,7 @@ terra Layout:init(r: &Renderer)
 	self.maxlen = maxint
 	self.base_dir = DIR_AUTO
 	self.r = r
+	self.spans:add([Span.empty])
 end
 
 --glyph run type -------------------------------------------------------------

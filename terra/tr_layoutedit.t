@@ -50,7 +50,8 @@ terra Layout:text_from_utf8(s: rawstring, len: int)
 	if len < 0 then
 		len = strnlen(s, self.maxlen)
 	end
-	utf8.decode.toarr(s, len, &self.text, self.maxlen, utf8.REPLACE, utf8.INVALID)
+	utf8.decode.toarr(s, len, &self.text,
+		self.maxlen, utf8.REPLACE, utf8.INVALID)
 	self:text_changed()
 end
 
