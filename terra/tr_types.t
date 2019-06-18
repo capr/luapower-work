@@ -118,14 +118,11 @@ FontLoadFunc.cname = 'tr_font_load_func'
 
 --layout type ----------------------------------------------------------------
 
-FeaturesArray = arr(hb_feature_t)
-
 struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
 	font_id: font_id_t;
 	font_size_16_6: uint16;
-	features: FeaturesArray;
-	features_string: arr(char);
+	features: arr(hb_feature_t);
 	script: hb_script_t;
 	lang: hb_language_t;
 	dir: FriBidiParType; --bidi direction for current and subsequent paragraphs.
@@ -143,7 +140,7 @@ Span.empty = `Span {
 	offset = 0;
 	font_id = -1;
 	font_size_16_6 = 0;
-	features = [FeaturesArray.empty];
+	features = [arr(hb_feature_t).empty];
 	script = 0;
 	lang = nil;
 	dir = DIR_AUTO;
@@ -428,6 +425,7 @@ struct Renderer (gettersandsetters) {
 	carets_buffer:   arr(hb_position_t);
 	substack:        arr(SubSeg);
 	ranges:          RangesFreelist;
+	sbuf:            arr(char);
 
 	--constants that neeed to be initialized at runtime.
 	HB_LANGUAGE_EN: hb_language_t;

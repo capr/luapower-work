@@ -102,34 +102,25 @@ terra Layout:get_span_common_values(offset1: int, offset2: int)
 	return s, mask
 end
 
---[[
-terra Span:_features_tostring()
-	if self.features.len > 0 and self.features_string.len == 0 then
+terra Span:load_features(layout: &Layout, s: rawstring)
+
+	--
+end
+
+terra Span:save_features(layout: &Layout, out: &rawstring)
+	var sbuf = &layout.r.sbuf
+	sbuf.len = 0
+	if self.features.len > 0 then
 		--
 	end
-	s.features_string:add(0)
-	return s.features_string.elements
+	sbuf:add(0)
+	@out = sbuf.elements
 end
-
-terra Span:_features_fromstring(s: rawstring)
-	--
-	self.features_string.len = 0
-	return self.features
-end
-]]
-
-Span.methods._load_field = macro(function(self, field, val)
-	return quote field = val end
-end)
-
-Span.methods._save_field = macro(function(self, field, out)
-	return quote @out = @field end
-end)
 
 local config = {
 	font_id           = {int},
 	font_size         = {double},
-	features          = {rawstring},
+	features          = {rawstring, 'load_features', 'save_features'},
 	script            = {},
 	lang              = {},
 	dir               = {int},
@@ -145,10 +136,11 @@ local config = {
 --generate getters and setters for each text attr that can be set on an offset range.
 for i,FIELD in ipairs(FIELDS) do
 
-	local T, LOAD, SAVE = unpack(config[FIELD])
+	local T = unpack(config[FIELD])
 	T = T or Span:getfield(FIELD).type
-	LOAD = LOAD or '_load_field'
-	SAVE = SAVE or '_save_field'
+
+	local SAVE = Span:getmethod('save_'..FIELD)
+		or macro(function(self, layout, out) return quote @out = self.[FIELD] end end)
 
 	Layout.methods['get_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: &T)
 		if offset1 > offset2 then
@@ -156,12 +148,15 @@ for i,FIELD in ipairs(FIELDS) do
 		end
 		var span, mask = self:get_span_common_values(offset1, offset2)
 		if hasbit(mask, [BIT(i)]) then
-			span:[SAVE](span.[FIELD], val)
+			SAVE(span, self, val)
 			return true
 		else
 			return false
 		end
 	end
+
+	local LOAD = Span:getmethod('load_'..FIELD)
+		or macro(function(self, layout, val) return quote self.[FIELD] = val end end)
 
 	Layout.methods['set_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: T)
 		if offset1 > offset2 then
@@ -171,7 +166,7 @@ for i,FIELD in ipairs(FIELDS) do
 		var i2 = self:split_spans(offset2)
 		for i = i1, i2 do
 			var span = self.spans:at(i)
-			span:[LOAD](span.[FIELD], val)
+			LOAD(span, self, val)
 		end
 		self:remove_duplicate_spans(i1-1, i2+1)
 	end
