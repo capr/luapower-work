@@ -20,14 +20,32 @@ terra Layout:text_changed()
 	end
 end
 
-terra Layout:set_text_utf32(s: &codepoint, len: int)
+terra Layout:get_text_len()
+	return self.text.len
+end
+
+terra Layout:get_text()
+	return self.text.elements
+end
+
+terra Layout:set_text(s: &codepoint, len: int)
 	self.state = 0
 	self.text.len = 0
 	self.text:add(s, min(self.maxlen, len))
 	self:text_changed()
 end
 
-terra Layout:set_text_utf8(s: rawstring, len: int)
+terra Layout:text_to_utf8(out: rawstring)
+	if out == nil then --out buffer size requested
+		return utf8.encode.count(self.text.elements, self.text.len,
+			maxint, utf8.REPLACE, utf8.INVALID)._0
+	else
+		return utf8.encode.tobuffer(self.text.elements, self.text.len, out,
+			maxint, utf8.REPLACE, utf8.INVALID)._0
+	end
+end
+
+terra Layout:text_from_utf8(s: rawstring, len: int)
 	self.state = 0
 	if len < 0 then
 		len = strnlen(s, self.maxlen)

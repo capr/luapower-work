@@ -61,8 +61,18 @@ function build()
 		wrap=1,
 		align=1,
 
-		set_text_utf32=1,
-		set_text_utf8=1,
+		get_text=1,
+		get_text_len=1,
+		set_text=1,
+
+		text_to_utf8=1,
+		text_from_utf8=1,
+
+		get_maxlen=1,
+		set_maxlen=1,
+
+		get_base_dir=1,
+		set_base_dir=1,
 
 		get_font_id           =1,
 		get_font_size         =1,
@@ -97,6 +107,8 @@ function build()
 		cprefix = 'tr_layout_',
 		opaque = true,
 	})
+
+	trlib:getenums(_M, nil, 'TR_')
 
 	trlib:build{
 		linkto = {'cairo', 'freetype', 'harfbuzz', 'fribidi', 'unibreak', 'xxhash'},

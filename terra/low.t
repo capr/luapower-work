@@ -1478,12 +1478,13 @@ function publish(modulename)
 
 	self.__call = self.publish
 
-	function self:getenums(moduletable, match)
+	function self:getenums(moduletable, match, prefix)
+		prefix = prefix or ''
 		for k,v in pairs(moduletable) do
 			if type(k) == 'string' and type(v) == 'number' and k:upper() == k
 				and (not match or k:find(match))
 			then
-				enums[k] = v
+				enums[prefix..k] = v
 			end
 		end
 	end
