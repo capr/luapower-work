@@ -22,9 +22,6 @@
 	a:free()                                    free the elements and free the array
 	a:setcapacity(n) -> ok?                     `a.capacity = n` with error checking
 
-	var a = A(rawstring|'string constant')      cast from C string
-	a:fromrawstring(rawstring)                  init with C string
-
 	a.view                                      (read/only) arr's arrayview
 	a.elements                                  (read/only) array elements
 	a.len                                       (read/write) array length
@@ -55,7 +52,7 @@
 	a:insert(i,&v)                              insert arrayview at i
 	a:insert(i,&a)                              insert dynarray at i
 	a:remove() -> i                             free & remove top element
-	a:remove(i,[n])                             free & remove n elements starting at i
+	a:remove(i[,n]) -> n                        free & remove n elements starting at i
 	a:remove(&t) -> i                           free & remove element at address
 
 	a:copy() -> &a                              copy to new array
@@ -88,9 +85,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 
 	function arr.metamethods.__cast(from, to, exp)
 		if to == arr then
-			if T == int8 and from == rawstring then
-				return quote var a = arr(nil); a:fromrawstring(exp) in a end
-			elseif from == niltype then
+			if from == niltype then
 				return arr.empty
 			elseif from == view then
 				return quote var a = arr(nil); a:add(v) in a end
@@ -204,15 +199,6 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 
 		terra arr:set_min_len(len: size_t)
 			self.len = max(len, self.len)
-		end
-
-		if view:getmethod'onrawstring' then
-			terra arr:fromrawstring(s: rawstring)
-				var v = view(s)
-				self.len = v.len
-				v:copy(self.elements)
-				return self
-			end
 		end
 
 		--setting, pushing and popping elements
@@ -345,7 +331,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		arr.methods.remove = overload'remove'
 		arr.methods.remove:adddefinition(terra(self: &arr, i: size_t, n: size_t)
 			assert(i >= 0)
-			if n <= 0 then return end
+			if n <= 0 then return 0 end
 			if own_elements then
 				for i = i, min(self.len, i+n) do
 					self:free_element(i)
@@ -355,10 +341,12 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			if move_n > 0 then
 				copy(self.elements + i, self.elements + i + n, move_n)
 			end
-			self.view.len = self.len - min(n, self.len-i)
+			var n = min(n, self.len - i)
+			self.view.len = self.len - n
+			return n
 		end)
 		arr.methods.remove:adddefinition(terra(self: &arr, i: size_t)
-			self:remove(i, 1)
+			return self:remove(i, 1)
 		end)
 		arr.methods.remove:adddefinition(terra(self: &arr)
 			var i = self.len-1; self:remove(i, 1); return i

@@ -14,8 +14,6 @@
 	var v = V{elements,len}                     field order is part of the API
 	var v = V{elements=,len=}                   fields are part of the API
 
-	var s = V(rawstring|'string constant')      cast from C string
-	v:onrawstring(rawstring) -> &v              init with C string
 	v.elements, v.len                           fields are part of the API
 
 	v:index(i[,default]) -> i|default           valid positive index
@@ -72,16 +70,7 @@ local function view_type(T, size_t, cmp)
 	view.T = T
 	view.empty = `view{elements = nil, len = 0}
 
-	function view.metamethods.__cast(from, to, exp)
-		if to == view then
-			if from == niltype then
-				return view.empty
-			elseif T == int8 and from == rawstring then
-				return quote var v = view(nil); v:onrawstring(exp) in v end
-			end
-		end
-		assert(false, 'invalid cast from ', from, ' to ', to, ': ', exp)
-	end
+	newcast(view, niltype, function(exp) return view.empty end)
 
 	--debugging
 
@@ -124,17 +113,6 @@ local function view_type(T, size_t, cmp)
 	end
 
 	addmethods(view, function()
-
-		--storage
-
-		--initialize with a null-terminated string
-		if &T == rawstring then
-			terra view:onrawstring(s: rawstring)
-				self.len = strnlen(s, [size_t:max()]-1)
-				self.elements = s
-				return self
-			end
-		end
 
 		--bounds-checked access
 

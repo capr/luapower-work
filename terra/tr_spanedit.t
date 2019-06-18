@@ -1,11 +1,10 @@
 
---get/set Span attributes between arbitrary text offsets.
+--get/set Span attributes between two arbitrary text offsets.
 
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
-
---whole text properties ------------------------------------------------------
+require'terra/rawstringview'
 
 local FIELDS = {
 	'font_id',
@@ -35,14 +34,14 @@ local hasbit = macro(function(mask, bit)
 	return `(mask and bit) ~= 0
 end)
 
---compare s<->d and return a bitmask with bits for the fields that differ.
-terra Layout:_spans_inequality_mask(d: &Span, s: &Span)
+--compare s<->d and return a bitmask showing which field values are the same.
+terra Layout:compare_spans(d: &Span, s: &Span)
 	var mask = 0
 	escape
 		for i,FIELD in ipairs(FIELDS) do
 			emit quote
-				if d.[FIELD] ~= s.[FIELD] then
-					mask = mask + [BIT(i)]
+				if d.[FIELD] == s.[FIELD] then
+					mask = mask or [BIT(i)]
 				end
 			end
 		end
@@ -79,7 +78,7 @@ terra Layout:remove_duplicate_spans(i1: int, i2: int)
 	var i = i2 - 1
 	while i >= i1 do
 		var d = self.spans:at(i)
-		if self:_spans_inequality_mask(d, s) == 0 then
+		if self:compare_spans(d, s) == BIT_ALL then
 			self.spans:remove(i+1)
 		end
 		s = d
@@ -87,7 +86,7 @@ terra Layout:remove_duplicate_spans(i1: int, i2: int)
 	end
 end
 
---get the span with a bitmask for values that are the same for an offset range.
+--get a span and a bitmask showing which values are the same for an offset range.
 terra Layout:get_span_common_values(offset1: int, offset2: int)
 	var mask = BIT_ALL --presume all field values are equal
 	var i = self:find_span(offset1)
@@ -96,33 +95,56 @@ terra Layout:get_span_common_values(offset1: int, offset2: int)
 		var i2 = self:find_span(offset2-1)+1
 		for i = i+1, i2 do
 			var d = self.spans:at(i)
-			mask = mask - self:_spans_inequality_mask(s, d)
+			mask = mask and self:compare_spans(s, d)
 		end
 	end
 	return s, mask
 end
 
 terra Span:load_features(layout: &Layout, s: rawstring)
-
-	--
+	self.features.len = 0
+	var sview = rawstringview(s)
+	var j = 0
+	var gs = sview:gsplit' '
+	for i,len in gs do
+		var feat: hb_feature_t
+		if hb_feature_from_string(sview:at(i), len, &feat) ~= 0 then
+			self.features:add(feat)
+		end
+	end
 end
 
 terra Span:save_features(layout: &Layout, out: &rawstring)
 	var sbuf = &layout.r.sbuf
 	sbuf.len = 0
-	if self.features.len > 0 then
-		--
+	for i,feat in self.features do
+		sbuf.min_capacity = sbuf.len + 128
+		var p = sbuf:at(sbuf.len)
+		hb_feature_to_string(feat, p, 128)
+		var n = strnlen(p, 128)
+		sbuf.len = sbuf.len + n
+		if i < self.features.len-1 then
+			sbuf:add(32) --space char
+		end
 	end
-	sbuf:add(0)
+	sbuf:add(0) --null-terminate
 	@out = sbuf.elements
+end
+
+terra Span:load_lang(layout: &Layout, s: rawstring)
+	self.lang = hb_language_from_string(s, -1)
+end
+
+terra Span:save_lang(layout: &Layout, out: &rawstring)
+	@out = hb_language_to_string(self.lang)
 end
 
 local config = {
 	font_id           = {int},
 	font_size         = {double},
-	features          = {rawstring, 'load_features', 'save_features'},
+	features          = {rawstring},
 	script            = {},
-	lang              = {},
+	lang              = {rawstring},
 	dir               = {int},
 	line_spacing      = {double},
 	hardline_spacing  = {double},

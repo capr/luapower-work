@@ -19,7 +19,8 @@ terra test()
 	var v2 = v:sub(0, v.len)
 	v:sort()
 	v:reverse()
-	for i,v in v2:backwards() do
+	var bk = v2:backwards()
+	for i,v in bk do
 		fprintf(stdout(), '%d ', @v)
 	end
 	print()

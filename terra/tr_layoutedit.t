@@ -4,12 +4,27 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
+require'terra/tr_spanedit'
 require'terra/utf8'
+
+terra Layout:text_changed()
+	var i = self.spans.len-1
+	while i >= 0 do
+		var s = self.spans:at(i)
+		if s.offset < self.text.len then
+			break
+		end
+	end
+	if self.spans:remove(i+1, maxint) > 0 then
+		self.state = 0
+	end
+end
 
 terra Layout:set_text_utf32(s: &codepoint, len: int)
 	self.state = 0
 	self.text.len = 0
 	self.text:add(s, min(self.maxlen, len))
+	self:text_changed()
 end
 
 terra Layout:set_text_utf8(s: rawstring, len: int)
@@ -18,6 +33,7 @@ terra Layout:set_text_utf8(s: rawstring, len: int)
 		len = strnlen(s, self.maxlen)
 	end
 	utf8.decode.toarr(s, len, &self.text, self.maxlen, utf8.REPLACE, utf8.INVALID)
+	self:text_changed()
 end
 
 terra Layout:get_maxlen(v: int)
@@ -28,7 +44,7 @@ terra Layout:set_maxlen(v: int)
 	self.maxlen = v
 	if self.text.len > v then --truncate the text
 		self.text.len = v
-		self.state = 0
+		self:text_changed()
 	end
 end
 
@@ -49,4 +65,3 @@ terra Layout:set_base_dir(v: FriBidiParType)
 		self.state = 0
 	end
 end
-

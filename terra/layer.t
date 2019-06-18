@@ -1,6 +1,6 @@
 --[[
 
-	HTML-like box-model layouting and rendering engine with a C API.
+	HTML-like box-model layouting and rendering engine in Terra with a C API.
 	Written by Cosmin Apreutesei. Public Domain.
 
 	Uses cairo for path filling, stroking, clipping, masking and blending.

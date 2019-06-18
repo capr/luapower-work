@@ -702,6 +702,8 @@ enum {
 	SEEK_SET = 0,
 };
 
+int    printf (const char*, ...);
+
 int    fprintf (FILE*, const char*, ...);
 int    fflush  (FILE*);
 FILE*  fopen   (const char*, const char*);

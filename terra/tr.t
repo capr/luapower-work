@@ -1,11 +1,14 @@
+--[[
 
---Text shaping & rendering engine for Terra.
---Written by Cosmin Apreutesei. Public Domain.
+	Text shaping & rendering engine in Terra with a C API.
+	Written by Cosmin Apreutesei. Public Domain.
 
---This is a port of github.com/luapower/tr which was written in Lua.
---Leverages harfbuzz, freetype, fribidi and libunibreak.
---Scaling and blitting a raster image onto another is out of the scope of
---the library. A module for doing that with cairo is included separately.
+	This is a port of github.com/luapower/tr which was written in Lua.
+	Leverages harfbuzz, freetype, fribidi and libunibreak.
+	Scaling and blitting a raster image onto another is out of the scope of
+	the library. A module for doing that with cairo is included separately.
+
+]]
 
 if not ... then require'terra/tr_test'; return end
 
