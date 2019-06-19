@@ -1,4 +1,4 @@
-
+jit.off(true, true)
 local ffi = require'ffi'
 local clock = require'time'.clock
 local nw = require'nw'
@@ -12,15 +12,16 @@ local font_idx = {} --{font_id->font_i}
 local font_ids = {} --{font_i->font_id}
 
 local font_paths = {
-	'media/fonts/OpenSans-Regular.ttf',
-	'media/fonts/Amiri-Regular.ttf',
-	'media/fonts/Amiri-Bold.ttf',
+	--'media/fonts/OpenSans-Regular.ttf',
+	--'media/fonts/Amiri-Regular.ttf',
+	--'media/fonts/Amiri-Bold.ttf',
 	'media/fonts/FSEX300.ttf',
 }
 
 local font_data = {} --{font_i->data}
 
 local function load_font(font_id, file_data, file_size)
+	assert(false)
 	local font_i = assert(font_idx[font_id])
 	local font_path = assert(font_paths[font_i])
 	local s = assert(readfile(font_path))
@@ -32,8 +33,6 @@ end
 local function unload_font(font_id, file_data, file_size)
 	local font_i = assert(font_idx[font_id])
 	font_data[font_i] = nil --unpin it
-	file_data[0] = nil
-	file_size[0] = 0
 end
 
 local r = C.tr_renderer_new(load_font, unload_font)
@@ -70,13 +69,11 @@ local function make_layouts()
 			local text = texts[text_i]
 			layout:text_from_utf8(text, #text)
 
-			local N = 2^31-1
-			layout:set_font_id(0, N, font_id)
-			layout:set_font_size(0, N, 15)
-			layout:set_color(0, N, 0xffffffff)
+			layout:set_font_id   (0, -1, font_id)
+			layout:set_font_size (0, -1, 15)
+			layout:set_color     (0, -1, 0xffffffff)
 
 			--probe'start'
-
 			layout:shape()
 		end
 	end

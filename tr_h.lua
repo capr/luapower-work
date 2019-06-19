@@ -42,32 +42,32 @@ void tr_layout_set_base_dir(tr_layout_t*, uint32_t);
 tr_layout_t* tr_layout_wrap(tr_layout_t*, float);
 void tr_layout_paint(tr_layout_t*, _cairo*);
 void tr_layout_shape(tr_layout_t*);
-bool tr_layout_get_features(tr_layout_t*, int32_t, int32_t, const char **);
-bool tr_layout_get_opacity(tr_layout_t*, int32_t, int32_t, double*);
-bool tr_layout_get_font_size(tr_layout_t*, int32_t, int32_t, double*);
-bool tr_layout_get_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double*);
-bool tr_layout_get_color(tr_layout_t*, int32_t, int32_t, uint32_t*);
 bool tr_layout_get_dir(tr_layout_t*, int32_t, int32_t, int32_t*);
-bool tr_layout_get_lang(tr_layout_t*, int32_t, int32_t, const char **);
+bool tr_layout_get_color(tr_layout_t*, int32_t, int32_t, uint32_t*);
+bool tr_layout_get_opacity(tr_layout_t*, int32_t, int32_t, double*);
 bool tr_layout_get_operator(tr_layout_t*, int32_t, int32_t, const char *);
-bool tr_layout_get_font_id(tr_layout_t*, int32_t, int32_t, int32_t*);
-bool tr_layout_get_line_spacing(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_font_size(tr_layout_t*, int32_t, int32_t, double*);
 bool tr_layout_get_script(tr_layout_t*, int32_t, int32_t, int32_t*);
-bool tr_layout_get_hardline_spacing(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double*);
 bool tr_layout_get_nowrap(tr_layout_t*, int32_t, int32_t, bool*);
-void tr_layout_set_lang(tr_layout_t*, int32_t, int32_t, const char *);
-void tr_layout_set_line_spacing(tr_layout_t*, int32_t, int32_t, double);
-void tr_layout_set_hardline_spacing(tr_layout_t*, int32_t, int32_t, double);
-void tr_layout_set_nowrap(tr_layout_t*, int32_t, int32_t, bool);
-void tr_layout_set_opacity(tr_layout_t*, int32_t, int32_t, double);
-void tr_layout_set_color(tr_layout_t*, int32_t, int32_t, uint32_t);
-void tr_layout_set_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double);
-void tr_layout_set_font_id(tr_layout_t*, int32_t, int32_t, int32_t);
-void tr_layout_set_operator(tr_layout_t*, int32_t, int32_t, int8_t);
-void tr_layout_set_dir(tr_layout_t*, int32_t, int32_t, int32_t);
+bool tr_layout_get_features(tr_layout_t*, int32_t, int32_t, const char **);
+bool tr_layout_get_font_id(tr_layout_t*, int32_t, int32_t, int32_t*);
+bool tr_layout_get_lang(tr_layout_t*, int32_t, int32_t, const char **);
+bool tr_layout_get_line_spacing(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_hardline_spacing(tr_layout_t*, int32_t, int32_t, double*);
 void tr_layout_set_features(tr_layout_t*, int32_t, int32_t, const char *);
-void tr_layout_set_font_size(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_opacity(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_nowrap(tr_layout_t*, int32_t, int32_t, bool);
+void tr_layout_set_dir(tr_layout_t*, int32_t, int32_t, int32_t);
+void tr_layout_set_operator(tr_layout_t*, int32_t, int32_t, int8_t);
+void tr_layout_set_line_spacing(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_font_id(tr_layout_t*, int32_t, int32_t, int32_t);
+void tr_layout_set_color(tr_layout_t*, int32_t, int32_t, uint32_t);
+void tr_layout_set_lang(tr_layout_t*, int32_t, int32_t, const char *);
 void tr_layout_set_script(tr_layout_t*, int32_t, int32_t, int32_t);
+void tr_layout_set_hardline_spacing(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_font_size(tr_layout_t*, int32_t, int32_t, double);
 void tr_layout_init(tr_layout_t*, tr_renderer_t*);
 ]]
 local getters = {
@@ -127,32 +127,32 @@ local methods = {
 	wrap = C.tr_layout_wrap,
 	paint = C.tr_layout_paint,
 	shape = C.tr_layout_shape,
-	get_features = C.tr_layout_get_features,
-	get_opacity = C.tr_layout_get_opacity,
-	get_font_size = C.tr_layout_get_font_size,
-	get_paragraph_spacing = C.tr_layout_get_paragraph_spacing,
-	get_color = C.tr_layout_get_color,
 	get_dir = C.tr_layout_get_dir,
-	get_lang = C.tr_layout_get_lang,
+	get_color = C.tr_layout_get_color,
+	get_opacity = C.tr_layout_get_opacity,
 	get_operator = C.tr_layout_get_operator,
-	get_font_id = C.tr_layout_get_font_id,
-	get_line_spacing = C.tr_layout_get_line_spacing,
+	get_font_size = C.tr_layout_get_font_size,
 	get_script = C.tr_layout_get_script,
-	get_hardline_spacing = C.tr_layout_get_hardline_spacing,
+	get_paragraph_spacing = C.tr_layout_get_paragraph_spacing,
 	get_nowrap = C.tr_layout_get_nowrap,
-	set_lang = C.tr_layout_set_lang,
-	set_line_spacing = C.tr_layout_set_line_spacing,
-	set_hardline_spacing = C.tr_layout_set_hardline_spacing,
-	set_nowrap = C.tr_layout_set_nowrap,
-	set_opacity = C.tr_layout_set_opacity,
-	set_color = C.tr_layout_set_color,
-	set_paragraph_spacing = C.tr_layout_set_paragraph_spacing,
-	set_font_id = C.tr_layout_set_font_id,
-	set_operator = C.tr_layout_set_operator,
-	set_dir = C.tr_layout_set_dir,
+	get_features = C.tr_layout_get_features,
+	get_font_id = C.tr_layout_get_font_id,
+	get_lang = C.tr_layout_get_lang,
+	get_line_spacing = C.tr_layout_get_line_spacing,
+	get_hardline_spacing = C.tr_layout_get_hardline_spacing,
 	set_features = C.tr_layout_set_features,
-	set_font_size = C.tr_layout_set_font_size,
+	set_opacity = C.tr_layout_set_opacity,
+	set_nowrap = C.tr_layout_set_nowrap,
+	set_dir = C.tr_layout_set_dir,
+	set_operator = C.tr_layout_set_operator,
+	set_line_spacing = C.tr_layout_set_line_spacing,
+	set_font_id = C.tr_layout_set_font_id,
+	set_color = C.tr_layout_set_color,
+	set_lang = C.tr_layout_set_lang,
 	set_script = C.tr_layout_set_script,
+	set_hardline_spacing = C.tr_layout_set_hardline_spacing,
+	set_paragraph_spacing = C.tr_layout_set_paragraph_spacing,
+	set_font_size = C.tr_layout_set_font_size,
 	init = C.tr_layout_init,
 }
 ffi.metatype('tr_layout_t', {

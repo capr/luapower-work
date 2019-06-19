@@ -142,6 +142,13 @@ terra Span:save_lang(layout: &Layout, out: &rawstring)
 	@out = hb_language_to_string(self.lang)
 end
 
+terra Layout:offset_args(o1: int, o2: int)
+	if o1 < 0 then o1 = self.text.len + o1 + 1 end
+	if o2 < 0 then o2 = self.text.len + o2 + 1 end
+	if o1 > o2 then o1, o2 = o2, o1 end
+	return o1, o2
+end
+
 local config = {
 	font_id           = {int       , 0},
 	font_size         = {double    , 0},
@@ -168,9 +175,7 @@ for i,FIELD in ipairs(FIELDS) do
 		or macro(function(self, layout, out) return quote @out = self.[FIELD] end end)
 
 	Layout.methods['get_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: &T)
-		if offset1 > offset2 then
-			offset1, offset2 = offset2, offset1
-		end
+		offset1, offset2 = self:offset_args(offset1, offset2)
 		var span, mask = self:get_span_common_values(offset1, offset2)
 		if hasbit(mask, [BIT(i)]) then
 			SAVE(span, self, val)
@@ -184,9 +189,7 @@ for i,FIELD in ipairs(FIELDS) do
 		or macro(function(self, layout, val) return quote self.[FIELD] = val end end)
 
 	Layout.methods['set_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: T)
-		if offset1 > offset2 then
-			offset1, offset2 = offset2, offset1
-		end
+		offset1, offset2 = self:offset_args(offset1, offset2)
 		var i1 = self:split_spans(offset1)
 		var i2 = self:split_spans(offset2)
 		for i = i1, i2 do

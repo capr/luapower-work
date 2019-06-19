@@ -22,7 +22,11 @@ end
 terra Font:ref()
 	if self.refcount == 0 then
 
-		self.r.load_font(self.id, &self.file_data, &self.file_size)
+		--self.r.load_font(self.id, &self.file_data, &self.file_size)
+		self.file_data, self.file_size = readfile('media/fonts/OpenSans-Regular.ttf')
+		assert(self.file_data ~= nil)
+		print(self.file_data, self.file_size)
+
 		if self.file_data == nil then goto fail end
 
 		if FT_New_Memory_Face(self.r.ft_lib,
@@ -57,7 +61,7 @@ terra Font:free()
 		self.ft_face = nil
 	end
 	if self.file_data ~= nil then
-		self.r.unload_font(self.id, &self.file_data, &self.file_size)
+		--self.r.unload_font(self.id, &self.file_data, &self.file_size)
 		self.file_data = nil
 	end
 end
