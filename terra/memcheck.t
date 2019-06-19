@@ -29,6 +29,7 @@ local terra checkalloc(p: &opaque, oldp: &opaque, len: int64, sz: size_t, elemen
 		var m = memmap:at(oldp) --reports double-free
 		if len > 0 then --realloc
 			if p ~= oldp then --rellocated
+				--pfn('realloc %s %d', element_type, len)
 				dec(total, m:size())
 				memmap:remove(oldp)
 				goto new

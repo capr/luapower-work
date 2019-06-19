@@ -93,18 +93,7 @@ local methods = {
 	free_font = C.tr_renderer_free_font,
 }
 ffi.metatype('tr_renderer_t', {
-	__index = function(self, k)
-		local getter = getters[k]
-		if getter then return getter(self) end
-		return methods[k]
-	end,
-	__newindex = function(self, k, v)
-		local setter = setters[k]
-		if not setter then
-			error(('field not found: %s'):format(tostring(k)), 2)
-		end
-		setter(self, v)
-	end,
+	__index = methods,
 })
 local getters = {
 	text_len = C.tr_layout_get_text_len,
@@ -156,18 +145,7 @@ local methods = {
 	init = C.tr_layout_init,
 }
 ffi.metatype('tr_layout_t', {
-	__index = function(self, k)
-		local getter = getters[k]
-		if getter then return getter(self) end
-		return methods[k]
-	end,
-	__newindex = function(self, k, v)
-		local setter = setters[k]
-		if not setter then
-			error(('field not found: %s'):format(tostring(k)), 2)
-		end
-		setter(self, v)
-	end,
+	__index = methods,
 })
 ffi.cdef[[
 enum {

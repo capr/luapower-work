@@ -26,7 +26,7 @@ terra GlyphRun:free(r: &Renderer)
 end
 
 terra GlyphRun:shape(r: &Renderer)
-	var font = r.fonts:at(self.font_id)
+var font = r.fonts:at(self.font_id)
 	if not font:ref() then return false end
 	font:setsize(self.font_size)
 
@@ -44,8 +44,9 @@ terra GlyphRun:shape(r: &Renderer)
 	hb_buffer_set_script(hb_buf, self.script)
 	hb_buffer_set_language(hb_buf, self.lang)
 	hb_buffer_add_codepoints(hb_buf, self.text.elements, self.text.len, 0, self.text.len)
+	--print('shaping', font.hb_font, hb_buf, self.features.elements, self.features.len)
 	hb_shape(font.hb_font, hb_buf, self.features.elements, self.features.len)
-
+	--print'shaped'
 	var len: uint32
 	var info = hb_buffer_get_glyph_infos(hb_buf, &len)
 	var pos  = hb_buffer_get_glyph_positions(hb_buf, &len)

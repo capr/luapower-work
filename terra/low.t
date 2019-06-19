@@ -1002,12 +1002,18 @@ end, tostring)
 
 --flushed printf -------------------------------------------------------------
 
+local fprintf = macro(function(_, ...)
+	local args = {...}
+	return quote printf([args]) end
+end)
+local fflush = macro(function(_) return quote end end)
+
 pfn = macro(function(...)
 	local args = {...}
 	return quote
 		var stdout = stdout()
 		fprintf(stdout, [args])
-		fprintf(stdout, '\n')
+		fprintf(stdout, '%s', '\n')
 		fflush(stdout)
 	end
 end, function(...)
@@ -1041,7 +1047,7 @@ print = macro(function(...)
 	return quote
 		var stdout = stdout()
 		fprintf(stdout, fmt, [args])
-		fprintf(stdout, '\n')
+		fprintf(stdout, '%s', '\n')
 		fflush(stdout)
 		[ freelist ]
 	end
@@ -1057,7 +1063,7 @@ assert = macro(function(expr, msg)
 	return quote
 		if not expr then
 			var stderr = stderr()
-			fprintf(stderr, [
+			fprintf(stderr, '%s', [
 				'assertion failed '
 				.. (msg and '('..msg:asvalue()..') ' or '')
 				.. tostring(expr.filename)
@@ -1178,7 +1184,10 @@ alloc = macro(function(T, len, oldp, label)
 	len = len or 1
 	label = label or ''
 	T = T:astype()
-	local sz = (T == opaque) and 1 or sizeof(T)
+	local sz = T == opaque and 1 or sizeof(T)
+	if T == opaque then --can only use the 0 literal with opaque pointers
+		assert(len:asvalue() == 0)
+	end
 	return quote
 		var p: &T
 		if len > 0 then
@@ -1724,6 +1733,13 @@ function publish(modulename)
 				add(mdefs, 'local getters = {\n'); extend(mdefs, getters); add(mdefs, '}\n')
 				add(mdefs, 'local setters = {\n'); extend(mdefs, setters); add(mdefs, '}\n')
 				add(mdefs, 'local methods = {\n'); extend(mdefs, methods); add(mdefs, '}\n')
+
+				add(mdefs, [[
+ffi.metatype(']]..name..[[', {
+	__index = methods,
+})
+]])
+				--[==[
 				add(mdefs, [[
 ffi.metatype(']]..name..[[', {
 	__index = function(self, k)
@@ -1740,6 +1756,7 @@ ffi.metatype(']]..name..[[', {
 	end,
 })
 ]])
+]==]
 			else
 				append(mdefs, 'ffi.metatype(\'', name, '\', {__index = {\n')
 				extend(mdefs, methods)

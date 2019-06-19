@@ -4,10 +4,9 @@ require'terra/memcheck'
 require'terra/tr_paint_cairo'
 require'terra/utf8'
 setfenv(1, require'terra/tr')
+require'terra/tr_api'
 local strlen = includecstring'unsigned long long strlen (const char *str);'.strlen
 local sprintf = includecstring'int sprintf(char* str, const char* format, ...);'.sprintf
-
-do return end
 
 local font_paths_list = {
 	'../media/fonts/OpenSans-Regular.ttf',
@@ -49,12 +48,13 @@ local paint_times = 1
 terra test()
 	var sr = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1920, 1080)
 	var cr = sr:context()
-	var r: Renderer; r:init(load_font, unload_font)
+	var r = tr_renderer_new(load_font, unload_font)
 
-	r.glyph_cache_size = 1024*1024
-	r.glyph_run_cache_size = 1024*1024
+	r.glyph_cache_max_size = 1024*1024
+	r.glyph_run_cache_max_size = 1024*1024
 
-	var layouts = arr(Layout)
+	var layouts: arr(&Layout)
+	layouts:init()
 
 	for font_i = 0, font_paths_count do --go through all fonts
 
@@ -62,22 +62,21 @@ terra test()
 
 		for text_i = 0, texts_count do --go through all sample texts
 
-			var layout = layouts:add()
-			layout:init(&r)
-			var text = texts[text_i]
-			var text_len = strlen(text)
-			utf8.decode.toarr(text, text_len, &layout.text, maxint, utf8.REPLACE, utf8.INVALID)
+			var layout = r:layout()
+			layouts:add(layout)
 
-			var sp: Span; sp:init()
-			sp.offset = 0
-			sp.font_id = font_id
-			sp.font_size = 16
-			sp.color = 0xffffffff
-			layout.spans:push(sp)
+			var text = texts[text_i]
+			layout:text_from_utf8(text, -1)
+
+			layout:set_font_id   (0, -1, font_id)
+			layout:set_font_size (0, -1, 16)
+			layout:set_color     (0, -1, 0xffffffff)
 
 			--probe'start'
-
 			layout:shape()
+
+			cr:rgb(0, 0, 0)
+			cr:paint()
 
 			var t0: double
 			var wanted_fps = 60
@@ -119,16 +118,16 @@ terra test()
 			sprintf(s, 'out%d.png', layouts.len)
 			sr:save_png(s)
 
-			cr:rgb(0, 0, 0)
-			cr:paint()
-
 		end
 
-		layouts.len = 0
+		--layouts.len = 0
 
 	end
 
 	print('layouts: ', layouts.len)
+	for i,layout in layouts do
+		(@layout):release()
+	end
 	layouts:free()
 
 	pfn('Glyph cache size     : %7.2fmB', r.glyphs.size / 1024.0 / 1024.0)
@@ -136,7 +135,7 @@ terra test()
 	pfn('GlyphRun cache size  : %7.2fmB', r.glyph_runs.size / 1024.0 / 1024.0)
 	pfn('GlyphRun cache count : %7d', r.glyph_runs.count)
 
-	r:free()
+	r:release()
 	cr:free()
 	sr:free()
 

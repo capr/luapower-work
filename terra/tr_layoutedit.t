@@ -8,15 +8,14 @@ require'terra/tr_spanedit'
 require'terra/utf8'
 
 terra Layout:text_changed()
-	var i = self.spans.len-1
-	while i >= 0 do
-		var s = self.spans:at(i)
+	var bk = self.spans:backwards()
+	for i,s in bk do
 		if s.offset < self.text.len then
+			if self.spans:remove(i+1, maxint) > 0 then
+				self.state = 0
+			end
 			break
 		end
-	end
-	if self.spans:remove(i+1, maxint) > 0 then
-		self.state = 0
 	end
 end
 

@@ -59,7 +59,7 @@ end
 
 terra Layout:split_spans(offset: int)
 	if offset >= self.text.len then
-		return self.spans.len --return one-outside-range index
+		return self.spans.len --return the would-be index without creating the span
 	end
 	var i = self:find_span(offset)
 	var s = self.spans:at(i)

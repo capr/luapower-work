@@ -54,7 +54,7 @@ local para_iter = rle_iterator{
 	for_variables = {},
 	declare_variables = function()        return quote var [c0], [c1] end end,
 	save_values       = function()        return quote c0 = c1 end end,
-	load_values       = function(self, i) return quote c1 = self.text.elements[i] end end,
+	load_values       = function(self, i) return quote c1 = self.text(i) end end,
 	values_different  = function()        return `c0 == PS end,
 }
 
@@ -195,12 +195,9 @@ terra Layout:shape()
 		return
 	end
 
-	var str = self.text.elements
-	var len = self.text.len
-
 	--script and language detection and assignment
-	r.scripts.len = len
-	r.langs.len = len
+	r.scripts.len = self.text.len
+	r.langs.len = self.text.len
 
 	--script/lang detection is expensive: see if we can avoid it.
 	var do_detect_scripts = false
@@ -213,22 +210,22 @@ terra Layout:shape()
 
 	--detect the script property for each char of the entire text.
 	if do_detect_scripts then
-		detect_scripts(r, str, len, r.scripts.elements)
+		detect_scripts(r, self.text.elements, self.text.len, r.scripts.elements)
 	end
 
 	--override scripts with user-provided values.
 	for span_index, span in self.spans do
 		if span.script ~= HB_SCRIPT_INVALID then
 			for i = span.offset, self:eof(span_index) do
-				r.scripts.elements[i] = span.script
+				r.scripts:set(i, span.script)
 			end
 		end
 	end
 
 	--detect the lang property based on the script property.
 	if do_detect_langs then
-		for i = 0, len do
-			r.langs.elements[i] = lang_for_script(r.scripts.elements[i])
+		for i = 0, self.text.len do
+			r.langs:set(i, lang_for_script(r.scripts(i)))
 		end
 	end
 
@@ -236,7 +233,7 @@ terra Layout:shape()
 	for span_index, span in self.spans do
 		if span.lang ~= nil then
 			for i = span.offset, self:eof(span_index) do
-				r.langs.elements[i] = span.lang
+				r.langs:set(i, span.lang)
 			end
 		end
 	end
@@ -248,9 +245,9 @@ terra Layout:shape()
 	--the RTL runs, which harfbuzz also does, and 2) because bidi reordering
 	--needs to be done after line breaking and so it's part of layouting.
 
-	r.bidi_types    .len = len
-	r.bracket_types .len = len
-	r.levels        .len = len
+	r.bidi_types    .len = self.text.len
+	r.bracket_types .len = self.text.len
+	r.levels        .len = self.text.len
 
 	self.bidi = false --is bidi reordering needed on line-wrapping or not?
 	self.base_dir = DIR_AUTO --bidi direction of the first paragraph of the text.
@@ -258,7 +255,7 @@ terra Layout:shape()
 	var span_index = 0
 	var paragraphs = self:paragraphs()
 	for offset, len in paragraphs do
-		var str = str + offset
+		var str = self.text:at(offset)
 
 		span_index = self:span_index_at_offset(offset, span_index)
 		var span = self.spans:at(span_index)
@@ -294,11 +291,11 @@ terra Layout:shape()
 	--NOTE: libunibreak always puts a hard break at the end of the text.
 	--We don't want that so we're passing it one more codepoint than needed.
 
-	r.linebreaks.len = len + 1
-	var lang_spans = r:lang_spans(len)
+	r.linebreaks.len = self.text.len + 1
+	var lang_spans = r:lang_spans(self.text.len)
 	for offset, len, lang in lang_spans do
-		self.text:index(offset + len - 1)
-		set_linebreaks_utf32(str + offset, len + 1,
+		self.text:at(offset + len - 1)
+		set_linebreaks_utf32(self.text:at(offset), len + 1,
 			r:ub_lang(lang), r.linebreaks:at(offset))
 	end
 
@@ -317,10 +314,12 @@ terra Layout:shape()
 		r.linebreaks.elements
 	)
 	for offset, len, span, level, script, lang in word_spans do
-		var str = str+offset
+
+		self.text:at(offset + len - 1)
+		var str = self.text:at(offset)
 
 		--UBA codes: 0: required, 1: allowed, 2: not allowed.
-		var linebreak_code = r.linebreaks(offset+len-1)
+		var linebreak_code = r.linebreaks(offset + len - 1)
 		--user codes: 2: paragraph, 1: line, 0: softbreak.
 		var linebreak = iif(linebreak_code == 0,
 			iif(str[len-1] == PS, BREAK_PARA, BREAK_LINE), BREAK_NONE)
@@ -352,6 +351,7 @@ terra Layout:shape()
 			trailing_space  = trailing_space;
 		}
 		gr.text.view = arrview(str, len) --fake a dynarray to avoid copying
+
 		var glyph_run_id, glyph_run = r:shape_word(gr)
 
 		if glyph_run ~= nil then --font loaded successfully

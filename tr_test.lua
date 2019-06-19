@@ -21,7 +21,6 @@ local font_paths = {
 local font_data = {} --{font_i->data}
 
 local function load_font(font_id, file_data, file_size)
-	assert(false)
 	local font_i = assert(font_idx[font_id])
 	local font_path = assert(font_paths[font_i])
 	local s = assert(readfile(font_path))
@@ -43,14 +42,14 @@ for font_i = 1, #font_paths do --go through all fonts
 	font_ids[font_i] = font_id
 end
 
-r.glyph_cache_max_size = 1024*1024
-r.glyph_run_cache_max_size = 1024*1024
+--r.glyph_cache_max_size = 1024*1024
+--r.glyph_run_cache_max_size = 1024*1024
 
 local texts = {
 	--assert(glue.readfile'terra/tr_test/sample_arabic.txt'),
-	--'Hello World\nNew Line',
+	'Hello World\nNew Line',
 	--numbers,
-	assert(readfile'terra/tr_test/lorem_ipsum.txt'),
+	--assert(readfile'terra/tr_test/lorem_ipsum.txt'),
 	--assert(readfile'terra/tr_test/sample_wikipedia1.txt'),
 	--assert(readfile'terra/tr_test/sample_names.txt'),
 }
@@ -83,7 +82,6 @@ end
 local t0 = clock()
 local layouts = make_layouts()
 pfn('%.1fms for %d layouts', (clock() - t0) * 1000, #layouts)
-do return end
 
 local app = nw:app()
 
@@ -112,10 +110,10 @@ for i,layout in ipairs(layouts) do
 end
 layouts = nil
 
-pfn('Glyph cache size     : %7.2fmB', r.glyph_cache_size / 1024.0 / 1024.0)
-pfn('Glyph cache count    : %7d', r.glyph_cache_count)
-pfn('GlyphRun cache size  : %7.2fmB', r.glyph_run_cache_size / 1024.0 / 1024.0)
-pfn('GlyphRun cache count : %7d', r.glyph_run_cache_count)
+--pfn('Glyph cache size     : %7.2fmB', r.glyph_cache_size / 1024.0 / 1024.0)
+--pfn('Glyph cache count    : %7d', r.glyph_cache_count)
+--pfn('GlyphRun cache size  : %7.2fmB', r.glyph_run_cache_size / 1024.0 / 1024.0)
+--pfn('GlyphRun cache count : %7d', r.glyph_run_cache_count)
 
 r:release()
 
