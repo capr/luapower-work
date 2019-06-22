@@ -13,27 +13,42 @@ local C = ffi.load'llvm'
 local M = setmetatable({}, {__index = C})
 setfenv(1, M)
 
+local sp = ffi.new'char*[1]'
+
+--modules --------------------------------------------------------------------
+
 function module(name)
 	return C.LLVMModuleCreateWithName(name)
 end
 
-builder = LLVMCreateBuilder
+function LLVMVerifyModule(M, Action)
+	sp[0] = nil
+	local ok = C.LLVMVerifyModule(M, Action or LLVMAbortProcessAction, sp) == 0
+	if not ok then
+		local s = ffi.string(sp[0])
+		LLVMDisposeMessage(sp[0])
+		return false, s
+	end
+	return true
+end
+
+ffi.metatype('struct LLVMOpaqueModule', {__index = {
+	fn = LLVMAddFunction,
+
+	verify = LLVMVerifyModule,
+
+	write_bitcode_to_file = function(M, file) return LLVMWriteBitcodeToFile(M, file) == 0 end,
+	write_bitcode_to_fd = function(M, fd) return LLVMWriteBitcodeToFD(M, fd) == 0 end,
+	write_bitcode_to_file_handle = function(M, H) return LLVMWriteBitcodeToFileHandle(M, H) == 0 end,
+	write_bitcode_to_memory_buffer = LLVMWriteBitcodeToMemoryBuffer,
+}})
+
+--types ----------------------------------------------------------------------
 
 function types(...)
 	local n = select('#', ...)
 	return ffi.new('LLVMTypeRef[?]', n, ...), n
 end
-
-function values(...)
-	local n = select('#', ...)
-	return ffi.new('LLVMGenericValueRef[?]', n, ...), n
-end
-
-function intval(ty, n) return LLVMCreateGenericValueOfInt(ty, n, true) end
-function uintval(ty, n) return LLVMCreateGenericValueOfInt(ty, n, false) end
-
-ptrval = LLVMCreateGenericValueOfPointer
-floatval = LLVMCreateGenericValueOfFloat
 
 function fn_type(...)
 	if type((...)) ~= 'boolean' then
@@ -57,34 +72,39 @@ double   = LLVMDoubleType()
 fp80     = LLVMX86FP80Type()
 fp128    = LLVMFP128Type()
 
-local sp = ffi.new'char*[1]'
-function LLVMVerifyModule(M, Action)
-	sp[0] = nil
-	local ok = C.LLVMVerifyModule(M, Action or LLVMAbortProcessAction, sp) == 0
-	if not ok then
-		local s = ffi.string(sp[0])
-		LLVMDisposeMessage(sp[0])
-		return false, s
-	end
-	return true
-end
-
-ffi.metatype('struct LLVMOpaqueModule', {__index = {
-	fn = LLVMAddFunction,
-
-	verify = LLVMVerifyModule,
-
-	write_bitcode_to_file = function(M, file) return LLVMWriteBitcodeToFile(M, file) == 0 end,
-	write_bitcode_to_fd = function(M, fd) return LLVMWriteBitcodeToFD(M, fd) == 0 end,
-	write_bitcode_to_file_handle = function(M, H) return LLVMWriteBitcodeToFileHandle(M, H) == 0 end,
-	write_bitcode_to_memory_buffer = LLVMWriteBitcodeToMemoryBuffer,
-}})
+--values ---------------------------------------------------------------------
 
 ffi.metatype('struct LLVMOpaqueValue', {__index = {
 	block = LLVMAppendBasicBlock,
 	param = LLVMGetParam,
 
 }})
+
+--generic values -------------------------------------------------------------
+
+function values(...)
+	local n = select('#', ...)
+	return ffi.new('LLVMGenericValueRef[?]', n, ...), n
+end
+
+function intval(ty, n) return LLVMCreateGenericValueOfInt(ty, n, true) end
+function uintval(ty, n) return LLVMCreateGenericValueOfInt(ty, n, false) end
+
+ptrval = LLVMCreateGenericValueOfPointer
+floatval = LLVMCreateGenericValueOfFloat
+
+local int64_t = ffi.typeof'int64_t'
+ffi.metatype('struct LLVMOpaqueGenericValue', {__index = {
+	int_width = LLVMGenericValueIntWidth,
+	toint = function(GenVal) return ffi.cast(int64_t, LLVMGenericValueToInt(GenVal, true)) end,
+	touint = function (GenVal) return LLVMGenericValueToInt(GenVal, false) end,
+	toptr = LLVMGenericValueToPointer,
+	tofloat = LLVMGenericValueToFloat,
+}})
+
+--builders -------------------------------------------------------------------
+
+builder = LLVMCreateBuilder
 
 ffi.metatype('struct LLVMOpaqueBuilder', {__index = {
 
@@ -101,14 +121,7 @@ ffi.metatype('struct LLVMOpaqueBuilder', {__index = {
 
 }, __gc = LLVMDisposeBuilder})
 
-local int64_t = ffi.typeof'int64_t'
-ffi.metatype('struct LLVMOpaqueGenericValue', {__index = {
-	int_width = LLVMGenericValueIntWidth,
-	toint = function(GenVal) return ffi.cast(int64_t, LLVMGenericValueToInt(GenVal, true)) end,
-	touint = function (GenVal) return LLVMGenericValueToInt(GenVal, false) end,
-	toptr = LLVMGenericValueToPointer,
-	tofloat = LLVMGenericValueToFloat,
-}})
+--execution engines ----------------------------------------------------------
 
 local function LLVMLinkInMCJIT()
 	C.LLVMLinkInMCJIT()
@@ -145,5 +158,6 @@ ffi.metatype('struct LLVMOpaqueExecutionEngine', {__index = {
 	run = LLVMRunFunction,
 
 }, __gc = LLVMDisposeExecutionEngine})
+
 
 return M
