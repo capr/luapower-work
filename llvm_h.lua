@@ -424,7 +424,6 @@ void LLVMSetModuleIdentifier(LLVMModuleRef M, const char *Ident, size_t Len);
 const char *LLVMGetSourceFileName(LLVMModuleRef M, size_t *Len);
 void LLVMSetSourceFileName(LLVMModuleRef M, const char *Name, size_t Len);
 const char *LLVMGetDataLayoutStr(LLVMModuleRef M);
-const char *LLVMGetDataLayout(LLVMModuleRef M);
 void LLVMSetDataLayout(LLVMModuleRef M, const char *DataLayoutStr);
 const char *LLVMGetTarget(LLVMModuleRef M);
 void LLVMSetTarget(LLVMModuleRef M, const char *Triple);
@@ -442,9 +441,6 @@ LLVMMetadataRef LLVMGetModuleFlag(LLVMModuleRef M,
 void LLVMAddModuleFlag(LLVMModuleRef M, LLVMModuleFlagBehavior Behavior,
                        const char *Key, size_t KeyLen,
                        LLVMMetadataRef Val);
-void LLVMDumpModule(LLVMModuleRef M);
-LLVMBool LLVMPrintModuleToFile(LLVMModuleRef M, const char *Filename,
-                               char **ErrorMessage);
 char *LLVMPrintModuleToString(LLVMModuleRef M);
 const char *LLVMGetModuleInlineAsm(LLVMModuleRef M, size_t *Len);
 void LLVMSetModuleInlineAsm2(LLVMModuleRef M, const char *Asm, size_t Len);
@@ -483,7 +479,6 @@ LLVMValueRef LLVMGetFirstFunction(LLVMModuleRef M);
 LLVMValueRef LLVMGetLastFunction(LLVMModuleRef M);
 LLVMValueRef LLVMGetNextFunction(LLVMValueRef Fn);
 LLVMValueRef LLVMGetPreviousFunction(LLVMValueRef Fn);
-void LLVMSetModuleInlineAsm(LLVMModuleRef M, const char *Asm);
 LLVMTypeKind LLVMGetTypeKind(LLVMTypeRef Ty);
 LLVMBool LLVMTypeIsSized(LLVMTypeRef Ty);
 LLVMContextRef LLVMGetTypeContext(LLVMTypeRef Ty);
