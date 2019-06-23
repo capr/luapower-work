@@ -1,5 +1,18 @@
 
+local ffi = require'ffi'
 local llvm = require'llvm'
+
+print('default_target_triple:', llvm.default_target_triple())
+local target1 = assert(llvm.target_from_triple'x86_64')
+local target = assert(llvm.target())
+local machine = assert(target:machine())
+print('triple      :', machine:triple())
+print('cpu         :', machine:cpu())
+print('features    :', machine:features())
+print('data layout :', machine:data_layout():tostring())
+
+--local target = assert(llvm.target_from_triple'x86_64-w64-windows-gnu')
+--print(target:tostring())
 
 local mod = llvm.module'my_module'
 
@@ -14,7 +27,9 @@ builder:ret(builder:add(sum_fn:param(0), sum_fn:param(1), 'tmp'))
 
 assert(mod:verify())
 
-local engine = mod:exec_engine()
+--TODO: print(machine:compile(mod))
+
+local engine = mod:exec_engine'interpreter' --mcjit can't marshall params
 
 local x = 6
 local y = 42
@@ -25,27 +40,35 @@ local ret = engine:run(sum_fn, llvm.values(
 
 assert(ret == x + y)
 
-print(mod:tostring())
-print(mod:asm())
+print()
+print'*** Module IR: ***************************************************'
+print()
+print(mod:ir())
+--print(mod:inline_asm())
 
-local m2 = assert(llvm.ir[[
+assert(llvm.parse_bitcode(mod:bitcode()))
+assert(llvm.parse_ir(mod:ir()))
+
+--assert(engine:run(m2:get_fn()))
+
+local t = llvm.type_from_ctype(ffi.typeof'int')
+print(t:tostring())
+
+local mod2 = assert(llvm.parse_ir[[
 	define i32 @f() {
 		block:
 			ret i32 1234
 	}
 ]])
 
-assert(mod:link_module(m2))
-
-assert(llvm.bitcode(mod:bitcode()))
-
-print(llvm.default_target_triple())
---local target = assert(llvm.target_from_triple'x86_64-w64-windows-gnu')
---print(target:tostring())
-
---assert(engine:run(m2:get_fn()))
+local orc = assert(llvm.orc(machine))
+assert(orc:add_module(mod2))
+local p = orc:sym_addr'f'
+print(p)
 
 builder:free()
 engine:free() --frees the module
+machine:free()
+orc:free()
 
 print'test ok'

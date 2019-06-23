@@ -6,16 +6,29 @@ if not ... then require'llvm_test'; return end
 
 local ffi = require'ffi'
 local glue = require'glue'
-local type, select = type, select
-local print = print
+local require, type, select, print =
+      require, type, select, print
+local add, concat = table.insert, table.concat
 local free = ffi.C.free
+local memoize = glue.memoize
 require'llvm_h'
 local C = ffi.load'llvm'
 local M = setmetatable({}, {__index = C})
 setfenv(1, M)
 
+native_target = 'x86'
+
 local sp = ffi.new'char*[1]'
+local addrp = ffi.new'uint64_t[1]'
 local sizep = ffi.new'size_t[1]'
+local modp = ffi.new'LLVMModuleRef[1]'
+local targetp = ffi.new'LLVMTargetRef[1]'
+local enginep = ffi.new'LLVMExecutionEngineRef[1]'
+local membufp = ffi.new'LLVMMemoryBufferRef[1]'
+
+local function ptrornil(p)
+	return p ~= nil and p or nil
+end
 
 local function retbool(f)
 	return function(...)
@@ -30,6 +43,12 @@ local function retstring(f)
 	end
 end
 
+local function countfrom1(f)
+	return function(self, i)
+		return f(self, i-1)
+	end
+end
+
 local function getset(get, set)
 	return function(self, arg)
 		if arg then
@@ -39,6 +58,25 @@ local function getset(get, set)
 		end
 	end
 end
+
+--error handling -------------------------------------------------------------
+
+function LLVMGetErrorMessage(err)
+	local sp = LLVMGetErrorMessage(err)
+	if sp ~= nil then
+		local s = ffi.string(sp)
+		LLVMDisposeErrorMessage(sp)
+		return s
+	else
+		return nil
+	end
+end
+
+ffi.metatype('struct LLVMOpaqueError', {__index = {
+	type_id = LLVMGetErrorTypeId,
+	consume = LLVMConsumeError,
+	message = LLVMGetErrorMessage,
+}})
 
 --memory buffers -------------------------------------------------------------
 
@@ -52,11 +90,105 @@ ffi.metatype('struct LLVMOpaqueMemoryBuffer', {__index = {
 	size = LLVMGetBufferSize,
 }})
 
+--metadata -------------------------------------------------------------------
+
+function LLVMDITypeGetName(MD)
+	local s = C.LLVMDITypeGetName(MD, sizep)
+	return s ~= nil and ffi.string(s, sizep[0]) or nil
+end
+
+function LLVMTemporaryMDNode(MD, n)
+	return C.LLVMTemporaryMDNode(LLVMGetGlobalContext(), MD, n)
+end
+
+ffi.metatype('struct LLVMOpaqueMetadata', {__index = {
+	kind = LLVMGetMetadataKind,
+	line = LLVMDILocationGetLine,
+	col = LLVMDILocationGetColumn,
+	scope = LLVMDILocationGetScope,
+	typename = LLVMDITypeGetName,
+	bitsize = LLVMDITypeGetSizeInBits,
+	bitoffset = LLVMDITypeGetOffsetInBits,
+	bitalign = LLVMDITypeGetAlignInBits,
+	typeline = LLVMDITypeGetLine,
+	typeflags = LLVMDITypeGetFlags,
+	temp_node = LLVMTemporaryMDNode,
+	free_temp_node = LLVMDisposeTemporaryMDNode,
+	subprogram = getset(LLVMGetSubprogram, LLVMSetSubprogram),
+}})
+
+--debug info -----------------------------------------------------------------
+
+debug_metadata_version = LLVMDebugMetadataVersion
+
+ffi.metatype('struct LLVMOpaqueDIBuilder', {__index = {
+	free = LLVMDisposeDIBuilder,
+	finalize = LLVMDIBuilderFinalize,
+
+	compile_unit = LLVMDIBuilderCreateCompileUnit,
+	file = LLVMDIBuilderCreateFile,
+	module = LLVMDIBuilderCreateModule,
+	namespace = LLVMDIBuilderCreateNameSpace,
+	fn = LLVMDIBuilderCreateFunction,
+	lexical_block = LLVMDIBuilderCreateLexicalBlock,
+	lexical_block_file = LLVMDIBuilderCreateLexicalBlockFile, --huh?
+	imported_module_from_namespace = LLVMDIBuilderCreateImportedModuleFromNamespace,
+	imported_module_from_alias = LLVMDIBuilderCreateImportedModuleFromAlias,
+	imported_module_from_module = LLVMDIBuilderCreateImportedModuleFromModule,
+	imported_decl = LLVMDIBuilderCreateImportedDeclaration,
+	debug_location = LLVMDIBuilderCreateDebugLocation,
+	subroutine = LLVMDIBuilderCreateSubroutineType,
+	enum = LLVMDIBuilderCreateEnumerationType,
+	union = LLVMDIBuilderCreateUnionType,
+	array = LLVMDIBuilderCreateArrayType,
+	--TODO: array = LLVMDIBuilderGetOrCreateArray,
+	--TODO: array = LLVMDIBuilderGetOrCreateTypeArray,
+	vec = LLVMDIBuilderCreateVectorType,
+	unspecified_type = LLVMDIBuilderCreateUnspecifiedType,
+	type = LLVMDIBuilderCreateBasicType,
+	ptr = LLVMDIBuilderCreatePointerType,
+	struct = LLVMDIBuilderCreateStructType,
+	field = LLVMDIBuilderCreateMemberType,
+	static_field = LLVMDIBuilderCreateStaticMemberType,
+	ptr_field = LLVMDIBuilderCreateMemberPointerType,
+	objc_ivar = LLVMDIBuilderCreateObjCIVar,
+	objc_property = LLVMDIBuilderCreateObjCProperty,
+	obj_ptr = LLVMDIBuilderCreateObjectPointerType,
+	qualified_type = LLVMDIBuilderCreateQualifiedType,
+	ref = LLVMDIBuilderCreateReferenceType,
+	nullptr = LLVMDIBuilderCreateNullPtrType,
+	typedef = LLVMDIBuilderCreateTypedef,
+	inheritance = LLVMDIBuilderCreateInheritance,
+	forward_decl = LLVMDIBuilderCreateForwardDecl,
+	replaceable_composite = LLVMDIBuilderCreateReplaceableCompositeType,
+	bit_field = LLVMDIBuilderCreateBitFieldMemberType,
+	class = LLVMDIBuilderCreateClassType,
+	artificial_type = LLVMDIBuilderCreateArtificialType,
+	subrange = LLVMDIBuilderGetOrCreateSubrange,
+	expr = LLVMDIBuilderCreateExpression,
+	const_expr = LLVMDIBuilderCreateConstantValueExpression,
+	global_expr = LLVMDIBuilderCreateGlobalVariableExpression,
+	temp_global_forward_decl = LLVMDIBuilderCreateTempGlobalVariableFwdDecl,
+	insert_declare_before = LLVMDIBuilderInsertDeclareBefore,
+	insert_declare_at_end = LLVMDIBuilderInsertDeclareAtEnd,
+	insert_debug_value_before = LLVMDIBuilderInsertDbgValueBefore,
+	insert_debug_value_at_end = LLVMDIBuilderInsertDbgValueAtEnd,
+	auto_var = LLVMDIBuilderCreateAutoVariable,
+	param = LLVMDIBuilderCreateParameterVariable,
+	replace_uses = LLVMMetadataReplaceAllUsesWith,
+}})
+
 --types ----------------------------------------------------------------------
 
 function types(...)
-	local n = select('#', ...)
-	return ffi.new('LLVMTypeRef[?]', n, ...), n
+	local t = ...
+	if type(t) == 'table' then
+		local n = #t
+		return ffi.new('LLVMTypeRef[?]', n, t), n
+	else
+		local n = select('#', ...)
+		return ffi.new('LLVMTypeRef[?]', n, ...), n
+	end
 end
 
 local function LLVMFunctionType_(vararg, ret_type, ...)
@@ -87,6 +219,10 @@ fp128    = LLVMFP128Type()
 void     = LLVMVoidType()
 label    = LLVMLabelType()
 mmx      = LLVMX86MMXType()
+array    = LLVMArrayType
+ptr      = LLVMPointerType
+vec      = LLVMVectorType
+
 
 function LLVMPrintTypeToString(M)
 	local sp = C.LLVMPrintTypeToString(M)
@@ -143,11 +279,77 @@ function LLVMGetSubtypes(T)
 	return types, n
 end
 
-array = LLVMArrayType
-ptr = LLVMPointerType
-vec = LLVMVectorType
-
 LLVMIsOpaqueStruct = retbool(LLVMIsOpaqueStruct)
+
+local function ctype_string(t)
+	local k = t:kind()
+	if k == C.LLVMVoidTypeKind then
+		return 'void'
+	elseif k == C.LLVMFloatTypeKind then
+		return 'float'
+	elseif k == C.LLVMDoubleTypeKind then
+		return 'double'
+	elseif k == C.LLVMIntegerTypeKind then
+		local w = t:int_width()
+		if w == 8 or w == 16 or w == 32 or w == 64 then
+			return 'int'..t:int_width()..'_t'
+		end
+	elseif k == C.LLVMFunctionTypeKind then
+		--
+	elseif k == C.LLVMStructTypeKind then
+		local dt = 'struct {\n\t'
+		for i = 1, t:elem_count() do
+			add(dt, t:elem_type(i):ctype_string())
+			--TODO: add(dt, t:)
+			add(dt, ',\n\t')
+		end
+		add(dt, '}')
+		return concat(dt)
+	elseif k == C.LLVMArrayTypeKind then
+		return t:elem_type():ctype_string()..'['..t:len()..']'
+	elseif k == C.LLVMPointerTypeKind then
+		return
+	end
+end
+
+LLVMStructGetTypeAtIndex = countfrom1(LLVMStructGetTypeAtIndex)
+
+function type_from_ctype(ct)
+	local ffi_reflect = require'ffi_reflect'
+	local r = ffi_reflect.typeof(ct)
+	local k = r.what
+	if k == 'void' then
+		return void
+	elseif k == 'int' then
+		local z = r.size
+		if z == 1 then
+			return int8
+		elseif z == 2 then
+			return int16
+		elseif z == 4 then
+			return int32
+		elseif z == 8 then
+			return int64
+		end
+	elseif k == 'float' then
+		return float
+	elseif k == 'double' then
+		return double
+	elseif k == 'enum' then
+		return int32
+	elseif k == 'ptr' or k == 'ref' then
+		return ptr(type_from_ctype(r.element_type))
+	elseif k == 'array' then
+		local n = r.size / r.element_type.size
+		return array(type_from_ctype(r.element_type), n)
+	elseif k == 'struct' then
+		local ft = {}
+		for r in r:members() do
+			add(ft, type_from_ctype(r.what))
+		end
+		return struct(ft)
+	end
+end
 
 ffi.metatype('struct LLVMOpaqueType', {__index = {
 	kind = LLVMGetTypeKind,
@@ -180,6 +382,8 @@ ffi.metatype('struct LLVMOpaqueType', {__index = {
 	addr_space = LLVMGetPointerAddressSpace,
 	--vector types
 	vec_size = LLVMGetVectorSize,
+	--ffi
+	ctype_string = ctype_string,
 }})
 
 --constants ------------------------------------------------------------------
@@ -279,8 +483,41 @@ function values(...)
 	return ffi.new('LLVMGenericValueRef[?]', n, ...), n
 end
 
-function intval(ty, n) return LLVMCreateGenericValueOfInt(ty, n, true) end
-function uintval(ty, n) return LLVMCreateGenericValueOfInt(ty, n, false) end
+function value(t, v)
+	local k = t:kind()
+	if k == C.LLVMFloatTypeKind or k == C.LLVMDoubleTypeKind then
+		return floatval(t, v)
+	elseif k == C.LLVMIntegerTypeKind then
+		return intval(t, v)
+	elseif k == C.LLVMStructTypeKind then
+		local dt = 'struct {\n\t'
+		for i = 1, t:elem_count() do
+			add(dt, t:elem_type(i):ctype_string())
+			--TODO: add(dt, t:)
+			add(dt, ',\n\t')
+		end
+		add(dt, '}')
+		return concat(dt)
+	elseif k == C.LLVMArrayTypeKind then
+		return t:elem_type():ctype_string()..'['..t:len()..']'
+	elseif k == C.LLVMPointerTypeKind then
+		return
+	end
+end
+
+function param_values(fn, ...)
+	local pt, n = fn:param_types()
+	fn:is_vararg()
+	local vt = ffi.new('LLVMGenericValueRef[?]', n)
+	for i = 1, n do
+		local t = pt[i-1]
+		local v = select(i, ...)
+		vt[i-1] = value(t, v)
+	end
+end
+
+function intval(t, x) return LLVMCreateGenericValueOfInt(t, x, true) end
+function uintval(t, x) return LLVMCreateGenericValueOfInt(t, x, false) end
 
 ptrval = LLVMCreateGenericValueOfPointer
 floatval = LLVMCreateGenericValueOfFloat
@@ -318,26 +555,46 @@ ffi.metatype('struct LLVMOpaqueBuilder', {__index = {
 
 --execution engines ----------------------------------------------------------
 
+local mcjit_linked
 local function LLVMLinkInMCJIT()
+	if not mcjit_linked then return end
 	C.LLVMLinkInMCJIT()
-	LLVMLinkInMCJIT = glue.noop
+	mcjit_linked = true
 end
 
+local initialized
 local function LLVMInitializeX86Target()
+	if initialized then return end
+	C.LLVMInitializeX86TargetInfo()
 	C.LLVMInitializeX86Target()
-	LLVMInitializeX86Target = glue.noop
+	C.LLVMInitializeX86TargetMC()
+	C.LLVMInitializeX86AsmPrinter()
+	C.LLVMInitializeX86AsmParser()
+	C.LLVMInitializeX86Disassembler()
+	initialized = true
 end
+LLVMInitializeNativeTarget = LLVMInitializeX86Target
+LLVMInitializeAllTargets = LLVMInitializeNativeTarget
 
-function LLVMCreateExecutionEngineForModule(mod)
+function LLVMCreateExecutionEngineForModule(M, mode, opt_level)
+	LLVMInitializeNativeTarget()
 	LLVMLinkInMCJIT()
-	LLVMInitializeX86Target()
-	local engine_buf = ffi.new'LLVMExecutionEngineRef[1]'
-	if C.LLVMCreateExecutionEngineForModule(engine_buf, mod, sp) ~= 0 then
+	LLVMLinkInInterpreter()
+	local ret
+	if mode == 'interpreter' then
+		ret = C.LLVMCreateInterpreterForModule(enginep, M, sp)
+	elseif mode == 'jit' then
+		opt_level = opt_level or LLVMCodeGenLevelDefault
+		ret = C.LLVMCreateJITCompilerForModule(enginep, M, opt_level, sp)
+	else
+		ret = C.LLVMCreateExecutionEngineForModule(enginep, M, sp)
+	end
+	if ret ~= 0 then
 		local s = ffi.string(sp[0])
 		C.LLVMDisposeMessage(sp[0])
 		return nil, s
 	end
-	return engine_buf[0]
+	return enginep[0]
 end
 
 function LLVMRunFunction(EE, F, args)
@@ -346,27 +603,34 @@ function LLVMRunFunction(EE, F, args)
 end
 
 ffi.metatype('struct LLVMOpaqueExecutionEngine', {__index = {
-
 	free = LLVMDisposeExecutionEngine,
-
 	run = LLVMRunFunction,
-
 	add_module = LLVMAddModule,
-
+	global_ptr = LLVMGetPointerToGlobal,
+	global_addr = LLVMGetGlobalValueAddress,
+	fn_addr = LLVMGetFunctionAddress,
 }})
 
 --targets --------------------------------------------------------------------
 
-target = LLVMGetTargetFromName
+function LLVMGetTargetFromName(name)
+	LLVMInitializeAllTargets()
+	return ptrornil(C.LLVMGetTargetFromName(name))
+end
+--LLVMGetTargetFromName = memoize(LLVMGetTargetFromName)
+
+function target(name)
+	return LLVMGetTargetFromName(name or native_target)
+end
 
 function LLVMGetTargetFromTriple(s)
-	local t = ffi.new'LLVMTargetRef[1]'
-	if C.LLVMGetTargetFromTriple(s, t, sp) ~= 0 then
+	LLVMInitializeAllTargets()
+	if C.LLVMGetTargetFromTriple(s, targetp, sp) ~= 0 then
 		local s = ffi.string(sp[0])
 		free(sp[0])
 		return nil, s
 	else
-		return t[0]
+		return targetp[0]
 	end
 end
 target_from_triple = LLVMGetTargetFromTriple
@@ -376,6 +640,18 @@ LLVMGetTargetDescription = retstring(LLVMGetTargetDescription)
 LLVMTargetHasJIT = retbool(LLVMTargetHasJIT)
 LLVMTargetHasTargetMachine = retbool(LLVMTargetHasTargetMachine)
 LLVMTargetHasAsmBackend = retbool(LLVMTargetHasAsmBackend)
+
+function LLVMCreateTargetMachine(T, triple, cpu_name,
+	features, codegen_level, reloc_mode, code_model
+)
+	return ptrornil(C.LLVMCreateTargetMachine(T,
+		triple or default_target_triple(),
+		cpu_name or host_cpu_name(),
+		features or host_cpu_features(),
+		codegen_level or LLVMCodeGenLevelDefault,
+		reloc_mode or LLVMRelocPIC,
+		code_model or LLVMCodeModelDefault))
+end
 
 ffi.metatype('struct LLVMTarget', {__index = {
 	name = LLVMGetTargetName,
@@ -390,8 +666,12 @@ LLVMGetTargetMachineTriple = retstring(LLVMGetTargetMachineTriple)
 LLVMGetTargetMachineCPU = retstring(LLVMGetTargetMachineCPU)
 LLVMGetTargetMachineFeatureString = retstring(LLVMGetTargetMachineFeatureString)
 
+local CGFT = {
+	asm = LLVMAssemblyFile,
+	obj = LLVMObjectFile,
+}
 function LLVMTargetMachineEmitToString(TM, M, codegen)
-	local membufp = ffi.new'LLVMMemoryBufferRef[1]'
+	local codegen = CGFT[codegen or 'asm']
 	if C.LLVMTargetMachineEmitToMemoryBuffer(TM, M, codegen, sp, membufp) ~= 0 then
 		local s = ffi.string(sp[0])
 		free(sp[0])
@@ -409,18 +689,19 @@ ffi.metatype('struct LLVMOpaqueTargetMachine', {__index = {
 	features = LLVMGetTargetMachineFeatureString,
 	data_layout = LLVMCreateTargetDataLayout,
 	asm_verbosity = LLVMSetTargetMachineAsmVerbosity,
-	tostring = LLVMTargetMachineEmitToString,
+	compile = LLVMTargetMachineEmitToString,
 	add_analysis_passes = LLVMAddAnalysisPasses,
 }})
 
-LLVMGetDefaultTargetTriple = retstring(LLVMGetDefaultTargetTriple)
-default_target_triple = LLVMGetDefaultTargetTriple
-
+LLVMGetDefaultTargetTriple = memoize(retstring(LLVMGetDefaultTargetTriple))
 LLVMNormalizeTargetTriple = retstring(LLVMNormalizeTargetTriple)
-normalize_target_triple = LLVMNormalizeTargetTriple
+LLVMGetHostCPUName = memoize(retstring(LLVMGetHostCPUName))
+LLVMGetHostCPUFeatures = memoize(retstring(LLVMGetHostCPUFeatures))
 
-LLVMGetHostCPUName = retstring(LLVMGetHostCPUName)
-LLVMGetHostCPUFeatures = retstring(LLVMGetHostCPUFeatures)
+default_target_triple = LLVMGetDefaultTargetTriple
+normalize_target_triple = LLVMNormalizeTargetTriple
+host_cpu_name = LLVMGetHostCPUName
+host_cpu_features = LLVMGetHostCPUFeatures
 
 target_data = C.LLVMCreateTargetData
 
@@ -454,7 +735,6 @@ ffi.metatype('struct LLVMOpaqueTargetData', {__index = {
 
 function LLVMParseBitcode(s)
 	local membuf = membuffer(s) --TODO: does the module get to own the membuf?
-	local modp = ffi.new'LLVMModuleRef[1]'
 	if C.LLVMParseBitcode(membuf, modp, sp) ~= 0 then
 		local s = ffi.string(sp)
 		free(sp[0])
@@ -463,7 +743,7 @@ function LLVMParseBitcode(s)
 		return modp[0]
 	end
 end
-bitcode = LLVMParseBitcode
+parse_bitcode = LLVMParseBitcode
 module = LLVMModuleCreateWithName
 
 function LLVMVerifyModule(M, Action)
@@ -493,7 +773,6 @@ end
 
 function LLVMParseIR(s, name)
 	local membuf = membuffer(s, name) --gets owned by the module
-	local modp = ffi.new'LLVMModuleRef[1]'
 	if C.LLVMParseIRInContext(LLVMGetGlobalContext(), membuf, modp, sp) ~= 0 then
 		local s = ffi.string(sp[0])
 		free(sp[0])
@@ -502,7 +781,7 @@ function LLVMParseIR(s, name)
 		return modp[0]
 	end
 end
-ir = LLVMParseIR
+parse_ir = LLVMParseIR
 
 function LLVMLinkModules(M, SM)
 	return C.LLVMLinkModules2(M, SM) == 0
@@ -517,22 +796,97 @@ end
 
 LLVMGetTarget = retstring(LLVMGetTarget)
 
+function LLVMCreateDIBuilder(M, disallow_unresolved)
+	if disallow_unresolved then
+		return C.LLVMCreateDIBuilderDisallowUnresolved(M)
+	else
+		return C.LLVMCreateDIBuilder(M)
+	end
+end
+
 ffi.metatype('struct LLVMOpaqueModule', {__index = {
 	free = LLVMDisposeModule,
 	fn = LLVMAddFunction,
 	global = LLVMAddGlobal,
 	type = LLVMGetTypeByName,
 	verify = LLVMVerifyModule,
-	tostring = LLVMPrintModuleToString,
-	asm = getset(LLVMGetModuleInlineAsm, LLVMSetModuleInlineAsm),
+	ir = LLVMPrintModuleToString,
+	inline_asm = getset(LLVMGetModuleInlineAsm, LLVMSetModuleInlineAsm),
 	exec_engine = LLVMCreateExecutionEngineForModule,
-	strip = LLVMStripModuleDebugInfo,
 	link_module = LLVMLinkModules,
 	bitcode = LLVMWriteBitcodeToString,
 	source_filename = getset(LLVMGetSourceFileName, LLVMSetSourceFileName),
 	target = getset(LLVMGetTarget, LLVMSetTarget),
 	data_layout = getset(LLVMGetModuleDataLayout, LLVMSetModuleDataLayout),
+	--debug info
+	debug_metadata_version = LLVMGetModuleDebugMetadataVersion,
+	strip = LLVMStripModuleDebugInfo,
+	debug_info_builder = LLVMCreateDIBuilder,
+}})
 
+--ORC ------------------------------------------------------------------------
+
+function LLVMOrcCreateInstance(machine)
+	return ptrornil(C.LLVMOrcCreateInstance(machine))
+end
+orc = LLVMOrcCreateInstance
+
+LLVMOrcGetErrorMsg = retstring(LLVMOrcGetErrorMsg)
+
+local orc_modp = ffi.new'LLVMOrcModuleHandle[1]'
+
+function LLVMOrcAddCompiledIR(J, M, resolve_sym, eagerly)
+	local add = eagerly
+		and LLVMOrcAddEagerlyCompiledIR
+		 or LLVMOrcAddLazilyCompiledIR
+	local resolve_sym_cb = resolve_sym and ffi.cb(resolve_sym)
+	local err = add(J, orc_modp, M, resolve_sym_cb, nil)
+	if err ~= nil then
+		return nil, err:message()
+	else
+		return orc_modp[0]
+	end
+end
+
+function LLVMOrcAddObjectFile(J, s)
+	local membuf = membuffer(s)
+	local resolve_sym_cb = resolve_sym and ffi.cb(resolve_sym)
+	local err = C.LLVMOrcAddObjectFile(J, orc_modp, membuf, resolve_sym_cb, nil)
+	if err ~= nil then
+		return nil, err:message()
+	else
+		return orc_modp[0]
+	end
+end
+
+local voidp_ct = ffi.typeof'void*'
+function LLVMOrcGetSymbolAddress(J, OM, sym)
+	local err
+	if sym then
+		 err = C.LLVMOrcGetSymbolAddressIn(J, addrp, OM, sym)
+	else
+		local sym = OM
+		err = C.LLVMOrcGetSymbolAddress(J, addrp, sym)
+	end
+	if err ~= nil then
+		return nil, err:message()
+	else
+		return ffi.cast(voidp_ct, addrp[0])
+	end
+end
+
+ffi.metatype('struct LLVMOrcOpaqueJITStack', {__index = {
+	free = LLVMOrcDisposeInstance,
+	error_message = LLVMOrcGetErrorMsg,
+	register_event_listener = LLVMOrcRegisterJITEventListener,
+	unregister_event_listener = LLVMOrcUnregisterJITEventListener,
+	lazy_compile_callback = LLVMOrcCreateLazyCompileCallback,
+	indirect_stub = LLVMOrcCreateIndirectStub,
+	set_indirect_stub = LLVMOrcSetIndirectStubPointer,
+	add_module = LLVMOrcAddCompiledIR,
+	add_obj = LLVMOrcAddObjectFile,
+	remove_module = LLVMOrcRemoveModule,
+	sym_addr = LLVMOrcGetSymbolAddress,
 }})
 
 return M
