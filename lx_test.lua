@@ -29,15 +29,9 @@ local function test_speed_for(filename)
 end
 
 local function test_speed()
-	local d, n, l = 0, 0, 0
-	for i=1,20 do
-		local d1, n1, l1 = test_speed_for'ui.lua'
-		d = d + d1
-		n = n + n1
-		l = l + l1
-	end
+	local d, n, l = test_speed_for'ui.lua'
 	print(string.format(
-		'%.1fs %.1f Mtokens/s %.1f Mlines/s', d, n / d / 1e6, l / d / 1e6))
+		'%.0fms %.2f Mtokens/s %.2f Mlines/s', d * 1000, n / d / 1e6, l / d / 1e6))
 end
 
 local function test_import()
@@ -48,11 +42,11 @@ do
 	do
 		import 'test2'
 		key2
-		a = ` + a
+		a = @ + a
 	end
 	key1
 	--key2
-	--b = ` + b
+	b = ` + b
 end
 ]]
 
@@ -83,7 +77,7 @@ do return end
 				keywords = {'key2'};
 				entrypoints = {
 					statement = {'key2'};
-					expression = {'`'};
+					expression = {'@'};
 				};
 				statement = function(self, lx)
 					lx:next()
@@ -100,5 +94,5 @@ do return end
 end
 
 
---test_speed()
+test_speed()
 test_import()

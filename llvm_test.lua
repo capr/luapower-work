@@ -55,7 +55,7 @@ local t = llvm.type_from_ctype(ffi.typeof'int')
 print(t:tostring())
 
 local mod2 = assert(llvm.parse_ir[[
-	define i32 @f() {
+	define i32 @f(i32) {
 		block:
 			ret i32 1234
 	}
@@ -63,8 +63,8 @@ local mod2 = assert(llvm.parse_ir[[
 
 local orc = assert(llvm.orc(machine))
 assert(orc:add_module(mod2))
-local p = orc:sym_addr'f'
-print(p)
+local p = ffi.cast('int(*)(int)', orc:sym_addr'f')
+print(p())
 
 builder:free()
 engine:free() --frees the module
