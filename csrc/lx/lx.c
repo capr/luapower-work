@@ -138,7 +138,7 @@ static LX_AINLINE void lx_buf_reset(LX_Buf* b)
 
 static LX_AINLINE void lx_buf_free(LX_Buf* b)
 {
-	realloc(b->data, 0);
+	free(b->data);
 	memset(b, 0, sizeof(*b));
 }
 
@@ -157,9 +157,11 @@ struct LX_State {
 	LX_Reader rfunc;      /* Reader callback. */
 	void *rdata;          /* Reader callback data. */
 	int line;             /* Input line counter. */
-	int pos;              /* Position in current line. */
-	int lastline;         /* Line before current token. */
-	int lastpos;          /* Line pos before current token. */
+	int linepos;          /* Position in current line. */
+	int bytepos;          /* Position in file. */
+	int last_line;        /* Line before current token. */
+	int last_linepos;     /* Line pos before current token. */
+	int last_bytepos;     /* Byte pos before current token. */
 	int err;              /* Current error code */
 };
 
@@ -182,7 +184,8 @@ static LX_NOINLINE LX_Char more(LX_State *ls)
 /* Get next character. */
 static LX_AINLINE LX_Char next(LX_State *ls)
 {
-	ls->pos++;
+	ls->linepos++;
+	ls->bytepos++;
 	return (ls->c = ls->p < ls->pe ? (LX_Char)(uint8_t)*ls->p++ : more(ls));
 }
 
@@ -210,7 +213,7 @@ static int newline(LX_State *ls)
 		ls->err = LX_ERR_XLINES;
 		return 1;
 	}
-	ls->pos = 0;
+	ls->linepos = 0;
 	return 0;
 }
 
@@ -504,7 +507,7 @@ static LX_Token scan(LX_State *ls)
 
 LX_State* lx_state_create(LX_Reader rfunc, void* rdata)
 {
-	LX_State* ls = realloc(NULL, sizeof(LX_State));
+	LX_State* ls = malloc(sizeof(LX_State));
 	memset(ls, 0, sizeof(LX_State));
 	ls->strscan_opt = STRSCAN_OPT_TOINT | STRSCAN_OPT_LL | STRSCAN_OPT_IMAG;
 	ls->rfunc = rfunc;
@@ -517,7 +520,7 @@ LX_State* lx_state_create(LX_Reader rfunc, void* rdata)
 void lx_state_free(LX_State *ls)
 {
 	lx_buf_free(&ls->sb);
-	realloc(ls->rdata, 0);
+	free(ls->rdata);
 }
 
 /* -- Lexer API / lexing -------------------------------------------------- */
@@ -525,8 +528,9 @@ void lx_state_free(LX_State *ls)
 /* Return next lexical token. */
 LX_Token lx_next(LX_State *ls)
 {
-	ls->lastline = ls->line;
-	ls->lastpos = ls->pos;
+	ls->last_line    = ls->line;
+	ls->last_linepos = ls->linepos;
+	ls->last_bytepos = ls->bytepos;
 	ls->tok = scan(ls);  /* Get next token. */
 	return ls->tok;
 }
@@ -541,8 +545,9 @@ double   lx_double_value  (LX_State *ls) { return ls->tv.n; }
 int32_t  lx_int32_value   (LX_State *ls) { return ls->tv.i; }
 uint64_t lx_uint64_value  (LX_State *ls) { return ls->tv.u64; }
 int      lx_error         (LX_State *ls) { return ls->err; }
-int      lx_line          (LX_State *ls) { return ls->lastline; }
-int      lx_pos           (LX_State *ls) { return ls->lastpos; }
+int      lx_line          (LX_State *ls) { return ls->last_line; }
+int      lx_linepos       (LX_State *ls) { return ls->last_linepos; }
+int      lx_bytepos       (LX_State *ls) { return ls->last_bytepos; }
 
 void lx_set_strscan_opt   (LX_State *ls, int opt) { ls->strscan_opt = opt; }
 
@@ -562,7 +567,7 @@ static const char *reader_file(void *ud, size_t *size)
 }
 
 LX_State* lx_state_create_for_file(FILE* fp) {
-	FileReaderCtx* ctx = realloc(NULL, sizeof(FileReaderCtx));
+	FileReaderCtx* ctx = malloc(sizeof(FileReaderCtx));
 	ctx->fp = fp;
 	return lx_state_create(reader_file, (void*)ctx);
 }
@@ -582,7 +587,7 @@ static const char *reader_string(void *ud, size_t *size)
 }
 
 LX_State* lx_state_create_for_string(const char* s, size_t len) {
-	StringReaderCtx* ctx = realloc(NULL, sizeof(FileReaderCtx));
+	StringReaderCtx* ctx = malloc(sizeof(FileReaderCtx));
 	ctx->s = s;
 	ctx->len = len;
 	return lx_state_create(reader_string, (void*)ctx);

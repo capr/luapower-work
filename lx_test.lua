@@ -1,4 +1,4 @@
---go@ luajit *
+
 local glue = require'glue'
 local clock = require'time'.clock
 local fs = require'fs'
@@ -67,9 +67,11 @@ do return end
 				};
 				statement = function(self, lx)
 					lx:next()
+					lx:ref'a'
 				end,
 				expression = function(self, lx)
 					lx:next()
+					lx:ref'b'
 				end,
 			}
 		elseif lang == 'test2' then
@@ -81,15 +83,19 @@ do return end
 				};
 				statement = function(self, lx)
 					lx:next()
+					lx:ref'a'
 				end,
 				expression = function(self, lx)
 					lx:next()
+					lx:ref'b'
 				end,
 			}
 		end
 	end
 
 	local st = ls:luastats()
+
+	pp(ls.subst)
 
 end
 

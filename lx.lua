@@ -51,7 +51,7 @@ enum {
 typedef int LX_Token;
 typedef struct LX_State LX_State;
 
-typedef const char* (*LX_Reader)  (void*, size_t*);
+typedef const char* (*LX_Reader) (void*, size_t*);
 
 LX_State* lx_state_create            (LX_Reader, void*);
 LX_State* lx_state_create_for_file   (struct FILE*);
@@ -65,7 +65,8 @@ int32_t  lx_int32_value   (LX_State*);
 uint64_t lx_uint64_value  (LX_State*);
 int      lx_error         (LX_State *ls);
 int      lx_line          (LX_State *ls);
-int      lx_pos           (LX_State *ls);
+int      lx_linepos       (LX_State *ls);
+int      lx_bytepos       (LX_State *ls);
 
 void lx_set_strscan_opt   (LX_State*, int);
 ]]
@@ -99,7 +100,8 @@ ffi.metatype('LX_State', {__index = {
 	error    = C.lx_error;
 	errmsg   = errmsg;
 	line     = C.lx_line;
-	pos      = C.lx_pos;
+	linepos  = C.lx_linepos;
+	bytepos  = C.lx_bytepos;
 }})
 
 --lexer API inspired by Terra's lexer for extension languages.
@@ -159,14 +161,20 @@ function M.lexer(arg, filename)
 
 	local keywords = lua_keywords --reserved words in current scope
 
-	local tk, v, ln, ps --current token type, value, line and cursor position.
+	local tk, v, ln, ps, bs --current token type, value, line, line position and byte position.
 	local tk1 --next token
 
 	local function line()
 		if ln == nil then
-			ln, ps = ls:line(), ls:pos()
+			ln = ls:line()
+			ps = ls:linepos()
 		end
 		return ln, ps
+	end
+
+	local function bytepos()
+		bs = bs or ls:bytepos()
+		return bs
 	end
 
 	--convert '<name>' tokens for reserved words to the actual keyword.
@@ -211,14 +219,14 @@ function M.lexer(arg, filename)
 			tk = ls:next()
 			tk = token(tk)
 		end
-		v, ln, ps = nil
+		v, ln, ps, bs = nil
 		ntk = ntk + 1
 		return tk
 	end
 
 	local function lookahead()
 		assert(tk1 == nil)
-		val(); line() --save current state because ls:next() changes it.
+		val(); line(); bytepos() --save current state because ls:next() changes it.
 		tk1 = ls:next()
 		local tk0 = tk
 		tk = tk1
@@ -313,11 +321,7 @@ function M.lexer(arg, filename)
 		end
 	end
 
-	local function ref(name)
-		--
-	end
-
-	local function luaexpr()
+	function lx:luaexpr()
 		return function(env)
 			--
 		end
@@ -345,20 +349,38 @@ function M.lexer(arg, filename)
 		scope_level	= scope_level - 1
 	end
 
+	local subst = {} --{subst1,...}
+	local refs
+
+	function lx:ref(name)
+		push(refs, name)
+	end
+
 	local function lang_expr(lang)
-		lang:expression(lx)
+		refs = {}
+		local pos = bytepos()
+		local cons = lang:expression(lx)
+		local len = bytepos() - pos + 1
+		push(subst, {cons = cons, refs = refs, pos = pos, len = len})
+		refs = false
 	end
 
 	local function lang_stmt(lang)
-		lang:statement(lx)
+		refs = {}
+		local pos0 = bytepos()
+		local cons = lang:statement(lx)
+		local len = bytepos() - pos0 + 1
+		push(subst, {cons = cons, refs = refs, pos = pos, len = len})
+		refs = false
 	end
+
+	lx.subst = subst
 
 	--Lua parser --------------------------------------------------------------
 
-	local expr, expr_binop, block --fw. decl.
+	local expr, block --fw. decl.
 
-	--check for end of block.
-	local function isend()
+	local function isend() --check for end of block
 		return tk == 'else' or tk == 'elseif' or tk == 'end'
 			or tk == 'until' or tk == '<eof>'
 	end
@@ -383,7 +405,7 @@ function M.lexer(arg, filename)
 		['and'] = {2,2},
 		['or' ] = {1,1},
 	}
-	local unary_priority = 9 -- priority for unary operators.
+	local unary_priority = 9 --priority for unary operators
 
 	local function params() --(name,...[,...])
 		expect'('
@@ -469,7 +491,7 @@ function M.lexer(arg, filename)
 	end
 
 	local function expr_primary() --(expr)|name .name|[expr]|:nameargs|args ...
-		local vcall
+		local iscall
 		--parse prefix expression.
 		if tk == '(' then
 			local line, pos = line()
@@ -484,47 +506,30 @@ function M.lexer(arg, filename)
 		while true do --parse multiple expression suffixes.
 			if tk == '.' then
 				expr_field()
-				vcall = false
+				iscall = false
 			elseif tk == '[' then
 				expr_bracket()
-				vcall = false
+				iscall = false
 			elseif tk == ':' then
 				next()
 				name()
 				args()
-				vcall = true
+				iscall = true
 			elseif tk == '(' or tk == '<string>' or tk == '{' then
 				args()
-				vcall = true
+				iscall = true
 			else
 				break
 			end
 		end
-		return vcall
+		return iscall
 	end
 
 	local function expr_simple() --literal|...|{table}|function(params) end|expr_primary
-		if tk == '<number>' then
-			next()
-		elseif tk == '<imag>' then
-			next()
-		elseif tk == '<int>' then
-			next()
-		elseif tk == '<u32>' then
-			next()
-		elseif tk == '<i64>' then
-			next()
-		elseif tk == '<u64>' then
-			next()
-		elseif tk == '<string>' then
-			next()
-		elseif tk == 'nil' then
-			next()
-		elseif tk == 'true' then
-			next()
-		elseif tk == 'false' then
-			next()
-		elseif tk == '...' then --vararg
+		if tk == '<number>' or tk == '<imag>' or tk == '<int>' or tk == '<u32>'
+			or tk == '<i64>' or tk == '<u64>' or tk == '<string>' or tk == 'nil'
+			or tk == 'true' or tk == 'false' or tk == '...'
+		then --literal
 			next()
 		elseif tk == '{' then --{table}
 			expr_table()
@@ -542,26 +547,19 @@ function M.lexer(arg, filename)
 		end
 	end
 
-	local function expr_unop() --not|-|#|expr_simple...
-		if tk == 'not' then
-		elseif tk == '-' then
-		elseif tk == '#' then
+	--parse binary expressions with priority higher than the limit.
+	local function expr_binop(limit)
+		if tk == 'not' or tk == '-' or tk == '#' then --unary operators
+			next()
+			expr_binop(unary_priority)
 		else
 			expr_simple()
-			return
 		end
-		next()
-		expr_binop(unary_priority)
-	end
-
-	--parse binary expressions with priority higher than the limit.
-	function expr_binop(limit)
-		expr_unop()
 		local pri = priority[tk]
 		while pri and pri[1] > limit do
 			next()
 			--parse binary expression with higher priority.
-			op = expr_binop(pri[2])
+			local op = expr_binop(pri[2])
 			pri = priority[op]
 		end
 		return tk --return unconsumed binary operator (if any).
@@ -579,30 +577,6 @@ function M.lexer(arg, filename)
 			expect('=')
 			expr_list()
 		end
-	end
-
-	local function call_assign() --funcall|assignment
-		if expr_primary() then --funcall
-		else --assignment
-			assignment()
-		end
-	end
-
-	local function for_num(line) -- = expr, expr [,expr] do block
-		expect'='; expr(); expect','; expr()
-		if nextif',' then expr() end
-		expect'do'
-		block()
-	end
-
-	local function for_iter() -- ,name... in expr,... do block
-		while nextif',' do
-			name()
-		end
-		expect'in'
-		expr_list()
-		expect'do'
-		block()
 	end
 
 	local function label() --::name::
@@ -718,7 +692,7 @@ function M.lexer(arg, filename)
 			return true --must be last
 		elseif tk == 'break' then
 			next()
-			return --must be last in Lua 5.1
+			--return true: must be last in Lua 5.1
 		elseif tk == ';' then
 			next()
 		elseif tk == '::' then
@@ -738,8 +712,8 @@ function M.lexer(arg, filename)
 			local lang = entrypoints.statement[tk]
 			if lang then --entrypoint token for extension language.
 				lang_stmt(lang)
-			else
-				call_assign()
+			elseif not expr_primary() then --function call or assignment
+				assignment()
 			end
 		end
 		return false
@@ -757,7 +731,7 @@ function M.lexer(arg, filename)
 		end
 	end
 
-	local function luastats()
+	function lx:luastats()
 		next()
 		block()
 	end
@@ -773,13 +747,8 @@ function M.lexer(arg, filename)
 	lx.lookahead = lookahead
 	lx.expect = expect
 	lx.expectmatch = expectmatch
-	--language extension API
-	lx.ref = ref
-	lx.luaexpr = luaexpr
-	lx.luastats = luastats
 	--debugging
 	lx.token_count = function() return ntk end
-
 
 	return lx
 end
