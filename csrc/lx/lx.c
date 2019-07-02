@@ -154,14 +154,14 @@ struct LX_State {
 	LX_Char c;            /* Current character. */
 	LX_Token tok;         /* Current token. */
 	LX_Buf sb;            /* Buffer for string tokens. */
-	LX_Reader rfunc;      /* Reader callback. */
+	LX_Reader read;       /* Reader callback. */
 	void *rdata;          /* Reader callback data. */
-	int line;             /* Input line counter. */
+	int line;             /* Current line. */
 	int linepos;          /* Position in current line. */
-	int bytepos;          /* Position in file. */
-	int last_line;        /* Line before current token. */
-	int last_linepos;     /* Line pos before current token. */
-	int last_bytepos;     /* Byte pos before current token. */
+	int filepos;          /* Position in file. */
+	int start_line;       /* Line of current token. */
+	int start_linepos;    /* Line pos of current token. */
+	int start_filepos;    /* File pos of current token. */
 	int err;              /* Current error code */
 };
 
@@ -174,7 +174,7 @@ struct LX_State {
 static LX_NOINLINE LX_Char more(LX_State *ls)
 {
 	size_t sz;
-	const char *p = ls->rfunc(ls->rdata, &sz);
+	const char *p = ls->read(ls->rdata, &sz);
 	if (p == NULL || sz == 0) return EOF;
 	ls->pe = p + sz;
 	ls->p = p + 1;
@@ -185,7 +185,7 @@ static LX_NOINLINE LX_Char more(LX_State *ls)
 static LX_AINLINE LX_Char next(LX_State *ls)
 {
 	ls->linepos++;
-	ls->bytepos++;
+	ls->filepos++;
 	return (ls->c = ls->p < ls->pe ? (LX_Char)(uint8_t)*ls->p++ : more(ls));
 }
 
@@ -213,7 +213,7 @@ static int newline(LX_State *ls)
 		ls->err = LX_ERR_XLINES;
 		return 1;
 	}
-	ls->linepos = 0;
+	ls->linepos = 1;
 	return 0;
 }
 
@@ -403,6 +403,9 @@ static int string(LX_State *ls)
 static LX_Token scan(LX_State *ls)
 {
 	lx_buf_reset(&ls->sb);
+	ls->start_line = ls->line;
+	ls->start_linepos = ls->linepos;
+	ls->start_filepos = ls->filepos;
 	for (;;) {
 		if (lx_char_isident(ls->c)) {
 			if (lx_char_isdigit(ls->c)) {  /* Numeric literal. */
@@ -418,12 +421,19 @@ static LX_Token scan(LX_State *ls)
 			case '\n':
 			case '\r':
 				if (newline(ls)) return TK_ERROR;
+				/* Skip any whitespace in front of the token. */
+				ls->start_line = ls->line;
+				ls->start_linepos = ls->linepos;
+				ls->start_filepos++;
 				continue;
 			case ' ':
 			case '\t':
 			case '\v':
 			case '\f':
 				next(ls);
+				/* Skip any whitespace in front of the token. */
+				ls->start_linepos++;
+				ls->start_filepos++;
 				continue;
 			case '-':
 				next(ls);
@@ -460,21 +470,26 @@ static LX_Token scan(LX_State *ls)
 			}
 			case '=':
 				next(ls);
-				if (ls->c != '=') return '='; else { next(ls); return TK_EQ; }
+				if (ls->c == '=') { next(ls); return TK_EQ; }
+				return '=';
 			case '<':
 				next(ls);
 				if (ls->c == '<') { next(ls); return TK_LSHIFT; }
-				if (ls->c != '=') return '<'; else { next(ls); return TK_LE; }
+				if (ls->c == '=') { next(ls); return TK_LE; }
+				return '<';
 			case '>':
 				next(ls);
 				if (ls->c == '>') { next(ls); return TK_RSHIFT; }
-				if (ls->c != '=') return '>'; else { next(ls); return TK_GE; }
+				if (ls->c == '=') { next(ls); return TK_GE; }
+				return '>';
 			case '~':
 				next(ls);
-				if (ls->c != '=') return '~'; else { next(ls); return TK_NE; }
+				if (ls->c == '=') { next(ls); return TK_NE; }
+				return '~';
 			case ':':
 				next(ls);
-				if (ls->c != ':') return ':'; else { next(ls); return TK_LABEL; }
+				if (ls->c == ':') { next(ls); return TK_LABEL; }
+				return ':';
 			case '"':
 			case '\'':
 				if (string(ls)) return TK_ERROR;
@@ -505,12 +520,12 @@ static LX_Token scan(LX_State *ls)
 
 /* -- Lexer API / ctod/dtor ----------------------------------------------- */
 
-LX_State* lx_state_create(LX_Reader rfunc, void* rdata)
+LX_State* lx_state_create(LX_Reader read, void* rdata)
 {
 	LX_State* ls = malloc(sizeof(LX_State));
 	memset(ls, 0, sizeof(LX_State));
 	ls->strscan_opt = STRSCAN_OPT_TOINT | STRSCAN_OPT_LL | STRSCAN_OPT_IMAG;
-	ls->rfunc = rfunc;
+	ls->read = read;
 	ls->rdata = rdata;
 	ls->line = 1;
 	next(ls);  /* Read-ahead first char. */
@@ -528,9 +543,6 @@ void lx_state_free(LX_State *ls)
 /* Return next lexical token. */
 LX_Token lx_next(LX_State *ls)
 {
-	ls->last_line    = ls->line;
-	ls->last_linepos = ls->linepos;
-	ls->last_bytepos = ls->bytepos;
 	ls->tok = scan(ls);  /* Get next token. */
 	return ls->tok;
 }
@@ -545,9 +557,9 @@ double   lx_double_value  (LX_State *ls) { return ls->tv.n; }
 int32_t  lx_int32_value   (LX_State *ls) { return ls->tv.i; }
 uint64_t lx_uint64_value  (LX_State *ls) { return ls->tv.u64; }
 int      lx_error         (LX_State *ls) { return ls->err; }
-int      lx_line          (LX_State *ls) { return ls->last_line; }
-int      lx_linepos       (LX_State *ls) { return ls->last_linepos; }
-int      lx_bytepos       (LX_State *ls) { return ls->last_bytepos; }
+int      lx_line          (LX_State *ls) { return ls->start_line; }
+int      lx_linepos       (LX_State *ls) { return ls->start_linepos; }
+int      lx_filepos       (LX_State *ls) { return ls->start_filepos; }
 
 void lx_set_strscan_opt   (LX_State *ls, int opt) { ls->strscan_opt = opt; }
 

@@ -7,7 +7,7 @@ if not ... then require'lx_test'; return end
 local ffi = require'ffi'
 local C = ffi.load'lx'
 local M = {C = C}
-local push, pop = table.insert, table.remove
+local push, pop, concat = table.insert, table.remove, table.concat
 
 local function inherit(t)
 	local dt = {}; for k,v in pairs(t) do dt[k] = v end
@@ -66,7 +66,7 @@ uint64_t lx_uint64_value  (LX_State*);
 int      lx_error         (LX_State *ls);
 int      lx_line          (LX_State *ls);
 int      lx_linepos       (LX_State *ls);
-int      lx_bytepos       (LX_State *ls);
+int      lx_filepos       (LX_State *ls);
 
 void lx_set_strscan_opt   (LX_State*, int);
 ]]
@@ -101,7 +101,7 @@ ffi.metatype('LX_State', {__index = {
 	errmsg   = errmsg;
 	line     = C.lx_line;
 	linepos  = C.lx_linepos;
-	bytepos  = C.lx_bytepos;
+	filepos  = C.lx_filepos;
 }})
 
 --lexer API inspired by Terra's lexer for extension languages.
@@ -140,10 +140,11 @@ local token_names = {
 
 function M.lexer(arg, filename)
 
-	local lx = {} --polymorphic lexer object
+	local lx = {filename = filename} --polymorphic lexer object
 
 	local read, ls
 	if type(arg) == 'string' then
+		lx.s = arg
 		ls = C.lx_state_create_for_string(arg, #arg)
 	elseif type(arg) == 'function' then
 		read = ffi.cast('LX_Reader', arg)
@@ -152,7 +153,7 @@ function M.lexer(arg, filename)
 		ls = C.lx_state_create_for_file(arg)
 	end
 
-	local function free()
+	function lx:free()
 		if read then read:free() end
 		ls:free()
 	end
@@ -161,20 +162,20 @@ function M.lexer(arg, filename)
 
 	local keywords = lua_keywords --reserved words in current scope
 
-	local tk, v, ln, ps, bs --current token type, value, line, line position and byte position.
+	local tk, v, ln, lp, fp --current token type, value, line, line position and byte position.
 	local tk1 --next token
 
 	local function line()
 		if ln == nil then
 			ln = ls:line()
-			ps = ls:linepos()
+			lp = ls:linepos()
 		end
-		return ln, ps
+		return ln, lp
 	end
 
-	local function bytepos()
-		bs = bs or ls:bytepos()
-		return bs
+	local function filepos()
+		fp = fp or ls:filepos()
+		return fp
 	end
 
 	--convert '<name>' tokens for reserved words to the actual keyword.
@@ -204,7 +205,7 @@ function M.lexer(arg, filename)
 			elseif tk == '<u64>' then
 				v = ls:u64()
 			else
-				v = true
+				v = tk
 			end
 		end
 		return v
@@ -216,17 +217,17 @@ function M.lexer(arg, filename)
 		if tk1 ~= nil then
 			tk, tk1 = tk1, nil
 		else
-			tk = ls:next()
-			tk = token(tk)
+			tk = token(ls:next())
 		end
-		v, ln, ps, bs = nil
+		v, ln, lp, fp = nil
 		ntk = ntk + 1
+		--print(tk, filepos(), line())
 		return tk
 	end
 
 	local function lookahead()
 		assert(tk1 == nil)
-		val(); line(); bytepos() --save current state because ls:next() changes it.
+		val(); line(); filepos() --save current state because ls:next() changes it.
 		tk1 = ls:next()
 		local tk0 = tk
 		tk = tk1
@@ -266,14 +267,23 @@ function M.lexer(arg, filename)
 		return tk
 	end
 
-	local function expectmatch(tk1, openingtk, ln, ps)
+	local function expectval(tk1)
+		if tk ~= tk1 then
+			errorexpected(tk1)
+		end
+		local s = val()
+		next()
+		return s
+	end
+
+	local function expectmatch(tk1, openingtk, ln, lp)
 		local tk = nextif(tk1)
 		if not tk then
 			if line() == ln then
 				errorexpected(tostring(tk1))
 			else
 				error(string.format('%s expected (to close %s at %d:%d)',
-					tostring(tk1), tostring(openingtk), ln, ps))
+					tostring(tk1), tostring(openingtk), ln, lp))
 			end
 		end
 		return tk
@@ -353,28 +363,31 @@ function M.lexer(arg, filename)
 	local refs
 
 	function lx:ref(name)
+		assert(name)
 		push(refs, name)
 	end
 
 	local function lang_expr(lang)
 		refs = {}
-		local pos = bytepos()
+		local i = filepos()
 		local cons = lang:expression(lx)
-		local len = bytepos() - pos + 1
-		push(subst, {cons = cons, refs = refs, pos = pos, len = len})
+		local j = filepos()
+		push(subst, {cons = cons, refs = refs, i = i, j = j})
 		refs = false
 	end
 
 	local function lang_stmt(lang)
 		refs = {}
-		local pos0 = bytepos()
+		local i = filepos()
 		local cons = lang:statement(lx)
-		local len = bytepos() - pos0 + 1
-		push(subst, {cons = cons, refs = refs, pos = pos, len = len})
+		local j = filepos()
+		push(subst, {cons = cons, refs = refs, i = i, j = j, stmt = true})
 		refs = false
 	end
 
-	lx.subst = subst
+	local function remove_tokens(i, j)
+		push(subst, {i = i, j = j})
+	end
 
 	--Lua parser --------------------------------------------------------------
 
@@ -574,7 +587,7 @@ function M.lexer(arg, filename)
 			expr_primary()
 			assignment()
 		else --parse RHS.
-			expect('=')
+			expect'='
 			expr_list()
 		end
 	end
@@ -701,13 +714,15 @@ function M.lexer(arg, filename)
 			next()
 			name()
 		elseif tk == 'import' then --import 'lang_name'
+			local i = filepos()
 			next()
-			if tk == '<string>' then
-				import(val())
-				next()
-			else
-				error'string expected'
+			if tk ~= '<string>' then
+				errorexpected'<string>'
 			end
+			import(ls:string())
+			next() --calling next() after import() which alters the keywords table.
+			local j = filepos()
+			remove_tokens(i, j)
 		else
 			local lang = entrypoints.statement[tk]
 			if lang then --entrypoint token for extension language.
@@ -732,23 +747,58 @@ function M.lexer(arg, filename)
 	end
 
 	function lx:luastats()
-		next()
 		block()
 	end
 
-	lx.free = free
-	lx.errorexpected = errorexpected
 	--lexer API
 	lx.cur = cur
 	lx.val = val
 	lx.line = line
+	lx.filepos = filepos
 	lx.next = next
-	lx.nextif = nextif
+	lx.nextif = function(_, tk) return nextif(tk) end
 	lx.lookahead = lookahead
-	lx.expect = expect
-	lx.expectmatch = expectmatch
+	lx.expect = function(_, tk) return expect(tk) end
+	lx.expectval = function(_, tk) return expectval(tk) end
+	lx.expectmatch = function(_, ...) return expectmatch(...) end
+	lx.errorexpected = function(_, ...) return errorexpected(...) end
+
 	--debugging
 	lx.token_count = function() return ntk end
+
+	--frontend ----------------------------------------------------------------
+
+	function lx:load()
+		lx:next()
+		lx:luastats()
+		local s = lx.s
+		local dt = {}
+		local j = 1
+		for ti,t in ipairs(subst) do
+			print(ti, j, ':', j, t.i-1, 'add: "'..s:sub(j, t.i-1)..'"') --, 'cut: "'..s:sub(t.i, t.j-1)..'"')
+			push(dt, s:sub(j, t.i-1))
+			if t.cons then
+				push(dt, ('__E(%d,{'):format(ti))
+				for i,ref in ipairs(t.refs) do
+					push(dt, ref)
+					push(dt, '=')
+					push(dt, ref)
+					push(dt, ';')
+				end
+				push(dt, t.stmt and '});' or '}) ')
+			end
+			j = t.j
+		end
+		push(dt, s:sub(j))
+		local s = concat(dt)
+		print(s)
+		local func, err = loadstring(s, lx.filename)
+		if not func then return nil, err end
+		setfenv(func, {__E = function(i, env)
+			return subst[i].cons(env)
+		end})
+		return func
+	end
 
 	return lx
 end

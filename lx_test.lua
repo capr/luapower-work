@@ -16,6 +16,7 @@ local function test_speed_for(filename)
 	local printf = glue.noop
 
 	local t0 = clock()
+	ls:next()
 	ls:luastats()
 	local n = ls:token_count()
 	local ln = ls:line()
@@ -41,18 +42,13 @@ do
 	import 'test1'
 	do
 		import 'test2'
-		key2
+		key2 z
 		a = @ + a
 	end
-	key1
-	--key2
+	--key1 x
+	--key2 y
 	b = ` + b
 end
-]]
-
-	local s1 = [[
-if 1 then end
-do return end
 ]]
 
 	local ls = lx.lexer(s)
@@ -67,11 +63,16 @@ do return end
 				};
 				statement = function(self, lx)
 					lx:next()
-					lx:ref'a'
+					lx:ref(lx:expectval'<name>')
+					return function()
+						return 1
+					end
 				end,
 				expression = function(self, lx)
 					lx:next()
-					lx:ref'b'
+					return function()
+						return 1
+					end
 				end,
 			}
 		elseif lang == 'test2' then
@@ -83,22 +84,29 @@ do return end
 				};
 				statement = function(self, lx)
 					lx:next()
-					lx:ref'a'
+					lx:ref(lx:expectval'<name>')
+					return function()
+						return 1
+					end
 				end,
 				expression = function(self, lx)
 					lx:next()
-					lx:ref'b'
+					return function()
+						return 1
+					end
 				end,
 			}
 		end
 	end
 
-	local st = ls:luastats()
+	--ls:next()
+	--ls:luastats()
+	--pp(ls.subst)
 
-	pp(ls.subst)
+	local f = assert(ls:load())
 
 end
 
 
-test_speed()
+--test_speed()
 test_import()
