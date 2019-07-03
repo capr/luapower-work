@@ -51,6 +51,11 @@ do
 end
 ]]
 
+local s = [[
+import'test1'
+   key1 z b = 2
+]]
+
 	local ls = lx.lexer(s)
 
 	function ls:import(lang)
@@ -107,6 +112,15 @@ end
 
 end
 
+local function test()
+	local ls = lx.lexer'abc = 42'
+	while true do
+		local tk = ls:next()
+		if tk == '<eof>' then break end
+		print(tk, ls:filepos(), ls:len())
+	end
+end
+--test()
 
 --test_speed()
 test_import()

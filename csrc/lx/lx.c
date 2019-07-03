@@ -560,6 +560,7 @@ int      lx_error         (LX_State *ls) { return ls->err; }
 int      lx_line          (LX_State *ls) { return ls->start_line; }
 int      lx_linepos       (LX_State *ls) { return ls->start_linepos; }
 int      lx_filepos       (LX_State *ls) { return ls->start_filepos; }
+int      lx_len           (LX_State *ls) { return ls->filepos - ls->start_filepos; }
 
 void lx_set_strscan_opt   (LX_State *ls, int opt) { ls->strscan_opt = opt; }
 
