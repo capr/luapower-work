@@ -24,27 +24,30 @@ terra Font:ref()
 
 		self.r.load_font(self.id, &self.file_data, &self.file_size)
 
-		if self.file_data == nil then goto fail end
+		if self.file_data == nil then
+			self:free()
+			return false
+		end
 
 		if FT_New_Memory_Face(self.r.ft_lib,
 			[&uint8](self.file_data),
 			self.file_size, 0, &self.ft_face) ~= 0
 		then
-			goto fail
+			self:free()
+			return false
 		end
 
 		self.hb_font = hb_ft_font_create_referenced(self.ft_face)
-		if self.hb_font == nil then goto fail end
+		if self.hb_font == nil then
+			self:free()
+			return false
+		end
 
 		hb_ft_font_set_load_flags(self.hb_font, self.ft_load_flags)
 	end
 
 	inc(self.refcount)
-	do return true end
-
-	::fail::
-	self:free()
-	return false
+	return true
 end
 
 terra Font:free()
@@ -103,7 +106,5 @@ terra Font:setsize(size: num)
 	self.ascent  = [num](m.ascender ) * self.scale / 64.f
 	self.descent = [num](m.descender) * self.scale / 64.f
 
-	if self.size_changed ~= nil then
-		self.size_changed(self)
-	end
+	hb_ft_font_changed(self.hb_font)
 end

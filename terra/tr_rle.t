@@ -85,7 +85,8 @@ if not ... then --self-test
 		a:add(7)
 		a:add(7)
 		a:add(8)
-		for i, len, v in iter {a, 0, a.len} do
+		var it = iter {a, 0, a.len}
+		for i, len, v in it do
 			print(i, len, v)
 		end
 	end

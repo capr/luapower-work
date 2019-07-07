@@ -7,8 +7,8 @@ setfenv(1, require'terra/tr_types')
 require'terra/tr_shape_word'
 require'terra/tr_rle'
 
-local detect_scripts  = require'terra/tr_shape_detect_script'
-local lang_for_script = require'terra/tr_shape_detect_lang'
+require'terra/tr_shape_detect_script'
+require'terra/tr_shape_detect_lang'
 
 local PS = FRIBIDI_CHAR_PS --paragraph separator codepoint
 local LS = FRIBIDI_CHAR_LS --line separator codepoint
@@ -32,7 +32,7 @@ local lang1 = symbol(hb_language_t)
 local lang0 = symbol(hb_language_t)
 
 local langs_iter = rle_iterator{
-	state = &arr(hb_language_t),
+	state = arrview(hb_language_t),
 	for_variables = {lang0},
 	declare_variables = function()        return quote var [lang1], [lang0] end end,
 	save_values       = function()        return quote lang0 = lang1 end end,
@@ -41,7 +41,7 @@ local langs_iter = rle_iterator{
 }
 
 Renderer.methods.lang_spans = macro(function(self, len)
-	return `langs_iter{&self.langs, 0, len}
+	return `langs_iter{self.langs.view, 0, len}
 end)
 
 --iterate paragraphs (empty paragraphs are kept separate).
@@ -66,10 +66,10 @@ end)
 
 local word_iter_state = struct {
 	layout: &Layout;
-	levels: &FriBidiLevel;
-	scripts: &hb_script_t;
-	langs: &hb_language_t;
-	linebreaks: &char;
+	levels: arrview(FriBidiLevel);
+	scripts: arrview(hb_script_t);
+	langs: arrview(hb_language_t);
+	linebreaks: arrview(char);
 }
 
 local iter = {state = word_iter_state}
@@ -108,10 +108,10 @@ end
 
 iter.load_values = function(self, i)
 	return quote
-		level1     = self.levels[i]
-		script1    = self.scripts[i]
-		lang1      = self.langs[i]
-		if i >= span_eof then --time to load a new text run
+		level1     = self.levels(i)
+		script1    = self.scripts(i)
+		lang1      = self.langs(i)
+		if i >= span_eof then --time to load a new span
 			inc(span_index)
 			span_eof = self.layout:eof(span_index)
 			span1 = self.layout.spans:at(span_index)
@@ -128,7 +128,7 @@ end
 iter.values_different = function(self, i)
 	return `
 		span_diff
-		or self.linebreaks[i-1] < 2 --0: required, 1: allowed, 2: not allowed
+		or self.linebreaks(i-1) < 2 --0: required, 1: allowed, 2: not allowed
 		or level1  ~= level0
 		or script1 ~= script0
 		or lang1   ~= lang0
@@ -147,7 +147,7 @@ Layout.methods.word_spans = macro(function(self, levels, scripts, langs, linebre
 		}, 0, self.text.len}
 end)
 
---search for the text run that is spanning over a specific text position.
+--search for the span that covers a specific text position.
 
 terra Layout:span_index_at_offset(offset: int, i0: int)
 	for i = i0 + 1, self.spans.len do
@@ -158,25 +158,32 @@ terra Layout:span_index_at_offset(offset: int, i0: int)
 	return self.spans.len-1
 end
 
---for harfbuzz, language is a IETF BCP 47 language code + country code,
+--for harfbuzz, language is a BCP 47 language code + country code,
 --but libunibreak only uses the language code part for a few languages.
 
-terra Renderer:init_ub_lang()
-	self.HB_LANGUAGE_EN = hb_language_from_string('en', 2)
-	self.HB_LANGUAGE_DE = hb_language_from_string('de', 2)
-	self.HB_LANGUAGE_ES = hb_language_from_string('es', 2)
-	self.HB_LANGUAGE_FR = hb_language_from_string('fr', 2)
-	self.HB_LANGUAGE_RU = hb_language_from_string('ru', 2)
-	self.HB_LANGUAGE_ZH = hb_language_from_string('zh', 2)
+local HB_LANGUAGE_EN = global(hb_language_t)
+local HB_LANGUAGE_DE = global(hb_language_t)
+local HB_LANGUAGE_ES = global(hb_language_t)
+local HB_LANGUAGE_FR = global(hb_language_t)
+local HB_LANGUAGE_RU = global(hb_language_t)
+local HB_LANGUAGE_ZH = global(hb_language_t)
+
+terra init_ub_lang()
+	HB_LANGUAGE_EN = hb_language_from_string('en', 2)
+	HB_LANGUAGE_DE = hb_language_from_string('de', 2)
+	HB_LANGUAGE_ES = hb_language_from_string('es', 2)
+	HB_LANGUAGE_FR = hb_language_from_string('fr', 2)
+	HB_LANGUAGE_RU = hb_language_from_string('ru', 2)
+	HB_LANGUAGE_ZH = hb_language_from_string('zh', 2)
 end
 
-terra Renderer:ub_lang(hb_lang: hb_language_t): rawstring
-	    if hb_lang == self.HB_LANGUAGE_EN then return 'en'
-	elseif hb_lang == self.HB_LANGUAGE_DE then return 'de'
-	elseif hb_lang == self.HB_LANGUAGE_ES then return 'es'
-	elseif hb_lang == self.HB_LANGUAGE_FR then return 'fr'
-	elseif hb_lang == self.HB_LANGUAGE_RU then return 'ru'
-	elseif hb_lang == self.HB_LANGUAGE_ZH then return 'zh'
+terra ub_lang(hb_lang: hb_language_t): rawstring
+	    if hb_lang == HB_LANGUAGE_EN then return 'en'
+	elseif hb_lang == HB_LANGUAGE_DE then return 'de'
+	elseif hb_lang == HB_LANGUAGE_ES then return 'es'
+	elseif hb_lang == HB_LANGUAGE_FR then return 'fr'
+	elseif hb_lang == HB_LANGUAGE_RU then return 'ru'
+	elseif hb_lang == HB_LANGUAGE_ZH then return 'zh'
 	else return nil end
 end
 
@@ -289,15 +296,20 @@ terra Layout:shape()
 
 	--Run Unicode line breaking over each span of text with the same language.
 	--NOTE: libunibreak always puts a hard break at the end of the text.
-	--We don't want that so we're passing it one more codepoint than needed.
+	--We don't want that so we're passing it one codepoint beyond length.
 
-	r.linebreaks.len = self.text.len + 1
-	var lang_spans = r:lang_spans(self.text.len)
+	var len0 = self.text.len
+	self.text.len = len0 + 1
+	self.text:set(len0, @('.'))
+	r.linebreaks.len = len0 + 1
+	var lang_spans = r:lang_spans(len0)
 	for offset, len, lang in lang_spans do
-		self.text:at(offset + len - 1)
+		self.text:at(offset + len) --upper-boundary check
 		set_linebreaks_utf32(self.text:at(offset), len + 1,
-			r:ub_lang(lang), r.linebreaks:at(offset))
+			ub_lang(lang), r.linebreaks:at(offset))
 	end
+	self.text.len = len0
+	r.linebreaks.len = len0
 
 	--Split the text into segs of characters with the same properties,
 	--shape the segs individually and cache the shaped results.
@@ -308,34 +320,31 @@ terra Layout:shape()
 	var line_num = 0
 
 	var word_spans = self:word_spans(
-		r.levels.elements,
-		r.scripts.elements,
-		r.langs.elements,
-		r.linebreaks.elements
+		r.levels.view,
+		r.scripts.view,
+		r.langs.view,
+		r.linebreaks.view
 	)
 	for offset, len, span, level, script, lang in word_spans do
-
-		self.text:at(offset + len - 1)
-		var str = self.text:at(offset)
 
 		--UBA codes: 0: required, 1: allowed, 2: not allowed.
 		var linebreak_code = r.linebreaks(offset + len - 1)
 		--user codes: 2: paragraph, 1: line, 0: softbreak.
 		var linebreak = iif(linebreak_code == 0,
-			iif(str[len-1] == PS, BREAK_PARA, BREAK_LINE), BREAK_NONE)
+			iif(self.text(offset + len - 1) == PS, BREAK_PARA, BREAK_LINE), BREAK_NONE)
 
 		if linebreak ~= BREAK_NONE then
 			inc(line_num)
 		end
 
 		--find the seg length without trailing linebreak chars.
-		while len > 0 and isnewline(str[len-1]) do
+		while len > 0 and isnewline(self.text(offset + len - 1)) do
 			dec(len)
 		end
 
 		--find if the seg has a trailing space char (before any linebreak chars).
 		var trailing_space = len > 0
-			and FRIBIDI_IS_EXPLICIT_OR_BN_OR_WS(r.bidi_types(offset+len-1))
+			and FRIBIDI_IS_EXPLICIT_OR_BN_OR_WS(r.bidi_types(offset + len - 1))
 
 		--shape the seg excluding trailing linebreak chars.
 		var gr = GlyphRun {
@@ -350,7 +359,8 @@ terra Layout:shape()
 			--info for shaping a new glyph run
 			trailing_space  = trailing_space;
 		}
-		gr.text.view = arrview(str, len) --fake a dynarray to avoid copying
+		gr.text.view = self.text:sub(offset, offset + len)
+		--^^fake a dynarray to avoid copying.
 
 		var glyph_run_id, glyph_run = r:shape_word(gr)
 

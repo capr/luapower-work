@@ -26,10 +26,9 @@ terra GlyphRun:free(r: &Renderer)
 end
 
 terra GlyphRun:shape(r: &Renderer)
-var font = r.fonts:at(self.font_id)
+	var font = r.fonts:at(self.font_id)
 	if not font:ref() then return false end
 	font:setsize(self.font_size)
-
 	self.text = self.text:copy()
 	self.features = self.features:copy()
 

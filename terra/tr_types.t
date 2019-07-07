@@ -110,7 +110,6 @@ struct Font (gettersandsetters) {
 	scale: num; --scaling factor for bitmap fonts
 	ascent: num;
 	descent: num;
-	size_changed: {&Font} -> {};
 }
 
 FontLoadFunc = {int, &&opaque, &size_t} -> {}

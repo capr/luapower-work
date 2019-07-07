@@ -142,6 +142,15 @@ terra Span:save_lang(layout: &Layout, out: &rawstring)
 	@out = hb_language_to_string(self.lang)
 end
 
+terra Span:load_script(layout: &Layout, s: rawstring)
+	self.script = hb_script_from_string(s, -1)
+end
+
+terra Span:save_script(layout: &Layout, out: &rawstring)
+	var tag = hb_script_to_iso15924_tag(self.script)
+	copy(@out, [rawstring](&tag), sizeof(tag))
+end
+
 terra Layout:offset_args(o1: int, o2: int)
 	if o1 < 0 then o1 = self.text.len + o1 + 1 end
 	if o2 < 0 then o2 = self.text.len + o2 + 1 end
@@ -153,7 +162,7 @@ local config = {
 	font_id           = {int       , 0},
 	font_size         = {double    , 0},
 	features          = {rawstring , 0},
-	script            = {int       , 0},
+	script            = {rawstring , 0},
 	lang              = {rawstring , 0},
 	dir               = {int       , 0},
 	line_spacing      = {double    , STATE_WRAPPED},

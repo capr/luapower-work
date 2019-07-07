@@ -417,7 +417,6 @@ function packstruct(T, first_field, last_field)
 		return entry_size(e1) > entry_size(e2)
 	end)
 	if i1 then
-		print(#entries, i1, i2, i2-i1, first_field, last_field)
 		assert(#entries == i2-i1+1)
 		for i = i1, i2 do
 			T.entries[i] = entries[i-i1+1]
@@ -1733,13 +1732,6 @@ function publish(modulename)
 				add(mdefs, 'local getters = {\n'); extend(mdefs, getters); add(mdefs, '}\n')
 				add(mdefs, 'local setters = {\n'); extend(mdefs, setters); add(mdefs, '}\n')
 				add(mdefs, 'local methods = {\n'); extend(mdefs, methods); add(mdefs, '}\n')
-
-				add(mdefs, [[
-ffi.metatype(']]..name..[[', {
-	__index = methods,
-})
-]])
-				--[==[
 				add(mdefs, [[
 ffi.metatype(']]..name..[[', {
 	__index = function(self, k)
@@ -1756,7 +1748,6 @@ ffi.metatype(']]..name..[[', {
 	end,
 })
 ]])
-]==]
 			else
 				append(mdefs, 'ffi.metatype(\'', name, '\', {__index = {\n')
 				extend(mdefs, methods)

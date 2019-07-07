@@ -34,7 +34,7 @@ terra Layout:set_text(s: &codepoint, len: int)
 	self:text_changed()
 end
 
-terra Layout:text_to_utf8(out: rawstring)
+terra Layout:get_text_utf8(out: rawstring)
 	if out == nil then --out buffer size requested
 		return utf8.encode.count(self.text.elements, self.text.len,
 			maxint, utf8.REPLACE, utf8.INVALID)._0
@@ -44,7 +44,7 @@ terra Layout:text_to_utf8(out: rawstring)
 	end
 end
 
-terra Layout:text_from_utf8(s: rawstring, len: int)
+terra Layout:set_text_utf8(s: rawstring, len: int)
 	self.state = 0
 	if len < 0 then
 		len = strnlen(s, self.maxlen)

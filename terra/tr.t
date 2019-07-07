@@ -41,7 +41,9 @@ terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	self.ranges.min_capacity = 64
 	self.cpstack.min_capacity = 64
 	assert(FT_Init_FreeType(&self.ft_lib) == 0)
-	self:init_ub_lang()
+	init_ub_lang()
+	init_script_lang_map()
+	init_linebreak()
 end
 
 terra Renderer:get_glyph_run_cache_max_size() return self.glyph_runs.max_size end

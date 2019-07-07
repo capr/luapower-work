@@ -82,8 +82,8 @@ function build()
 		get_text_len=1,
 		set_text=1,
 
-		text_to_utf8=1,
-		text_from_utf8=1,
+		get_text_utf8=1,
+		set_text_utf8=1,
 
 		get_maxlen=1,
 		set_maxlen=1,
