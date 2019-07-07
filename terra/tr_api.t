@@ -129,7 +129,7 @@ function build()
 
 	trlib:build{
 		linkto = {'cairo', 'freetype', 'harfbuzz', 'fribidi', 'unibreak', 'xxhash'},
-		optimize = false,
+		--optimize = false,
 	}
 
 end
