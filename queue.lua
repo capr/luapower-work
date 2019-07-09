@@ -45,20 +45,19 @@ end
 --speed-test -----------------------------------------------------------------
 
 local function probe()
-	local bytes, messages, t0, mt0
+	local bytes, messages, t0
 	local function reset(t)
 		bytes = 0
 		messages = 0
 		t0 = t
-		mt0 = t
 	end
 	reset(time.clock())
 	return function(msg)
 		messages = messages + 1
 		bytes = bytes + #msg
 		local t = time.clock()
-		if t - mt0 > 1 then --more than a second has passed since last print
-			local dt = t - t0
+		local dt = t - t0
+		if dt > 1 then --more than a second has passed since last print
 			print(string.format('messages/second: %6.2f, MB/second: %6.2f',
 				messages / dt, bytes / dt / 1024^2))
 			reset(t)
@@ -89,5 +88,9 @@ elseif ... == 'test-pull' then
 		end
 	end
 
+else
+	print'Usage:'
+	print'  luajit queue.lua test-push'
+	print'  luajit queue.lua test-pull'
 end
 
