@@ -1126,7 +1126,6 @@ end
 
 terra Layer:size_changed()
 	self.shadows:call'invalidate'
-	self:unwrap()
 end
 
 terra Shadow:path(cr: &context)
@@ -1260,35 +1259,18 @@ terra Layer:text_visible()
 		and self.text.layout.spans:at(0).font_size > 0
 end
 
-terra Layer:unshape()
-	self.text.shaped = false
-	self.text.wrapped = false
-end
-
-terra Layer:unwrap()
-	self.text.wrapped = false
-end
-
 terra Layer:sync_text_shape()
 	if not self:text_visible() then return false end
-	if self.text.shaped then return true end
 	self.text.layout:shape()
-	self.text.shaped = true
 	return true
 end
 
 terra Layer:sync_text_wrap()
-	if self.text.wrapped then return end
-	assert(self.text.shaped)
 	self.text.layout:wrap(self.cw)
-	self.text.wrapped = true
 end
 
 terra Layer:sync_text_align()
-	assert(self.text.shaped)
-	assert(self.text.wrapped)
 	self.text.layout:align(0, 0, self.cw, self.ch, self.text.align_x, self.text.align_y)
-	self.text.aligned = true
 	if self.text.selectable then
 		self.text.selection:init(&self.text.layout)
 	end
@@ -1301,9 +1283,6 @@ end
 
 terra Layer:draw_text(cr: &context)
 	if not self:text_visible() then return end
-	assert(self.text.shaped)
-	assert(self.text.wrapped)
-	assert(self.text.aligned)
 	var x1, y1, x2, y2 = cr:clip_extents()
 	self.text.layout:clip(x1, y1, x2-x1, y2-y1)
 	self.text.layout:paint(cr)
@@ -1313,15 +1292,11 @@ terra Layer:text_bbox()
 	if not self:text_visible() then
 		return 0.0, 0.0, 0.0, 0.0
 	end
-	assert(self.text.aligned)
 	return self.text.layout:bbox() --float->double conversion!
 end
 
 terra Layer:hit_test_text(cr: &context, x: num, y: num, reason: enum)
 	if not self:text_visible() then return HIT_NONE end
-	assert(self.text.shaped)
-	assert(self.text.wrapped)
-	assert(self.text.aligned)
 	var line_i, line_hit = self.text.layout:hit_test(x, y)
 	if line_i >= 0 and line_i < self.text.layout.lines.len and line_hit == 0 then
 		return HIT_TEXT
@@ -3034,8 +3009,8 @@ terra Lib:get_glyph_run_cache_size       () return self.text_renderer.glyph_run_
 terra Lib:set_font_size_resolution       (v: num) self.text_renderer.font_size_resolution = v end
 terra Lib:set_subpixel_x_resolution      (v: num) self.text_renderer.subpixel_x_resolution = v end
 terra Lib:set_word_subpixel_x_resolution (v: num) self.text_renderer.word_subpixel_x_resolution = v end
-terra Lib:set_glyph_cache_size           (v: int) self.text_renderer.glyph_cache_size = v end
-terra Lib:set_glyph_run_cache_size       (v: int) self.text_renderer.glyph_run_cache_size = v end
+terra Lib:set_glyph_cache_size           (v: int) self.text_renderer.glyph_cache_max_size = v end
+terra Lib:set_glyph_run_cache_size       (v: int) self.text_renderer.glyph_run_cache_max_size = v end
 
 --font registration
 

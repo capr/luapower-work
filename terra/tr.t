@@ -99,5 +99,16 @@ end
 terra Renderer:get_paint_glyph_num() return self.paint_glyph_num end
 terra Renderer:set_paint_glyph_num(n: int) self.paint_glyph_num = n end
 
+terra Layout:layout()
+	if self.state == STATE_ALIGNED then
+		self:clip()
+	elseif self.state == STATE_WRAPPED then
+		self:align():clip()
+	elseif self.state == STATE_SHAPED  then
+		self:wrap():align():clip()
+	else
+		self:shape():wrap():align():clip()
+	end
+end
 
 return _M

@@ -66,14 +66,11 @@ terra test()
 			layouts:add(layout)
 
 			var text = texts[text_i]
-			layout:text_from_utf8(text, -1)
+			layout:set_text_utf8(text, -1)
 
 			layout:set_font_id   (0, -1, font_id)
 			layout:set_font_size (0, -1, 16)
 			layout:set_color     (0, -1, 0xffffffff)
-
-			--probe'start'
-			layout:shape()
 
 			cr:rgb(0, 0, 0)
 			cr:paint()
@@ -84,17 +81,26 @@ terra test()
 
 			var offset_count = [int](1/r.subpixel_x_resolution)
 
+			--probe'start'
+
 			for offset_i = 0, offset_count do --go through all subpixel offsets
 
 				var w = sr:width()
 				var h = sr:height()
 				var offset_x = offset_i * (1.0 / offset_count)
 
-				layout:wrap(w)
-				layout:align(offset_x, 0, w, h, ALIGN_LEFT, ALIGN_TOP)
-				layout:clip(0, 0, w, h)
-				assert(layout.clip_valid)
-				--probe'shape/wrap/align/clip'
+				layout.wrap_w = w
+				layout.align_w = w
+				layout.align_h = h
+				layout.align_x = ALIGN_LEFT
+				layout.align_y = ALIGN_TOP
+				layout.clip_x = 0
+				layout.clip_y = 0
+				layout.clip_w = w
+				layout.clip_h = h
+
+				layout:layout()
+				--probe'layout'
 
 				r.paint_glyph_num = 0
 				t0 = clock()

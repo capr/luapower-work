@@ -76,9 +76,9 @@ terra Layout:max_w()
 	return max_w
 end
 
-terra Layout:wrap(w: num)
+terra Layout:wrap()
 
-	assert(self.state >= STATE_SHAPED)
+	assert(self.state >= STATE_WRAPPED - 1)
 	self.state = STATE_WRAPPED
 
 	var lines = &self.lines
@@ -99,7 +99,7 @@ terra Layout:wrap(w: num)
 		var hardbreak = line == nil
 		var softbreak = not hardbreak
 			and segs_wx > 0 --don't create a new line for an empty segment
-			and line.advance_x + segs_wx > w
+			and line.advance_x + segs_wx > self.wrap_w
 
 		if hardbreak or softbreak then
 

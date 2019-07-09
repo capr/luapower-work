@@ -36,13 +36,10 @@ end
 terra Layout:paint(cr: &GraphicsContext)
 
 	assert(self.state >= STATE_ALIGNED)
+	assert(self.clip_valid)
 
 	var segs = &self.segs
 	var lines = &self.lines
-
-	if not self.clip_valid then
-		self:reset_clip()
-	end
 
 	for line_i = self.first_visible_line, self.last_visible_line + 1 do
 		var line = lines:at(line_i)

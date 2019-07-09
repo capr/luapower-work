@@ -68,7 +68,8 @@ end
 local s = '-\xE0\xA0\xE0\xA0\x80\0'
 local terra test_iter()
 	print('for: ', [#s])
-	for valid, i, c in utf8.decode.codepoints(s, [#s]) do
+	var cp = utf8.decode.codepoints(s, [#s])
+	for valid, i, c in cp do
 		print('', valid, i, c)
 	end
 end

@@ -49,12 +49,12 @@ terra Layout:compare_spans(d: &Span, s: &Span)
 	return mask
 end
 
-local terra cmp_spans_after(s1: &Span, s2: &Span)
+local terra cmp_spans(s1: &Span, s2: &Span)
 	return s1.offset <= s2.offset  -- < < = = [>] >
 end
 terra Layout:find_span(offset: int) --always returns a valid span index
 	offset = max(0, offset)
-	return self.spans:binsearch(Span{offset = offset}, cmp_spans_after) - 1
+	return self.spans:binsearch(Span{offset = offset}, cmp_spans) - 1
 end
 
 terra Layout:split_spans(offset: int)
@@ -158,26 +158,43 @@ terra Layout:offset_args(o1: int, o2: int)
 	return o1, o2
 end
 
-local config = {
-	font_id           = {int       , 0},
-	font_size         = {double    , 0},
-	features          = {rawstring , 0},
-	script            = {rawstring , 0},
-	lang              = {rawstring , 0},
-	dir               = {int       , 0},
-	line_spacing      = {double    , STATE_WRAPPED},
-	hardline_spacing  = {double    , STATE_WRAPPED},
-	paragraph_spacing = {double    , STATE_WRAPPED},
-	nowrap            = {bool      , STATE_SHAPED},
-	color             = {uint32    , STATE_ALIGNED},
-	opacity           = {double    , STATE_ALIGNED},
-	operator          = {enum      , STATE_ALIGNED},
+SPAN_FIELD_TYPES = {
+	font_id           = int       ,
+	font_size         = double    ,
+	features          = rawstring ,
+	script            = rawstring ,
+	lang              = rawstring ,
+	dir               = int       ,
+	line_spacing      = double    ,
+	hardline_spacing  = double    ,
+	paragraph_spacing = double    ,
+	nowrap            = bool      ,
+	color             = uint32    ,
+	opacity           = double    ,
+	operator          = enum      ,
+}
+
+local SPAN_FIELD_MAX_STATE = {
+	font_id           = 0,
+	font_size         = 0,
+	features          = 0,
+	script            = 0,
+	lang              = 0,
+	dir               = 0,
+	line_spacing      = STATE_WRAPPED,
+	hardline_spacing  = STATE_WRAPPED,
+	paragraph_spacing = STATE_WRAPPED,
+	nowrap            = STATE_SHAPED,
+	color             = STATE_ALIGNED,
+	opacity           = STATE_ALIGNED,
+	operator          = STATE_ALIGNED,
 }
 
 --generate getters and setters for each text attr that can be set on an offset range.
 for i,FIELD in ipairs(FIELDS) do
 
-	local T, MAX_STATE = unpack(config[FIELD])
+	local T = SPAN_FIELD_TYPES[FIELD]
+	local MAX_STATE = SPAN_FIELD_MAX_STATE[FIELD]
 	T = T or Span:getfield(FIELD).type
 
 	local SAVE = Span:getmethod('save_'..FIELD)

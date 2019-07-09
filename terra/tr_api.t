@@ -72,10 +72,7 @@ function build()
 		free=1,
 		release=1,
 
-		shape=1,
-		wrap=1,
-		align=1,
-		clip=1,
+		layout=1,
 		paint=1,
 
 		get_text=1,
@@ -88,8 +85,21 @@ function build()
 		get_maxlen=1,
 		set_maxlen=1,
 
-		get_base_dir=1,
-		set_base_dir=1,
+		get_dir=1,
+		set_dir=1,
+
+		get_wrap_w=1,
+		set_wrap_w=1,
+
+		get_clip_x=1,
+		get_clip_y=1,
+		get_clip_w=1,
+		get_clip_h=1,
+
+		set_clip_x=1,
+		set_clip_y=1,
+		set_clip_w=1,
+		set_clip_h=1,
 
 		get_font_id           =1,
 		get_font_size         =1,

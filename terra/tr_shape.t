@@ -189,17 +189,18 @@ end
 
 terra Layout:shape()
 
+	assert(self.state >= STATE_SHAPED - 1)
+	self.state = STATE_SHAPED
+
 	var r = self.r
 	var segs = &self.segs
-
-	self.state = STATE_SHAPED
 
 	segs.len = 0
 	self.lines.len = 0
 	self._min_w = -inf
 	self._max_w =  inf
 	if self.spans.len == 0 then
-		return
+		return self
 	end
 
 	--script and language detection and assignment
@@ -257,7 +258,6 @@ terra Layout:shape()
 	r.levels        .len = self.text.len
 
 	self.bidi = false --is bidi reordering needed on line-wrapping or not?
-	self.base_dir = DIR_AUTO --bidi direction of the first paragraph of the text.
 
 	var span_index = 0
 	var paragraphs = self:paragraphs()
@@ -267,9 +267,9 @@ terra Layout:shape()
 		span_index = self:span_index_at_offset(offset, span_index)
 		var span = self.spans:at(span_index)
 
-		--the span that starts exactly where the paragraph starts can set
-		--the paragraph base direction, otherwise it is auto-detected.
-		var dir = iif(span.offset == offset, span.dir, DIR_AUTO)
+		--only the span that starts exactly where the paragraph starts can
+		--change the paragraph base direction otherwise the layout's dir is used.
+		var dir = iif(span.offset == offset and span.dir ~= 0, span.dir, self.dir)
 
 		fribidi_get_bidi_types(str, len, r.bidi_types:at(offset))
 
@@ -290,6 +290,7 @@ terra Layout:shape()
 			or max_bidi_level > iif(dir == DIR_RTL, 1, 0)
 
 		if self.base_dir == 0 then --take the dir of the first paragraph
+			assert(offset == 0)
 			self.base_dir = dir
 		end
 	end
@@ -384,4 +385,5 @@ terra Layout:shape()
 
 	end
 
+	return self
 end

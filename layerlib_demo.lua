@@ -14,19 +14,19 @@ local win = app:window{
 }
 
 local fonts = {
-	glue.readfile'media/fonts/OpenSans-Regular.ttf';
-	glue.readfile'media/fonts/OpenSans-Bold.ttf';
+	assert(glue.readfile'media/fonts/OpenSans-Regular.ttf');
+	assert(glue.readfile'media/fonts/Amiri-Regular.ttf');
 }
 
 local function load_font(font_id, file_data_buf, file_size_buf)
 	local s = assert(fonts[font_id+1])
+	print(font_id, #s)
 	file_data_buf[0] = ffi.cast('void*', s)
 	file_size_buf[0] = #s
 end
 
 local function unload_font(font_id, file_data_buf, file_size_buf)
-	file_data_buf[0] = nil
-	file_size_buf[0] = 0
+	--nothing
 end
 
 local s = glue.readfile('lorem_ipsum.txt')
@@ -88,7 +88,7 @@ e:set_shadow_color   (1, 0xffffffff)
 e:set_shadow_content (1, false)
 e:set_shadow_inset   (1, false)
 
-e.layout_type = ll.LAYOUT_FLEX
+e.layout_type = ll.LAYOUT_FLEXBOX
 --e.flex_flow = ll.FLEX_FLOW_Y
 
 e1.clip_content = ll.CLIP_BACKGROUND
@@ -126,7 +126,7 @@ e1:set_shadow_inset   (2, false)
 --e2.visible = false
 
 do local e = e2
---e:set_text_utf8('Yea but it\'s live!!', -1)
+e:set_text_utf8('Yea but it\'s live!!', -1)
 e:set_text_span_font_id  (0, font2_id)
 e:set_text_span_font_size(0, 100)
 e:set_text_span_color    (0, 0x333333ff)
@@ -158,7 +158,7 @@ function win:repaint()
 
 	local w, h = self:client_size()
 	cr:translate(50, 50)
-	e:sync(w - 100, h - 100)
+	e:sync_top(w - 100, h - 100)
 	--print'synced'
 	e:draw(cr)
 

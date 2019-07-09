@@ -8,8 +8,8 @@ require'terra/tr_spanedit'
 require'terra/utf8'
 
 terra Layout:text_changed()
-	var bk = self.spans:backwards()
-	for i,s in bk do
+	var spans_bk = self.spans:backwards()
+	for i,s in spans_bk do
 		if s.offset < self.text.len then
 			if self.spans:remove(i+1, maxint) > 0 then
 				self.state = 0
@@ -19,13 +19,8 @@ terra Layout:text_changed()
 	end
 end
 
-terra Layout:get_text_len()
-	return self.text.len
-end
-
-terra Layout:get_text()
-	return self.text.elements
-end
+terra Layout:get_text_len() return self.text.len end
+terra Layout:get_text() return self.text.elements end
 
 terra Layout:set_text(s: &codepoint, len: int)
 	self.state = 0
@@ -34,13 +29,16 @@ terra Layout:set_text(s: &codepoint, len: int)
 	self:text_changed()
 end
 
-terra Layout:get_text_utf8(out: rawstring)
+terra Layout:get_text_utf8(out: rawstring, max_outlen: int)
+	if max_outlen < 0 then
+		max_outlen = maxint
+	end
 	if out == nil then --out buffer size requested
 		return utf8.encode.count(self.text.elements, self.text.len,
-			maxint, utf8.REPLACE, utf8.INVALID)._0
+			max_outlen, utf8.REPLACE, utf8.INVALID)._0
 	else
 		return utf8.encode.tobuffer(self.text.elements, self.text.len, out,
-			maxint, utf8.REPLACE, utf8.INVALID)._0
+			max_outlen, utf8.REPLACE, utf8.INVALID)._0
 	end
 end
 
@@ -54,32 +52,64 @@ terra Layout:set_text_utf8(s: rawstring, len: int)
 	self:text_changed()
 end
 
-terra Layout:get_maxlen(v: int)
-	return self.maxlen
-end
-
 terra Layout:set_maxlen(v: int)
-	self.maxlen = v
+	self._maxlen = v
 	if self.text.len > v then --truncate the text
 		self.text.len = v
 		self:text_changed()
 	end
 end
 
-terra Layout:get_base_dir()
-	return self.base_dir
-end
-
-terra Layout:set_base_dir(v: FriBidiParType)
-	if self.base_dir ~= v then
+terra Layout:set_dir(v: dir_t)
+	if self._dir ~= v then
 		assert(
-			   v == FRIBIDI_PAR_LTR
-			or	v == FRIBIDI_PAR_RTL
-			or v == FRIBIDI_PAR_ON
-			or v == FRIBIDI_PAR_WLTR
-			or v == FRIBIDI_PAR_WRTL
+			   v == DIR_AUTO
+			or v == DIR_LTR
+			or v == DIR_RTL
+			or v == DIR_WLTR
+			or v == DIR_WRTL
 		)
-		self.base_dir = v
+		self._dir = v
 		self.state = 0
 	end
 end
+
+terra Layout:set_wrap_w(v: num)
+	if self._wrap_w ~= v then
+		self._wrap_w = v
+		self.state = min(self.state, STATE_WRAPPED - 1)
+	end
+end
+
+terra Layout:set_align_w(v: num)
+	if self._align_w ~= v then
+		self._align_w = v
+		self.state = min(self.state, STATE_ALIGNED - 1)
+	end
+end
+
+terra Layout:set_align_h(v: num)
+	if self._align_h ~= v then
+		self._align_h = v
+		self.state = min(self.state, STATE_ALIGNED - 1)
+	end
+end
+
+terra Layout:set_align_x(v: enum)
+	if self._align_x ~= v then
+		self._align_x = v
+		self.state = min(self.state, STATE_ALIGNED - 1)
+	end
+end
+
+terra Layout:set_align_y(v: enum)
+	if self._align_y ~= v then
+		self._align_y = v
+		self.state = min(self.state, STATE_ALIGNED - 1)
+	end
+end
+
+terra Layout:set_clip_x(x: num) if self._clip_x ~= x then self._clip_x = x; self.clip_valid = false end end
+terra Layout:set_clip_y(y: num) if self._clip_y ~= y then self._clip_y = y; self.clip_valid = false end end
+terra Layout:set_clip_w(w: num) if self._clip_w ~= w then self._clip_w = w; self.clip_valid = false end end
+terra Layout:set_clip_h(h: num) if self._clip_h ~= h then self._clip_h = h; self.clip_valid = false end end

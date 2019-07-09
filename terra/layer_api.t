@@ -294,163 +294,39 @@ terra Layer:set_shadow_content (i: int, v: bool)   self:new_shadow(i).content   
 
 do end --text
 
-terra Layer:get_text_utf32() return self.text.layout.text.elements end
-terra Layer:get_text_utf32_len() return self.text.layout.text.len end
+terra Layer:get_text() return self.text.layout.text end
+terra Layer:get_text_len() return self.text.layout.text_len end
 
-terra Layer:set_text_utf32(s: &codepoint, len: int)
-	var t = &self.text
-	t.layout.text.len = 0
-	t.layout.text:add(s, min(t.layout.maxlen, len))
-	self:unshape()
+terra Layer:set_text(s: &codepoint, len: int)
+	self.text.layout:set_text(s, len)
 end
 
 terra Layer:set_text_utf8(s: rawstring, len: int)
-	var t = &self.text
-	if len < 0 then len = strnlen(s, t.layout.maxlen) end
-	utf8.decode.toarr(s, len, &t.layout.text, t.layout.maxlen, utf8.REPLACE, utf8.INVALID)
-	self:unshape()
+	self.text.layout:set_text_utf8(s, len)
 end
 
-terra Layer:get_text_utf8_len()
-	var t = &self.text.layout.text
-	return utf8.encode.count(t.elements, t.len, maxint, utf8.REPLACE, utf8.INVALID)._0
-end
-
-terra Layer:get_text_utf8(out: rawstring, outlen: int)
-	var t = &self.text.layout.text
-	return utf8.encode.tobuffer(t.elements, t.len, out, outlen, utf8.REPLACE, utf8.INVALID)._0
+terra Layer:get_text_utf8(out: rawstring, max_outlen: int)
+	return self.text.layout:get_text_utf8(out, max_outlen)
 end
 
 terra Layer:get_text_maxlen() return self.text.layout.maxlen end
-terra Layer:set_text_maxlen(maxlen: int) self.text.layout.maxlen = maxlen end
+terra Layer:set_text_maxlen(v: int)  self.text.layout.maxlen = v end
+
+terra Layer:get_base_dir()     return self.text.layout.base_dir end
+terra Layer:set_base_dir(v: tr.dir_t) self.text.layout.base_dir = v end
+
+terra Layer:get_text_align_x() return self.text.align_x end
+terra Layer:set_text_align_x(v: enum) self.text.align_x = v end
 
 --text spans
 
-terra Layer:get_text_span_count()
-	return self.text.layout.spans.len
-end
-
-terra Layer:set_text_span_count(n: int)
-	var spans = &self.text.layout.spans
-	if spans.len == n then return end
-	spans:setlen(n, self.lib.default_text_span)
-	self:unshape()
-end
-
-terra Layer:span(i: int)
-	return self.text.layout.spans:at(i, &self.lib.default_text_span)
-end
-
-terra Layer:new_span(i: int)
-	var t = self.text.layout.spans:at(i, nil)
-	if t == nil then
-		var dt = self.lib.default_text_span
-		t = self.text.layout.spans:set(i, dt, dt)
-		self:unshape()
+for FIELD, T in pairs(tr.SPAN_FIELD_TYPES) do
+	Layer.methods['get_text_'..FIELD] = terra(self: &Layer, i: int, j: int, v: &T)
+		return self.text.layout:['get_'..FIELD](i, j, v)
 	end
-	return t
-end
-
-terra Layer:get_text_span_feature_count(i: int)
-	var span = self.text.layout.spans:at(i, nil)
-	return iif(span ~= nil, span.features.len, 0)
-end
-terra Layer:clear_text_span_features(i: int)
-	var span = self.text.layout.spans:at(i, nil)
-	if span ~= nil and span.features.len > 0 then
-		span.features.len = 0
-		self:unshape()
+	Layer.methods['set_text_'..FIELD] = terra(self: &Layer, i: int, j: int, v: T)
+		self.text.layout:['set_'..FIELD](i, j, v)
 	end
-end
-terra Layer:get_text_span_feature(span_i: int, feat_i: int, buf: &char, len: int)
-	var feat = self:span(span_i).features:at(feat_i, nil)
-	if feat ~= nil then
-		hb_feature_to_string(feat, buf, len)
-		return true
-	end
-	return false
-end
-local default_feat = `hb_feature_t {0, 0, 0, 0}
-terra Layer:add_text_span_feature(span_i: int, s: rawstring, len: int)
-	var feat: hb_feature_t
-	if hb_feature_from_string(s, len, &feat) ~= 0 then
-		self:new_span(span_i).features:add(feat)
-		self:unshape()
-		return true
-	else
-		return false
-	end
-end
-
-terra Layer:get_text_span_offset            (i: int) return self:span(i).offset            end
-terra Layer:get_text_span_font_size         (i: int) return self:span(i).font_size         end
-terra Layer:get_text_span_dir               (i: int) return self:span(i).dir               end
-terra Layer:get_text_span_line_spacing      (i: int) return self:span(i).line_spacing      end
-terra Layer:get_text_span_hardline_spacing  (i: int) return self:span(i).hardline_spacing  end
-terra Layer:get_text_span_paragraph_spacing (i: int) return self:span(i).paragraph_spacing end
-terra Layer:get_text_span_nowrap            (i: int) return self:span(i).nowrap            end
-terra Layer:get_text_span_color             (i: int) return self:span(i).color.uint        end
-terra Layer:get_text_span_opacity           (i: int) return self:span(i).opacity           end
-terra Layer:get_text_span_operator          (i: int) return self:span(i).operator          end
-
-terra Layer:set_text_span_offset            (i: int, v: int)            self:new_span(i).offset = v            ; self:unshape() end
-terra Layer:set_text_span_font_size         (i: int, v: num)            self:new_span(i).font_size = v         ; self:unshape() end
-terra Layer:set_text_span_dir               (i: int, v: FriBidiParType) self:new_span(i).dir = v               ; self:unshape() end
-terra Layer:set_text_span_line_spacing      (i: int, v: num)            self:new_span(i).line_spacing = v      ; self:unwrap() end
-terra Layer:set_text_span_hardline_spacing  (i: int, v: num)            self:new_span(i).hardline_spacing = v  ; self:unwrap() end
-terra Layer:set_text_span_paragraph_spacing (i: int, v: num)            self:new_span(i).paragraph_spacing = v ; self:unwrap() end
-terra Layer:set_text_span_nowrap            (i: int, v: bool)           self:new_span(i).nowrap = v            ; self:unwrap() end
-terra Layer:set_text_span_color             (i: int, v: uint32)         self:new_span(i).color.uint = v end
-terra Layer:set_text_span_opacity           (i: int, v: double)         self:new_span(i).opacity = v    end
-terra Layer:set_text_span_operator          (i: int, v: int)            self:new_span(i).operator = v   end
-
-local script_buf = global(char[5])
-terra Layer:get_text_span_script(i: int)
-	hb_tag_to_string(self:span(i).script, [rawstring](&script_buf))
-	return [rawstring](&script_buf)
-end
-terra Layer:set_text_span_script(i: int, s: rawstring)
-	var script = hb_script_from_string(s, -1)
-	if self:span(i).script ~= script then
-		self:new_span(i).script = script
-		self:unshape()
-	end
-end
-
-terra Layer:get_text_span_lang(i: int)
-	return hb_language_to_string(self:span(i).lang)
-end
-terra Layer:set_text_span_lang(i: int, s: rawstring)
-	var lang = hb_language_from_string(s, -1)
-	if self:span(i).lang ~= lang then
-		self:new_span(i).lang = lang
-		self:unshape()
-	end
-end
-
-terra Layer:get_text_align_x() return self.text.align_x end
-terra Layer:get_text_align_y() return self.text.align_y end
-
-terra Layer:set_text_align_x(v: enum) self.text.align_x = v end
-terra Layer:set_text_align_y(v: enum) self.text.align_y = v end
-
-terra Layer:get_text_caret_width()       return self.text.caret_width end
-terra Layer:get_text_caret_color()       return self.text.caret_color.uint end
-terra Layer:get_text_caret_insert_mode() return self.text.caret_insert_mode end
-terra Layer:get_text_selectable()        return self.text.selectable end
-
-terra Layer:set_text_caret_width(v: num)        self.text.caret_width = v end
-terra Layer:set_text_caret_color(v: uint32)     self.text.caret_color.uint = v end
-terra Layer:set_text_caret_insert_mode(v: bool) self.text.caret_insert_mode = v end
-terra Layer:set_text_selectable(v: bool)        self.text.selectable = v end
-
-terra Layer:get_text_span_font_id(i: int) return self:span(i).font_id end
-
-terra Layer:set_text_span_font_id(span_i: int, font_id: int)
-	var font = self.lib.text_renderer.fonts:at(font_id, nil)
-	font_id = iif(font ~= nil, font_id, -1)
-	self:new_span(span_i).font_id = font_id
-	self:unshape()
 end
 
 do end --layouts
@@ -816,9 +692,9 @@ function build()
 
 		--text
 
-		get_text_utf32=1,
-		get_text_utf32_len=1,
-		set_text_utf32=1,
+		get_text=1,
+		get_text_len=1,
+		set_text=1,
 
 		set_text_utf8=1,
 		get_text_utf8=1,
@@ -827,41 +703,33 @@ function build()
 		get_text_maxlen=1,
 		set_text_maxlen=1,
 
-		get_text_span_count=1,
-		set_text_span_count=1,
+		get_text_font_id           =1,
+		get_text_font_size         =1,
+		get_text_features          =1,
+		get_text_script            =1,
+		get_text_lang              =1,
+		get_text_dir               =1,
+		get_text_line_spacing      =1,
+		get_text_hardline_spacing  =1,
+		get_text_paragraph_spacing =1,
+		get_text_nowrap            =1,
+		get_text_color             =1,
+		get_text_opacity           =1,
+		get_text_operator          =1,
 
-		get_text_span_feature_count=1,
-		clear_text_span_features=1,
-		get_text_span_feature=1,
-		add_text_span_feature=1,
-
-		get_text_span_offset            =1,
-		get_text_span_font_id           =1,
-		get_text_span_font_size         =1,
-		get_text_span_script            =1,
-		get_text_span_lang              =1,
-		get_text_span_dir               =1,
-		get_text_span_line_spacing      =1,
-		get_text_span_hardline_spacing  =1,
-		get_text_span_paragraph_spacing =1,
-		get_text_span_nowrap            =1,
-		get_text_span_color             =1,
-		get_text_span_opacity           =1,
-		get_text_span_operator          =1,
-
-		set_text_span_offset            =1,
-		set_text_span_font_id           =1,
-		set_text_span_font_size         =1,
-		set_text_span_script            =1,
-		set_text_span_lang              =1,
-		set_text_span_dir               =1,
-		set_text_span_line_spacing      =1,
-		set_text_span_hardline_spacing  =1,
-		set_text_span_paragraph_spacing =1,
-		set_text_span_nowrap            =1,
-		set_text_span_color             =1,
-		set_text_span_opacity           =1,
-		set_text_span_operator          =1,
+		set_text_font_id           =1,
+		set_text_font_size         =1,
+		set_text_features          =1,
+		set_text_script            =1,
+		set_text_lang              =1,
+		set_text_dir               =1,
+		set_text_line_spacing      =1,
+		set_text_hardline_spacing  =1,
+		set_text_paragraph_spacing =1,
+		set_text_nowrap            =1,
+		set_text_color             =1,
+		set_text_opacity           =1,
+		set_text_operator          =1,
 
 		get_text_align_x=1,
 		get_text_align_y=1,

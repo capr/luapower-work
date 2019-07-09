@@ -66,7 +66,7 @@ ALIGN_AUTO    = 4 --based on bidi dir
 ALIGN_MAX     = 4
 
 --dir
-DIR_AUTO = FRIBIDI_PAR_ON
+DIR_AUTO = FRIBIDI_PAR_ON; assert(DIR_AUTO ~= 0)
 DIR_LTR  = FRIBIDI_PAR_LTR
 DIR_RTL  = FRIBIDI_PAR_RTL
 DIR_WLTR = FRIBIDI_PAR_WLTR
@@ -80,8 +80,9 @@ BREAK_PARA = 2
 --base types -----------------------------------------------------------------
 
 num = float
-font_id_t = int16
 rect = rect(num)
+font_id_t = int16
+dir_t = FriBidiParType
 
 struct Renderer;
 struct Font;
@@ -124,7 +125,7 @@ struct Span (gettersandsetters) {
 	features: arr(hb_feature_t);
 	script: hb_script_t;
 	lang: hb_language_t;
-	dir: FriBidiParType; --bidi direction for current and subsequent paragraphs.
+	dir: dir_t; --bidi direction for current and subsequent paragraphs.
 	line_spacing: num; --line spacing multiplication factor (m.f.).
 	hardline_spacing: num; --line spacing m.f. for hard-breaked lines.
 	paragraph_spacing: num; --paragraph spacing m.f.
@@ -142,7 +143,7 @@ Span.empty = `Span {
 	features = [arr(hb_feature_t).empty];
 	script = 0;
 	lang = nil;
-	dir = DIR_AUTO;
+	dir = 0;
 	line_spacing = 1.0;
 	hardline_spacing = 1.0;
 	paragraph_spacing = 2.0;
@@ -220,17 +221,33 @@ STATE_ALIGNED = 3
 
 struct Layout (gettersandsetters) {
 	r: &Renderer;
-	--input
+	--input/shape
 	spans: arr(Span);
 	text: arr(codepoint);
-	maxlen: int;
-	base_dir: FriBidiParType; --base paragraph direction of the first paragraph
+	_maxlen: int;
+	_dir: dir_t; --default base paragraph direction.
+	--input/wrap
+	_wrap_w: num;
+	--input/align
+	_align_w: num;
+	_align_h: num;
+	_align_x: enum;
+	_align_y: enum;
+	--input/clip
+	_clip_x: num; --relative to aligned text origin
+	_clip_y: num; --relative to aligned text origin
+	_clip_w: num;
+	_clip_h: num;
+	--input/paint
+	x: num;
+	y: num;
 	--state
 	state: enum; --STATE_*
 	clip_valid: bool;
 	--shaping output: segments and bidi info
 	segs: arr(Seg);
 	bidi: bool; --`true` if the text is bidirectional.
+	base_dir: dir_t;
 	--wrap/align output: lines
 	lines: arr(Line);
 	max_ax: num; --text's maximum x-advance (equivalent to text's width).
@@ -240,14 +257,22 @@ struct Layout (gettersandsetters) {
 	first_visible_line: int;
 	last_visible_line: int;
 	min_x: num;
-	x: num;
-	y: num;
-	align_x: enum;
 	--cached computed values
 	_min_w: num;
 	_max_w: num;
-	page_h: num;
 }
+
+terra Layout:get_maxlen  () return self._maxlen end
+terra Layout:get_dir     () return self._dir end
+terra Layout:get_wrap_w  () return self._wrap_w end
+terra Layout:get_align_w () return self._align_w end
+terra Layout:get_align_h () return self._align_h end
+terra Layout:get_align_x () return self._align_x end
+terra Layout:get_align_y () return self._align_y end
+terra Layout:get_clip_x  () return self._clip_x end
+terra Layout:get_clip_y  () return self._clip_y end
+terra Layout:get_clip_w  () return self._clip_w end
+terra Layout:get_clip_h  () return self._clip_h end
 
 Layout.methods.glyph_run = macro(function(self, seg)
 	return `&self.r.glyph_runs:pair(seg.glyph_run_id).key
@@ -260,9 +285,16 @@ end
 
 terra Layout:init(r: &Renderer)
 	fill(self)
-	self.maxlen = maxint
-	self.base_dir = DIR_AUTO
 	self.r = r
+	self._maxlen   =  maxint
+	self._dir      =  DIR_AUTO
+	self._wrap_w   =  inf
+	self._align_x  =  ALIGN_AUTO
+	self._align_y  =  ALIGN_CENTER
+	self._clip_x   = -inf
+	self._clip_y   = -inf
+	self._clip_w   =  inf
+	self._clip_h   =  inf
 	self.spans:add([Span.empty])
 end
 

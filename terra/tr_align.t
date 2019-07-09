@@ -5,18 +5,23 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 
-terra Layout:align(x: num, y: num, w: num, h: num, align_x: int, align_y: int)
+terra Layout:align()
 
-	assert(self.state >= STATE_WRAPPED)
+	assert(self.state >= STATE_ALIGNED - 1)
 	self.state = STATE_ALIGNED
 
-	var lines = &self.lines
-	if lines.len == 0 then return self end
+	if self.lines.len == 0 then
+		return self
+	end
+
+	var w = self.align_w
+	var h = self.align_h
 	if w == -1 then w = self.max_ax end   --self-box
 	if h == -1 then h = self.spaced_h end --self-box
 
 	self.min_x = inf
 
+	var align_x = self.align_x
 	if align_x == ALIGN_AUTO then
 		    if self.base_dir == DIR_AUTO then align_x = ALIGN_LEFT
 		elseif self.base_dir == DIR_LTR  then align_x = ALIGN_LEFT
@@ -26,7 +31,7 @@ terra Layout:align(x: num, y: num, w: num, h: num, align_x: int, align_y: int)
 		end
 	end
 
-	for line_i, line in lines do
+	for line_i, line in self.lines do
 		--compute line's aligned x position relative to the textbox origin.
 		if align_x == ALIGN_RIGHT then
 			line.x = w - line.advance_x
@@ -37,29 +42,19 @@ terra Layout:align(x: num, y: num, w: num, h: num, align_x: int, align_y: int)
 	end
 
 	--compute first line's baseline based on vertical alignment.
-	var first_line = lines:at( 0, nil)
-	var last_line  = lines:at(lines.len-1, nil)
+	var first_line = self.lines:at( 0, nil)
+	var last_line  = self.lines:at(self.lines.len-1, nil)
 	if first_line == nil then
 		self.baseline = 0
 	else
-		if align_y == ALIGN_TOP then
+		if self.align_y == ALIGN_TOP then
 			self.baseline = first_line.spaced_ascent
-		elseif align_y == ALIGN_BOTTOM then
+		elseif self.align_y == ALIGN_BOTTOM then
 			self.baseline = h - (last_line.y - last_line.spaced_descent)
-		elseif align_y == ALIGN_CENTER then
+		elseif self.align_y == ALIGN_CENTER then
 			self.baseline = first_line.spaced_ascent + (h - self.spaced_h) / 2
 		end
 	end
-
-	--store textbox's origin, which can be changed anytime after layouting.
-	self.x = x
-	self.y = y
-
-	--store textbox's height to be used for page up/down cursor navigation.
-	self.page_h = h
-
-	--store the actual x-alignment for adjusting the caret x-coord.
-	self.align_x = align_x
 
 	self.clip_valid = false
 
