@@ -89,17 +89,18 @@ terra test()
 				var h = sr:height()
 				var offset_x = offset_i * (1.0 / offset_count)
 
-				layout.wrap_w = w
+				layout.wrap_w  = w
 				layout.align_w = w
 				layout.align_h = h
 				layout.align_x = ALIGN_LEFT
 				layout.align_y = ALIGN_TOP
-				layout.clip_x = 0
-				layout.clip_y = 0
-				layout.clip_w = w
-				layout.clip_h = h
+				layout.clip_x  = 0
+				layout.clip_y  = 0
+				layout.clip_w  = w
+				layout.clip_h  = h
+				layout.x = offset_x
+				layout.y = 0
 
-				layout:layout()
 				--probe'layout'
 
 				r.paint_glyph_num = 0

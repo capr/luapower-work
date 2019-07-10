@@ -99,7 +99,7 @@ terra Layout:wrap()
 		var hardbreak = line == nil
 		var softbreak = not hardbreak
 			and segs_wx > 0 --don't create a new line for an empty segment
-			and line.advance_x + segs_wx > self.wrap_w
+			and line.advance_x + segs_wx > self.align_w
 
 		if hardbreak or softbreak then
 

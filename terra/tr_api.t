@@ -72,7 +72,6 @@ function build()
 		free=1,
 		release=1,
 
-		layout=1,
 		paint=1,
 
 		get_text=1,
@@ -90,6 +89,16 @@ function build()
 
 		get_wrap_w=1,
 		set_wrap_w=1,
+
+		get_align_w=1,
+		get_align_h=1,
+		get_align_x=1,
+		get_align_y=1,
+
+		set_align_w=1,
+		set_align_h=1,
+		set_align_x=1,
+		set_align_y=1,
 
 		get_clip_x=1,
 		get_clip_y=1,

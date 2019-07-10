@@ -2,7 +2,7 @@
 --object system with virtual properties and method overriding hooks.
 --Written by Cosmin Apreutesei. Public Domain.
 
-if not ... then require'oo_test'; return end
+if not ... then require'oo2_test'; return end
 
 local Object = {classname = 'Object'}
 
@@ -24,14 +24,17 @@ local issubclass = isfunc'issubclass'
 local closest_ancestor = isfunc'closest_ancestor'
 
 function Object:subclass(classname, overrides)
-	local subclass = {}
-	subclass.super = self
-	subclass.classname = classname or ''
-	subclass.isclass = true
+	local subclass = {
+		__index = self,
+		__newindex = self.__newindex,
+		__call = self.create,
+		classname = classname or '',
+		isclass = true,
+	}
 	if classname then
 		subclass['is'..classname] = true
 	end
-	setmetatable(subclass, getmetatable(self))
+	setmetatable(subclass, subclass)
 	if overrides then
 		for k,v in pairs(overrides) do
 			subclass[k] = v
@@ -43,154 +46,183 @@ end
 function Object:init(...) return ... end
 
 function Object:create(...)
-	local o = setmetatable({super = self}, getmetatable(self))
+	local o = {
+		__index = self,
+		__newindex = self.__newindex,
+		__call = self.__call_instance,
+	}
+	setmetatable(o, o)
 	o:init(...)
 	return o
 end
 
-local meta = {}
-
-function meta.__call(o,...)
-	return o:create(...)
-end
-
---note: this is the perf. bottleneck of the entire module.
-function meta:__index(k)
-	if type(k) == 'string' then
-		--some keys are not virtualizable to avoid infinite recursion,
-		--but they are dynamically inheritable nonetheless.
-		if k ~= '__getters' and k ~= '__setters' then
-			if k == 'super' then --'super' is not even inheritable
-				return nil
-			end
-			local isinstance = rawget(self, 'isclass') == nil
-			local getters = isinstance and self.__getters
-			local get = getters and getters[k]
-			if get then --virtual property
-				return get(self, k)
-			end
+--slower __index with getter lookup.
+local function index_no_get(self, k)
+	if not rawget(self, 'isclass') then --instance: find a getter.
+		if type(k) == 'string' then --find a specific getter.
+			local getter = 'get_'..k --compiled in LuaJIT2.1
+			local super = self
+			repeat
+				local get = rawget(super, getter)
+				if get then
+					return get(self) --virtual property
+				end
+				super = rawget(super, 'super')
+			until not super
 		end
 	end
 	local super = rawget(self, 'super')
 	return super and super[k] --inherited property
 end
 
---create a table in t[k] that inherits dynamically from t.super[k],
---recursively creating all the t.super[k] tables if they're missing.
-local function create_table(t, k)
-	local v = rawget(t, k)
-	if v ~= nil then
-		return v
-	end
-	v = {}
-	rawset(t, k, v)
-	setmetatable(v, v)
-	local super = rawget(t, 'super')
-	if super then
-		v.__index = create_table(super, k)
-	end
-	return v
-end
-
---This check is to allow the optimization of copying __setters and __getters
---on the instance (see tests) which, if applied, then overriding getters and
---setters through the instance is not allowed anymore, since that would not
---patch the instance, but it would patch the class instead.
---TODO: find a way to remove this limitation in order to allow overriding
---of getters/setters on instances (no use case for it yet).
-local function check_not_instance(self)
-	local isinstance = rawget(self, 'isclass') == nil
-	assert(not isinstance, 'NYI: trying to define a getter/setter on an instance.')
-end
-
-function meta:__newindex(k,v)
-	if type(k) ~= 'string' then
-		rawset(self, k, v)
-		return
-	end
-	local isinstance = rawget(self, 'isclass') == nil
-	local setters = isinstance and self.__setters
-	local set = setters and setters[k]
-	if set then --r/w property
-		set(self, v)
-		return
-	end
-	local getters = isinstance and self.__getters
-	if getters and getters[k] then --read-only property
-		error(string.format('property "%s" is read/only', k))
-	end
-	if k:find'^get_' or k:find'^set_' then --install getter or setter
-		check_not_instance(self)
-		local name = k:sub(5)
-		local tname = k:find'^get_' and '__getters' or '__setters'
-		create_table(self, tname)[name] = v
-	elseif k:find'^before_' then --install before hook
-		local method_name = k:match'^before_(.*)'
-		self:before(method_name, v)
-	elseif k:find'^after_' then --install after hook
-		local method_name = k:match'^after_(.*)'
-		self:after(method_name, v)
-	elseif k:find'^override_' then --install override hook
-		local method_name = k:match'^override_(.*)'
-		self:override(method_name, v)
-	else
-		rawset(self, k, v)
-	end
-end
-
-local function install(self, combine, method_name, hook)
-	if method_name:find'^get_' then
-		check_not_instance(self)
-		local prop = method_name:sub(5)
-		local method = combine(self.__getters and self.__getters[prop], hook)
-		self[method_name] = method
-	elseif method_name:find'^set_' then
-		check_not_instance(self)
-		local prop = method_name:sub(5)
-		local method = combine(self.__setters and self.__setters[prop], hook)
-		self[method_name] = method
-	else
-		rawset(self, method_name, combine(self[method_name], hook))
-	end
-end
-
-local function before(method, hook)
-	if method then
-		return function(self, ...)
-			hook(self, ...)
-			return method(self, ...)
+--slowest __index with getter fallback lookup.
+local function index_get(self, k)
+	if not rawget(self, 'isclass') then --instance: find a getter.
+		do --find getter fallback.
+			local super = self
+			repeat
+				local get = rawget(super, 'get')
+				if get then
+					return get(self, k) --virtual property
+				end
+				super = rawget(super, 'super')
+			until not super
 		end
+		if type(k) == 'string' then --find a specific getter.
+			local getter = 'get_'..k --compiled in LuaJIT2.1
+			local super = self
+			repeat
+				local get = rawget(super, getter)
+				if get then
+					return get(self) --virtual property
+				end
+				super = rawget(super, 'super')
+			until not super
+		end
+	end
+	local super = rawget(self, 'super')
+	return super and super[k] --inherited property
+end
+
+local newindex_class --fw. decl.
+
+--fastest __newindex when there are not properties.
+local function newindex_no_prop(self, k, v)
+	if not rawget(self, 'isclass') then
+		rawset(self, k, v)
 	else
-		return hook
+		newindex_class(self, k, v)
 	end
 end
+
+--slower __newindex with setter lookup.
+local function newindex_no_set(self, k, v)
+	if not rawget(self, 'isclass') then --instance: find a setter. hot!
+		if type(k) == 'string' then --find a specific setter.
+			local setter = 'set_'..k --compiled in LuaJIT2.1
+			local super = self
+			repeat
+				local set = rawget(super, setter)
+				if set then
+					set(self, v) --virtual property
+					return
+				end
+				super = rawget(super, 'super')
+			until not super
+		end
+		rawset(self, k, v)
+	else
+		newindex_class(self, k, v)
+	end
+end
+
+--slowest __newindex with fallback setter lookup.
+local function newindex_set(self, k, v)
+	if not rawget(self, 'isclass') then --instance: find a setter. hot!
+		do --find a setter fallback.
+			local super = self
+			repeat
+				local set = rawget(super, 'set')
+				if set then
+					set(self, k, v) --virtual property
+					return
+				end
+				super = rawget(super, 'super')
+			until not super
+		end
+		if type(k) == 'string' then --find a specific setter.
+			local setter = 'set_'..k --compiled in LuaJIT2.1
+			local super = self
+			repeat
+				local set = rawget(super, setter)
+				if set then
+					set(self, v) --virtual property
+					return
+				end
+				super = rawget(super, 'super')
+			until not super
+		end
+		rawset(self, k, v)
+	else
+		newindex_class(self, k, v)
+	end
+end
+
+function newindex_class(self, k, v) --__newindex for classes.
+	if type(k) == 'string' then
+		if k:find'^before_' then --install before hook
+			local method_name = k:match'^before_(.*)'
+			self:before(method_name, v)
+			return
+		elseif k:find'^after_' then --install after hook
+			local method_name = k:match'^after_(.*)'
+			self:after(method_name, v)
+			return
+		elseif k:find'^override_' then --install override hook
+			local method_name = k:match'^override_(.*)'
+			self:override(method_name, v)
+			return
+		elseif k:find'^get_' then --use slower __index
+			if getmetatable(self).__index == rawget(self, 'super') then
+				getmetatable(self).__index = index_no_get
+			end
+		elseif k == 'get' then --use even slower __index
+			getmetatable(self).__index = index_get
+		elseif k:find'^set_' then --use slower __newindex
+			if getmetatable(self).__newindex == newindex_no_prop then
+				getmetatable(self).__newindex = newindex_no_set
+			end
+		elseif k == 'set' then --use even slower __newindex
+			getmetatable(self).__newindex = newindex_set
+		end
+	end
+	rawset(self, k, v)
+end
+
+meta.__newindex = newindex_no_prop
+
 function Object:before(method_name, hook)
-	install(self, before, method_name, hook)
+	local method = self[method_name]
+	self[method_name] = method and function(self, ...)
+		hook(self, ...)
+		return method(self, ...)
+	end or hook
 end
 
-local function after(method, hook)
-	if method then
-		return function(self, ...)
-			method(self, ...)
-			return hook(self, ...)
-		end
-	else
-		return hook
-	end
-end
 function Object:after(method_name, hook)
-	install(self, after, method_name, hook)
+	local method = self[method_name]
+	self[method_name] = method and function(self, ...)
+		method(self, ...)
+		return hook(self, ...)
+	end or hook
 end
 
 local function noop() return end
-local function override(method, hook)
-	local method = method or noop
-	return function(self, ...)
+function Object:override(method_name, hook)
+	local method = self[method_name] or noop
+	self[method_name] = function(self, ...)
 		return hook(self, method, ...)
 	end
-end
-function Object:override(method_name, hook)
-	install(self, override, method_name, hook)
 end
 
 function Object:is(class)
@@ -314,15 +346,10 @@ function Object:inherit(other, override, stop_super)
 				and k ~= 'isclass'   --don't set the isclass flag
 				and k ~= 'classname' --keep the classname (preserve identity)
 				and k ~= 'super' --keep super (preserve dynamic inheritance)
-				and k ~= '__getters' --getters are deep-copied
-				and k ~= '__setters' --getters are deep-copied
 			then
 				rawset(self, k, v)
 			end
 		end
-		--copy getters and setters
-		copy_table(self, other, '__getters', override)
-		copy_table(self, other, '__setters', override)
 	end
 
 	--copy metafields if metatables are different

@@ -68,12 +68,11 @@ local function make_layouts()
 			local text = texts[text_i]
 			layout:set_text_utf8(text, #text)
 
+			layout.align_y = C.TR_ALIGN_TOP
+
 			layout:set_font_id   (0, -1, font_id)
 			layout:set_font_size (0, -1, 11)
 			layout:set_color     (0, -1, 0xffffffff)
-
-			--probe'start'
-			layout:shape()
 		end
 	end
 	return layouts
@@ -94,9 +93,10 @@ function win:repaint()
 	local cr = bmp:cairo()
 	local w, h = win:client_size()
 	for i,layout in ipairs(layouts) do
-		layout:wrap(w)
-		layout:align(0, 0, w, h, C.TR_ALIGN_LEFT, C.TR_ALIGN_TOP)
-		layout:clip(0, 0, w, h)
+		layout.wrap_w = w
+		--layout.align_w = w
+		layout.align_h = h
+		layout.x = 10
 		layout:paint(cr)
 	end
 end
