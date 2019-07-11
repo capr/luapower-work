@@ -4,24 +4,56 @@
 
 --if not ... then require'oo2_test'; return end
 
-local function get_instance_value(self, k)
+local function get_value_specific_getter(self, k)
 	if type(k) == 'string' then
 		local getter = 'get_'..k --compiled in LuaJIT2.1
-		local super = self.class.fields
-		repeat
-			local get = rawget(super, getter)
-			if get then
-				return get(self) --virtual property
-			end
-			super = rawget(super, 'super')
-		until not super
+		local get = rawget(self, getter)
+		if get then return get(self) end
+		local get = rawget(self, 'super')[getter]
+		if get then return get(self) end
 	end
-	local super = rawget(self, 'super')
-	return super and super[k] --inherited property
+end
+
+local function set_value_specific_setter(self, k, v)
+	if type(k) == 'string' then
+		local setter = 'set_'..k --compiled in LuaJIT2.1
+		local set = rawget(self, setter)
+		if set then set(self, v); return true end
+		local set = rawget(self, 'super')[setter]
+		if set then set(self, v); return true end
+	end
+end
+
+local function get_value_default_getter(self, k)
+	local get = rawget(self, 'get')
+	if get then return get(self, k) end
+	local get = rawget(self, 'super').get
+	if get then return get(self, k) end
+end
+
+local function set_value_default_setter(self, k, v)
+	local set = rawget(self, 'set')
+	if set then set(self, k, v); return true end
+	local set = rawget(self, 'super').set
+	if set then set(self, k, v); return true end
+end
+
+local function get_value(self, k)
+	local v = get_value_specific_getter(self, k); if v ~= nil then return v end
+	local v = get_value_default_getter(self, k); if v ~= nil then return v end
+	return rawget(self, 'super')[k]
+end
+
+local function set_value(self, k, v)
+	if not set_value_specific_setter(self, k, v) then
+		if not set_value_default_setter(self, k, v) then
+			rawset(self, k, v)
+		end
+	end
 end
 
 local function set_instance_value(self, k, v)
-
+	rawset(self, k, v)
 end
 
 local function add_class_field(self, k, v)
@@ -43,15 +75,13 @@ local function add_instance_field(self, k, v)
 			self:override(method_name, v)
 			return
 		elseif k:find'^get_' then --use slower __index
-			self.__index_instance = get_instance_value
+			self.class.__index_instance = get_value
 		elseif k:find'^set_' then --use slower __newindex
-			self.__newindex_instance = set_instance_value
-		--[[
+			self.class.__newindex_instance = set_value
 		elseif k == 'get' then --use even slower __index
-			getmetatable(self).__index = index_get
+			self.class.__index_instance = get_value
 		elseif k == 'set' then --use even slower __newindex
-			getmetatable(self).__newindex = newindex_set
-		]]
+			self.class.__newindex_instance = set_value
 		end
 	end
 	self.fields[k] = v
@@ -147,14 +177,36 @@ function c:before_init(...)
 end
 
 function c:get_x()
-	return 3
+	return self._x
 end
+
+function c:set_x(v)
+	self._x = v
+end
+
+function c:set(k, v)
+	rawset(self, k..'_value', v)
+end
+
+c.x = 321
 
 local o = c(1, 2, 3)
 
 print(o.x)
+o.x = 123
+o.z = 111
+print(o.z_value)
+print(o.x, o._x, rawget(o, 'x'))
 
 do return end
+
+
+
+
+
+
+
+
 
 --slower __index with getter lookup.
 local function index_no_get(self, k)
