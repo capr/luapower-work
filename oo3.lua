@@ -2,7 +2,9 @@
 --Object system with virtual properties and method overriding hooks.
 --Written by Cosmin Apreutesei. Public Domain.
 
---if not ... then require'oo2_test'; return end
+if not ... then require'oo3_test'; return end
+
+--getters and setters
 
 local function get_value_specific_getter(self, k)
 	if type(k) == 'string' then
@@ -52,59 +54,46 @@ local function set_value(self, k, v)
 	end
 end
 
-local function set_instance_value(self, k, v)
-	rawset(self, k, v)
+local function add_prefixed_field(self, k, v)
+	if type(k) == 'string' then
+		local cmd, k = k:match'^([^_]+)_(.*)'
+		local cmd = cmd and self.__commands[cmd]
+		if cmd then
+			self[cmd](self, k, v)
+			return true
+		end
+	end
 end
 
 local function add_class_field(self, k, v)
-	rawset(self.class, k, v)
+	if not add_prefixed_field(self, k, v) then
+		rawset(self, k, v)
+	end
 end
 
 local function add_instance_field(self, k, v)
-	if type(k) == 'string' then
-		if k:find'^before_' then --install before hook
-			local method_name = k:match'^before_(.*)'
-			self:before(method_name, v)
-			return
-		elseif k:find'^after_' then --install after hook
-			local method_name = k:match'^after_(.*)'
-			self:after(method_name, v)
-			return
-		elseif k:find'^override_' then --install override hook
-			local method_name = k:match'^override_(.*)'
-			self:override(method_name, v)
-			return
-		elseif k:find'^get_' then --use slower __index
-			self.class.__index_instance = get_value
-		elseif k:find'^set_' then --use slower __newindex
-			self.class.__newindex_instance = set_value
-		elseif k == 'get' then --use even slower __index
-			self.class.__index_instance = get_value
-		elseif k == 'set' then --use even slower __newindex
-			self.class.__newindex_instance = set_value
-		end
+	if not add_prefixed_field(self, k, v) then
+		self.fields[k] = v
 	end
-	self.fields[k] = v
 end
+
+--subclassing and instantiation
 
 local function subclass(self, classname, overrides)
 	local c = {}
-	c.__index = self
-	c.__newindex = self and self.__newindex
-	c.__call = self and self.create
+	c.__newindex = self and self.__newindex --C.F -> C.fields.F
+	c.__call = self and self.__call --C(...)
 	c.super = self
 	c.classname = classname or ''
 	c.isclass = true
 	c.class = {class = c}
 	setmetatable(c.class, c.class)
-	c.class.__index = false
-	c.class.__newindex = self and self.class.__newindex
+	c.__index = c.class --C.F <- C.class.F
+	c.class.__index = self and self.class --C.class.F <- S.class.F
+	c.class.__newindex = self and self.class.__newindex --C.class.F -> C.class.F
 	c.fields = {class = c}
 	setmetatable(c.fields, c.fields)
-	c.fields.__index = self and self.fields
-	if self and not self.__index_instance then
-		c.__index_instance = c.fields
-	end
+	c.fields.__index = self and self.fields --C.fields.F <- S.fields.F
 	if classname then c['is'..classname] = true end
 	setmetatable(c, c)
 	if overrides then
@@ -117,10 +106,10 @@ end
 
 local function create(self, ...)
 	local o = {}
-	o.__index = self.__index_instance
-	o.__newindex = self.__newindex_instance
-	o.__call = self.__call_instance
-	o.super = self.fields
+	o.__index    = self.__instance_index
+	o.__newindex = self.__instance_newindex
+	o.__call     = self.__instance_call
+	o.super      = self.fields
 	setmetatable(o, o)
 	o:init(...)
 	return o
@@ -129,11 +118,18 @@ end
 local Object = subclass(nil, 'Object')
 Object.__newindex = add_instance_field
 Object.class.__newindex = add_class_field
+Object.class.__instance_index    = get_value
+Object.class.__instance_newindex = set_value
 
 Object.class.subclass = subclass
 Object.class.create = create
+Object.class.__call = function(self, ...)
+	return self:create(...)
+end
 
 function Object:init(...) end
+
+--overriding
 
 function Object.class:before(method_name, hook)
 	local method = self.fields[method_name]
@@ -159,261 +155,37 @@ function Object.class:override(method_name, hook)
 	end
 end
 
+Object.class.__commands = {
+	before   = 'before';
+	after    = 'after';
+	override = 'override';
+}
 
+--type reflection
 
-
-
-
-
-
-local c = Object:subclass()
-
-function c:after_init(...)
-	print('after', ...)
-end
-
-function c:before_init(...)
-	print'before'
-end
-
-function c:get_x()
-	return self._x
-end
-
-function c:set_x(v)
-	self._x = v
-end
-
-function c:set(k, v)
-	rawset(self, k..'_value', v)
-end
-
-c.x = 321
-
-local o = c(1, 2, 3)
-
-print(o.x)
-o.x = 123
-o.z = 111
-print(o.z_value)
-print(o.x, o._x, rawget(o, 'x'))
-
-do return end
-
-
-
-
-
-
-
-
-
---slower __index with getter lookup.
-local function index_no_get(self, k)
-	if not rawget(self, 'isclass') then --instance: find a getter.
-		if type(k) == 'string' then --find a specific getter.
-			local getter = 'get_'..k --compiled in LuaJIT2.1
-			local super = self
-			repeat
-				local get = rawget(super, getter)
-				if get then
-					return get(self) --virtual property
-				end
-				super = rawget(super, 'super')
-			until not super
-		end
-	end
+function Object.class:is(class)
+	assert(type(class) == 'table' or type(class) == 'string')
+	if self == class or self.classname == class then return true end
 	local super = rawget(self, 'super')
-	return super and super[k] --inherited property
-end
-
---slowest __index with getter fallback lookup.
-local function index_get(self, k)
-	if not rawget(self, 'isclass') then --instance: find a getter.
-		do --find getter fallback.
-			local super = self
-			repeat
-				local get = rawget(super, 'get')
-				if get then
-					return get(self, k) --virtual property
-				end
-				super = rawget(super, 'super')
-			until not super
-		end
-		if type(k) == 'string' then --find a specific getter.
-			local getter = 'get_'..k --compiled in LuaJIT2.1
-			local super = self
-			repeat
-				local get = rawget(super, getter)
-				if get then
-					return get(self) --virtual property
-				end
-				super = rawget(super, 'super')
-			until not super
-		end
-	end
-	local super = rawget(self, 'super')
-	return super and super[k] --inherited property
-end
-
---fastest __newindex when there are not properties.
-local function newindex_no_prop(self, k, v)
-	if not rawget(self, 'isclass') then
-		rawset(self, k, v)
-	else
-		newindex_class(self, k, v)
-	end
-end
-
---slower __newindex with setter lookup.
-local function newindex_no_set(self, k, v)
-	if not rawget(self, 'isclass') then --instance: find a setter. hot!
-		if type(k) == 'string' then --find a specific setter.
-			local setter = 'set_'..k --compiled in LuaJIT2.1
-			local super = self
-			repeat
-				local set = rawget(super, setter)
-				if set then
-					set(self, v) --virtual property
-					return
-				end
-				super = rawget(super, 'super')
-			until not super
-		end
-		rawset(self, k, v)
-	else
-		newindex_class(self, k, v)
-	end
-end
-
---slowest __newindex with fallback setter lookup.
-local function newindex_set(self, k, v)
-	if not rawget(self, 'isclass') then --instance: find a setter. hot!
-		do --find a setter fallback.
-			local super = self
-			repeat
-				local set = rawget(super, 'set')
-				if set then
-					set(self, k, v) --virtual property
-					return
-				end
-				super = rawget(super, 'super')
-			until not super
-		end
-		if type(k) == 'string' then --find a specific setter.
-			local setter = 'set_'..k --compiled in LuaJIT2.1
-			local super = self
-			repeat
-				local set = rawget(super, setter)
-				if set then
-					set(self, v) --virtual property
-					return
-				end
-				super = rawget(super, 'super')
-			until not super
-		end
-		rawset(self, k, v)
-	else
-		newindex_class(self, k, v)
-	end
-end
-
-function newindex_class(self, k, v) --__newindex for classes.
-	if type(k) == 'string' then
-		if k:find'^before_' then --install before hook
-			local method_name = k:match'^before_(.*)'
-			self:before(method_name, v)
-			return
-		elseif k:find'^after_' then --install after hook
-			local method_name = k:match'^after_(.*)'
-			self:after(method_name, v)
-			return
-		elseif k:find'^override_' then --install override hook
-			local method_name = k:match'^override_(.*)'
-			self:override(method_name, v)
-			return
-		elseif k:find'^get_' then --use slower __index
-			if getmetatable(self).__index == rawget(self, 'super') then
-				getmetatable(self).__index = index_no_get
-			end
-		elseif k == 'get' then --use even slower __index
-			getmetatable(self).__index = index_get
-		elseif k:find'^set_' then --use slower __newindex
-			if getmetatable(self).__newindex == newindex_no_prop then
-				getmetatable(self).__newindex = newindex_no_set
-			end
-		elseif k == 'set' then --use even slower __newindex
-			getmetatable(self).__newindex = newindex_set
-		end
-	end
-	rawset(self, k, v)
-end
-
-meta.__newindex = newindex_no_prop
-
-function Object:before(method_name, hook)
-	local method = self[method_name]
-	self[method_name] = method and function(self, ...)
-		hook(self, ...)
-		return method(self, ...)
-	end or hook
-end
-
-function Object:after(method_name, hook)
-	local method = self[method_name]
-	self[method_name] = method and function(self, ...)
-		method(self, ...)
-		return hook(self, ...)
-	end or hook
-end
-
-local function noop() return end
-function Object:override(method_name, hook)
-	local method = self[method_name] or noop
-	self[method_name] = function(self, ...)
-		return hook(self, method, ...)
-	end
+	if super then return super:is(class) end
+	return false
 end
 
 function Object:is(class)
-	assert(type(class) == 'table' or type(class) == 'string')
-	local super = rawget(self, 'super')
-	if super == class or self == class or self.classname == class then
-		return true
-	elseif super then
-		return super:is(class)
-	else
-		return false
-	end
+	return self.class:is(class)
 end
 
-function Object:hasproperty(k)
-	if rawget(self, k) ~= nil then return true, 'field' end
-	if type(k) == 'string' and k ~= '__getters' and k ~= '__setters' then
-		if k == 'super' then return false end
-		local getters = self.__getters
-		local get = getters and getters[k]
-		if get then return true, 'property' end
-		local setters = self.__setters
-		local set = setters and setters[k]
-		if set then return true, 'property' end
-	end
-	local super = rawget(self, 'super')
-	if not super then return false end
-	return super:hasproperty(k)
+function Object.class:isinstance()
+	return false
 end
 
 function Object:isinstance(class)
-	return rawget(self, 'isclass') == nil and (not class or self:is(class))
-end
-
-function Object:issubclass(class)
-	return rawget(self, 'isclass') and (not class or self:is(class))
+	return not class or self:is(class)
 end
 
 --closest ancestor that `other` has in self's hierarchy.
-function Object:closest_ancestor(other)
-	while not is(other, self) do
+function Object.class:closest_ancestor(other)
+	while not other:is(self) do
 		self = rawget(self, 'super')
 		if not self then
 			return nil --other is not an Object
@@ -421,6 +193,15 @@ function Object:closest_ancestor(other)
 	end
 	return self
 end
+
+function Object:closest_ancestor(other)
+	if other:isinstance() then
+		other = other.class
+	end
+	return self.class:closest_ancestor(other)
+end
+
+--property reflection
 
 --returns iterator<k,v,source>; iterates bottom-up in the inheritance chain
 function Object:allpairs(stop_super)
@@ -442,7 +223,7 @@ function Object:allpairs(stop_super)
 end
 
 --returns all properties including the inherited ones and their current values
-function Object:properties(stop_super)
+function Object.class:properties(stop_super)
 	local values = {}
 	for k,v,source in self:allpairs(stop_super) do
 		if values[k] == nil then
@@ -452,37 +233,17 @@ function Object:properties(stop_super)
 	return values
 end
 
-local function copy_table(dst, src, k, override)
-	create_table(dst, k)
-	local st = rawget(src, k)
-	if st then
-		local dt = rawget(dst, k)
-		if dt == nil then
-			dt = {}
-			rawset(dst, k, dt)
-		end
-		for k,v in pairs(st) do
-			if override or rawget(dt, k) == nil then
-				rawset(dt, k, v)
-			end
-		end
-	else
-		local super = rawget(src, 'super')
-		if super then
-			return copy_table(dst, super, k)
-		end
-	end
-end
+--static inheritance
 
-function Object:inherit(other, override, stop_super)
-	if other and not is(other, Object) then --plain table, treat as mixin
+function Object.class:inherit(other, override, stop_super)
+	if other and not oo.is(other, Object) then --plain table, treat as mixin
 		for k,v in pairs(other) do
 			if override or not self:hasproperty(k) then
 				self[k] = v --not rawsetting so that meta-methods apply
 			end
 		end
 	else --oo class or instance
-		if other and not is(self, other) then --mixin
+		if other and not oo.is(self, other) then --mixin
 			--prevent inheriting fields from common ancestors by default!
 			if stop_super == nil then --pass false to disable this filter.
 				stop_super = self:closest_ancestor(other)
@@ -496,33 +257,26 @@ function Object:inherit(other, override, stop_super)
 				and k ~= 'isclass'   --don't set the isclass flag
 				and k ~= 'classname' --keep the classname (preserve identity)
 				and k ~= 'super' --keep super (preserve dynamic inheritance)
+				and k ~= '__index'
+				and k ~= '__newindex'
 			then
 				rawset(self, k, v)
-			end
-		end
-	end
-
-	--copy metafields if metatables are different
-	local src_meta = getmetatable(other)
-	local dst_meta = getmetatable(self)
-	if src_meta and src_meta ~= dst_meta then
-		for k,v in pairs(src_meta) do
-			if override or rawget(dst_meta, k) == nil then
-				rawset(dst_meta, k, v)
 			end
 		end
 	end
 	return self
 end
 
-function Object:detach()
+Object.inherit = Object.class.inherit
+
+function Object.class:detach()
 	self:inherit()
 	self.classname = self.classname --store the classname
 	rawset(self, 'super', nil)
 	return self
 end
 
-function Object:gen_properties(names, getter, setter)
+function Object.class:gen_properties(names, getter, setter)
 	for k in pairs(names) do
 		if getter then
 			self['get_'..k] = function(self) return getter(self, k) end
@@ -535,74 +289,18 @@ end
 
 --debugging
 
-local function pad(s, n) return s..(' '):rep(n - #s) end
+--....
 
-local props_conv = {g = 'r', s = 'w', gs = 'rw', sg = 'rw'}
-local oo_state_fields = {super=1, __getters=1, __setters=1, __observers=1}
+--module object
 
-function Object:inspect(show_oo)
-	local glue = require'glue'
-	--collect data
-	local supers = {} --{super1,...}
-	local keys = {} --{super = {key1 = true,...}}
-	local props = {} --{super = {prop1 = true,...}}
-	local sources = {} --{key = source}
-	local source, keys_t, props_t
-	for k,v,src in self:allpairs() do
-		if sources[k] == nil then sources[k] = src end
-		if src ~= source then
-			source = src
-			keys_t = {}
-			props_t = {}
-			keys[source] = keys_t
-			props[source] = props_t
-			supers[#supers+1] = source
-		end
-		if sources[k] == src then
-			keys_t[k] = true
-		end
-	end
-	if self.__getters then
-		for prop in pairs(self.__getters) do
-			if prop ~= '__index' then
-				props_t[prop] = 'g'
-			end
-		end
-	end
-	if self.__setters then
-		for prop in pairs(self.__setters) do
-			if prop ~= '__index' then
-				props_t[prop] = (props_t[prop] or '')..'s'
-			end
-		end
-	end
+local oo = {}
 
-	--print values
-	for i,super in ipairs(supers) do
-		if show_oo or super ~= Object then
-			print('from '..(
-				super == self and
-					('self'..(super.classname ~= ''
-						and ' ('..super.classname..')' or ''))
-					or 'super #'..tostring(i-1)..(super.classname ~= ''
-						and ' ('..super.classname..')' or '')
-					)..':')
-			for k,v in glue.sortedpairs(props[super]) do
-				print('    '..pad(k..' ('..props_conv[v]..')', 16),
-					tostring(super[k]))
-			end
-			for k in glue.sortedpairs(keys[super]) do
-				local oo = oo_state_fields[k] or Object[k] ~= nil
-				if show_oo or not oo then
-					print('  '..(oo and '* ' or '  ')..pad(k, 16),
-						tostring(super[k]))
-				end
-			end
-		end
-	end
+oo.Object = Object
+
+function oo.class(super,...)
+	return (super or Object):subclass(...)
 end
 
---[[
 local function isfunc(test)
 	return function(obj, class)
 		if type(obj) ~= 'table' then return false end
@@ -611,35 +309,15 @@ local function isfunc(test)
 		return test(obj, class)
 	end
 end
-local is = isfunc'is'
-local isinstance = isfunc'isinstance'
-local issubclass = isfunc'issubclass'
-local closest_ancestor = isfunc'closest_ancestor'
-]]
+oo.is = isfunc'is'
+oo.isinstance = isfunc'isinstance'
+oo.issubclass = isfunc'issubclass'
+oo.closest_ancestor = isfunc'closest_ancestor'
 
---setmetatable(Object, meta)
-
-local function class(super,...)
-	return (super or Object):subclass(...)
-end
-
-return setmetatable({
-	class = class,
-	is = is,
-	isinstance = isinstance,
-	issubclass = issubclass,
-	closest_ancestor = closest_ancestor,
-	Object = Object,
-}, {
-	__index = function(t,k)
+return setmetatable(oo, {
+	__index = function(oo, k) --create named classes with oo.ClassName([super], ...)
 		return function(super, ...)
-			if type(super) == 'string' then
-				super = t[super]
-			end
-			local cls = class(super, ...)
-			cls.classname = k
-			t[k] = cls
-			return cls
+			return oo.class(super, k, ...)
 		end
 	end
 })

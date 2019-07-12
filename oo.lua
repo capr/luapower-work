@@ -231,7 +231,7 @@ end
 
 --closest ancestor that `other` has in self's hierarchy.
 function Object:closest_ancestor(other)
-	while not is(other, self) do
+	while not other:is(self) do
 		self = rawget(self, 'super')
 		if not self then
 			return nil --other is not an Object
