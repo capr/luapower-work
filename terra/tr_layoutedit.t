@@ -23,6 +23,7 @@ terra Layout:get_text_len() return self.text.len end
 terra Layout:get_text() return self.text.elements end
 
 terra Layout:set_text(s: &codepoint, len: int)
+	assert(s ~= nil)
 	self.state = 0
 	self.text.len = 0
 	self.text:add(s, min(self.maxlen, len))
@@ -43,6 +44,7 @@ terra Layout:get_text_utf8(out: rawstring, max_outlen: int)
 end
 
 terra Layout:set_text_utf8(s: rawstring, len: int)
+	assert(s ~= nil)
 	self.state = 0
 	if len < 0 then
 		len = strnlen(s, self.maxlen)
@@ -74,17 +76,10 @@ terra Layout:set_dir(v: dir_t)
 	end
 end
 
-terra Layout:set_wrap_w(v: num)
-	if self._wrap_w ~= v then
-		self._wrap_w = v
-		self.state = min(self.state, STATE_WRAPPED - 1)
-	end
-end
-
 terra Layout:set_align_w(v: num)
 	if self._align_w ~= v then
 		self._align_w = v
-		self.state = min(self.state, STATE_ALIGNED - 1)
+		self.state = min(self.state, STATE_WRAPPED - 1)
 	end
 end
 
@@ -113,3 +108,23 @@ terra Layout:set_clip_x(x: num) if self._clip_x ~= x then self._clip_x = x; self
 terra Layout:set_clip_y(y: num) if self._clip_y ~= y then self._clip_y = y; self.clip_valid = false end end
 terra Layout:set_clip_w(w: num) if self._clip_w ~= w then self._clip_w = w; self.clip_valid = false end end
 terra Layout:set_clip_h(h: num) if self._clip_h ~= h then self._clip_h = h; self.clip_valid = false end end
+terra Layout:set_clip_extents(x1: num, y1: num, x2: num, y2: num)
+	self.clip_x = x1
+	self.clip_y = y1
+	self.clip_w = x2-x1
+	self.clip_h = y2-y1
+end
+
+terra Layout:set_x(x: num)
+	if self._x ~= x then
+		self._x = x
+		self.clip_valid = false
+	end
+end
+
+terra Layout:set_y(y: num)
+	if self._y ~= y then
+		self._y = y
+		self.clip_valid = false
+	end
+end

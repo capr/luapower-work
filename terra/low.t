@@ -1062,13 +1062,11 @@ assert = macro(function(expr, msg)
 	return quote
 		if not expr then
 			var stderr = stderr()
-			fprintf(stderr, '%s', [
-				'assertion failed '
-				.. (msg and '('..msg:asvalue()..') ' or '')
-				.. tostring(expr.filename)
-				.. ':' .. tostring(expr.linenumber)
-				.. ': ' .. tostring(expr) .. '\n'
-			])
+			fprintf(stderr, '%s at %s:%d',
+				[(msg and msg:asvalue() or 'assertion failed')],
+				[tostring(expr.filename):match'[^\\/]+$'],
+				[tonumber(expr.linenumber)]
+			)
 			fflush(stderr)
 			abort()
 		end

@@ -72,8 +72,6 @@ function build()
 		free=1,
 		release=1,
 
-		paint=1,
-
 		get_text=1,
 		get_text_len=1,
 		set_text=1,
@@ -86,9 +84,6 @@ function build()
 
 		get_dir=1,
 		set_dir=1,
-
-		get_wrap_w=1,
-		set_wrap_w=1,
 
 		get_align_w=1,
 		get_align_h=1,
@@ -109,13 +104,19 @@ function build()
 		set_clip_y=1,
 		set_clip_w=1,
 		set_clip_h=1,
+		set_clip_extents=1,
+
+		get_x=1,
+		get_y=1,
+		set_x=1,
+		set_y=1,
 
 		get_font_id           =1,
 		get_font_size         =1,
 		get_features          =1,
 		get_script            =1,
 		get_lang              =1,
-		get_dir               =1,
+		get_paragraph_dir     =1,
 		get_line_spacing      =1,
 		get_hardline_spacing  =1,
 		get_paragraph_spacing =1,
@@ -129,7 +130,7 @@ function build()
 		set_features          =1,
 		set_script            =1,
 		set_lang              =1,
-		set_dir               =1,
+		set_paragraph_dir     =1,
 		set_line_spacing      =1,
 		set_hardline_spacing  =1,
 		set_paragraph_spacing =1,
@@ -137,6 +138,16 @@ function build()
 		set_color             =1,
 		set_opacity           =1,
 		set_operator          =1,
+
+		get_visible=1,
+		get_clipped=1,
+
+		shape=1,
+		wrap=1,
+		align=1,
+		clip=1,
+		layout=1,
+		paint=1,
 
 	}, {
 		cname = 'tr_layout_t',

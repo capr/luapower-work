@@ -125,7 +125,7 @@ struct Span (gettersandsetters) {
 	features: arr(hb_feature_t);
 	script: hb_script_t;
 	lang: hb_language_t;
-	dir: dir_t; --bidi direction for current and subsequent paragraphs.
+	paragraph_dir: dir_t; --bidi direction for current paragraph.
 	line_spacing: num; --line spacing multiplication factor (m.f.).
 	hardline_spacing: num; --line spacing m.f. for hard-breaked lines.
 	paragraph_spacing: num; --paragraph spacing m.f.
@@ -143,7 +143,7 @@ Span.empty = `Span {
 	features = [arr(hb_feature_t).empty];
 	script = 0;
 	lang = nil;
-	dir = 0;
+	paragraph_dir = 0;
 	line_spacing = 1.0;
 	hardline_spacing = 1.0;
 	paragraph_spacing = 2.0;
@@ -226,21 +226,18 @@ struct Layout (gettersandsetters) {
 	text: arr(codepoint);
 	_maxlen: int;
 	_dir: dir_t; --default base paragraph direction.
-	--input/wrap
-	_wrap_w: num;
-	--input/align
+	--input/wrap+align
 	_align_w: num;
 	_align_h: num;
 	_align_x: enum;
 	_align_y: enum;
-	--input/clip
-	_clip_x: num; --relative to aligned text origin
-	_clip_y: num; --relative to aligned text origin
+	--input/clip+paint
+	_clip_x: num;
+	_clip_y: num;
 	_clip_w: num;
 	_clip_h: num;
-	--input/paint
-	x: num;
-	y: num;
+	_x: num;
+	_y: num;
 	--state
 	state: enum; --STATE_*
 	clip_valid: bool;
@@ -264,7 +261,6 @@ struct Layout (gettersandsetters) {
 
 terra Layout:get_maxlen  () return self._maxlen end
 terra Layout:get_dir     () return self._dir end
-terra Layout:get_wrap_w  () return self._wrap_w end
 terra Layout:get_align_w () return self._align_w end
 terra Layout:get_align_h () return self._align_h end
 terra Layout:get_align_x () return self._align_x end
@@ -273,6 +269,8 @@ terra Layout:get_clip_x  () return self._clip_x end
 terra Layout:get_clip_y  () return self._clip_y end
 terra Layout:get_clip_w  () return self._clip_w end
 terra Layout:get_clip_h  () return self._clip_h end
+terra Layout:get_x       () return self._x end
+terra Layout:get_y       () return self._y end
 
 Layout.methods.glyph_run = macro(function(self, seg)
 	return `&self.r.glyph_runs:pair(seg.glyph_run_id).key
@@ -288,7 +286,6 @@ terra Layout:init(r: &Renderer)
 	self.r = r
 	self._maxlen   =  maxint
 	self._dir      =  DIR_AUTO
-	self._wrap_w   =  inf
 	self._align_x  =  ALIGN_AUTO
 	self._align_y  =  ALIGN_CENTER
 	self._clip_x   = -inf
@@ -296,6 +293,45 @@ terra Layout:init(r: &Renderer)
 	self._clip_w   =  inf
 	self._clip_h   =  inf
 	self.spans:add([Span.empty])
+end
+
+terra Layout:get_visible()
+	return self.text.len > 0
+		and self.spans.len > 0
+		and self.spans:at(0).font_id ~= -1
+		and self.spans:at(0).font_size > 0
+end
+
+terra Layout.methods._shape :: {&Layout} -> {}
+terra Layout:shape()
+	if self.state >= STATE_SHAPED then return end
+	self:_shape()
+	self.state = STATE_SHAPED
+end
+
+terra Layout.methods._wrap :: {&Layout} -> {}
+terra Layout:wrap()
+	if self.state >= STATE_WRAPPED then return end
+	assert(self.state == STATE_WRAPPED - 1)
+	self:_wrap()
+	self.state = STATE_WRAPPED
+end
+
+terra Layout.methods._align :: {&Layout} -> {}
+terra Layout:align()
+	if self.state >= STATE_ALIGNED then return end
+	assert(self.state == STATE_ALIGNED - 1)
+	self:_align()
+	self.state = STATE_ALIGNED
+end
+
+terra Layout.methods.clip :: {&Layout} -> {}
+
+function Layout:layout()
+	self:shape()
+	self:wrap()
+	self:align()
+	self:clip()
 end
 
 --glyph run type -------------------------------------------------------------

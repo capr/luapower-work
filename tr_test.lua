@@ -93,10 +93,14 @@ function win:repaint()
 	local cr = bmp:cairo()
 	local w, h = win:client_size()
 	for i,layout in ipairs(layouts) do
-		layout.wrap_w = w
-		--layout.align_w = w
-		layout.align_h = h
+		layout.align_w = w - 20
+		layout.align_h = h - 20
 		layout.x = 10
+		layout.y = 10
+		layout.clip_x = 100
+		layout.clip_y = 100
+		layout.clip_w = w - 200
+		layout.clip_h = h - 200
 		layout:paint(cr)
 	end
 end

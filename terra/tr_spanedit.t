@@ -12,7 +12,7 @@ local FIELDS = {
 	'features',
 	'script',
 	'lang',
-	'dir',
+	'paragraph_dir',
 	'line_spacing',
 	'hardline_spacing',
 	'paragraph_spacing',
@@ -164,7 +164,7 @@ SPAN_FIELD_TYPES = {
 	features          = rawstring ,
 	script            = rawstring ,
 	lang              = rawstring ,
-	dir               = int       ,
+	paragraph_dir     = int       ,
 	line_spacing      = double    ,
 	hardline_spacing  = double    ,
 	paragraph_spacing = double    ,
@@ -175,12 +175,6 @@ SPAN_FIELD_TYPES = {
 }
 
 local SPAN_FIELD_MAX_STATE = {
-	font_id           = 0,
-	font_size         = 0,
-	features          = 0,
-	script            = 0,
-	lang              = 0,
-	dir               = 0,
 	line_spacing      = STATE_WRAPPED,
 	hardline_spacing  = STATE_WRAPPED,
 	paragraph_spacing = STATE_WRAPPED,
@@ -194,7 +188,7 @@ local SPAN_FIELD_MAX_STATE = {
 for i,FIELD in ipairs(FIELDS) do
 
 	local T = SPAN_FIELD_TYPES[FIELD]
-	local MAX_STATE = SPAN_FIELD_MAX_STATE[FIELD]
+	local MAX_STATE = SPAN_FIELD_MAX_STATE[FIELD] or 0
 	T = T or Span:getfield(FIELD).type
 
 	local SAVE = Span:getmethod('save_'..FIELD)

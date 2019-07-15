@@ -27,7 +27,7 @@ end
 terra Layout:clip()
 	assert(self.state >= STATE_ALIGNED)
 	if self.clip_valid then
-		return self
+		return
 	end
 	if not self.clipped then
 		for _,line in self.lines do
@@ -37,8 +37,8 @@ terra Layout:clip()
 			seg.visible = true
 		end
 	else
-		var x = self.clip_x
-		var y = self.clip_y - self.baseline
+		var x = self.clip_x - self.x
+		var y = self.clip_y - self.y - self.baseline
 		var w = self.clip_w
 		var h = self.clip_h
 		var first_visible = max(self:line_at_y(y), 0)
@@ -71,5 +71,4 @@ terra Layout:clip()
 		self.last_visible_line = last_visible
 		self.clip_valid = true
 	end
-	return self
 end

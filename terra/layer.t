@@ -339,8 +339,6 @@ end
 
 struct Text {
 	layout: tr.Layout;
-	align_x: enum; --ALIGN_*
-	align_y: enum; --ALIGN_*
 	caret_width: num;
 	caret_color: color;
 	caret_insert_mode: bool;
@@ -351,8 +349,6 @@ struct Text {
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
-	self.align_x = ALIGN_CENTER
-	self.align_y = ALIGN_CENTER
 	self.caret_width = 1
 	self.caret_color = DEFAULT_CARET_COLOR
 	self.selectable = true
@@ -1252,51 +1248,47 @@ end
 
 --text drawing & hit testing -------------------------------------------------
 
-terra Layer:text_visible()
-	return self.text.layout.text.len > 0
-		and self.text.layout.spans.len > 0
-		and self.text.layout.spans:at(0).font_id ~= -1
-		and self.text.layout.spans:at(0).font_size > 0
-end
-
 terra Layer:sync_text_shape()
-	if not self:text_visible() then return false end
+	if not self.text.layout.visible then return false end
 	self.text.layout:shape()
 	return true
 end
 
 terra Layer:sync_text_wrap()
-	self.text.layout:wrap(self.cw)
+	self.text.layout.align_w = self.cw
+	self.text.layout:wrap()
 end
 
 terra Layer:sync_text_align()
-	self.text.layout:align(0, 0, self.cw, self.ch, self.text.align_x, self.text.align_y)
+	self.text.layout.align_h = self.ch
+	self.text.layout:align()
 	if self.text.selectable then
 		self.text.selection:init(&self.text.layout)
 	end
 end
 
 terra Layer:get_baseline()
-	if not self:text_visible() then return self.h end
+	if not self.text.layout.visible then return self.h end
 	return self.text.layout.baseline
 end
 
 terra Layer:draw_text(cr: &context)
-	if not self:text_visible() then return end
+	if not self.text.layout.visible then return end
 	var x1, y1, x2, y2 = cr:clip_extents()
-	self.text.layout:clip(x1, y1, x2-x1, y2-y1)
+	self.text.layout:set_clip_extents(x1, y1, x2, y2)
+	self.text.layout:clip()
 	self.text.layout:paint(cr)
 end
 
 terra Layer:text_bbox()
-	if not self:text_visible() then
+	if not self.text.layout.visible then
 		return 0.0, 0.0, 0.0, 0.0
 	end
 	return self.text.layout:bbox() --float->double conversion!
 end
 
 terra Layer:hit_test_text(cr: &context, x: num, y: num, reason: enum)
-	if not self:text_visible() then return HIT_NONE end
+	if not self.text.layout.visible then return HIT_NONE end
 	var line_i, line_hit = self.text.layout:hit_test(x, y)
 	if line_i >= 0 and line_i < self.text.layout.lines.len and line_hit == 0 then
 		return HIT_TEXT

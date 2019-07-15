@@ -187,10 +187,7 @@ terra ub_lang(hb_lang: hb_language_t): rawstring
 	else return nil end
 end
 
-terra Layout:shape()
-
-	assert(self.state >= STATE_SHAPED - 1)
-	self.state = STATE_SHAPED
+terra Layout:_shape()
 
 	var r = self.r
 	var segs = &self.segs
@@ -200,7 +197,7 @@ terra Layout:shape()
 	self._min_w = -inf
 	self._max_w =  inf
 	if self.spans.len == 0 then
-		return self
+		return
 	end
 
 	--script and language detection and assignment
@@ -268,8 +265,9 @@ terra Layout:shape()
 		var span = self.spans:at(span_index)
 
 		--only the span that starts exactly where the paragraph starts can
-		--change the paragraph base direction otherwise the layout's dir is used.
-		var dir = iif(span.offset == offset and span.dir ~= 0, span.dir, self.dir)
+		--set the paragraph base direction otherwise the layout's dir is used.
+		var dir = iif(span.offset == offset and span.paragraph_dir ~= 0,
+			span.paragraph_dir, self.dir)
 
 		fribidi_get_bidi_types(str, len, r.bidi_types:at(offset))
 
@@ -286,8 +284,7 @@ terra Layout:shape()
 
 		assert(max_bidi_level >= 0)
 
-		self.bidi = self.bidi
-			or max_bidi_level > iif(dir == DIR_RTL, 1, 0)
+		self.bidi = self.bidi or max_bidi_level > iif(dir == DIR_RTL, 1, 0)
 
 		if self.base_dir == 0 then --take the dir of the first paragraph
 			assert(offset == 0)
@@ -385,5 +382,4 @@ terra Layout:shape()
 
 	end
 
-	return self
 end

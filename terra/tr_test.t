@@ -89,7 +89,6 @@ terra test()
 				var h = sr:height()
 				var offset_x = offset_i * (1.0 / offset_count)
 
-				layout.wrap_w  = w
 				layout.align_w = w
 				layout.align_h = h
 				layout.align_x = ALIGN_LEFT

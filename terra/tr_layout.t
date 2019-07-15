@@ -7,14 +7,23 @@ require'terra/tr_align'
 require'terra/tr_clip'
 
 terra Layout:layout()
+	if not self.visible then
+		return
+	end
 	if self.state == STATE_ALIGNED then
 		self:clip()
 	elseif self.state == STATE_WRAPPED then
-		self:align():clip()
+		self:align()
+		self:clip()
 	elseif self.state == STATE_SHAPED  then
-		self:wrap():align():clip()
+		self:wrap()
+		self:align()
+		self:clip()
 	else
 		assert(self.state == 0)
-		self:shape():wrap():align():clip()
+		self:shape()
+		self:wrap()
+		self:align()
+		self:clip()
 	end
 end

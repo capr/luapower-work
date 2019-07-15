@@ -76,10 +76,7 @@ terra Layout:max_w()
 	return max_w
 end
 
-terra Layout:wrap()
-
-	assert(self.state >= STATE_WRAPPED - 1)
-	self.state = STATE_WRAPPED
+terra Layout:_wrap()
 
 	var lines = &self.lines
 	lines.len = 0
@@ -229,7 +226,6 @@ terra Layout:wrap()
 		self.last_visible_line = lines.len-1
 	end
 
-	return self
 end
 
 terra Layout:bbox()

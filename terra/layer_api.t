@@ -294,7 +294,7 @@ terra Layer:set_shadow_content (i: int, v: bool)   self:new_shadow(i).content   
 
 do end --text
 
-terra Layer:get_text() return self.text.layout.text end
+terra Layer:get_text()     return self.text.layout.text.elements end
 terra Layer:get_text_len() return self.text.layout.text_len end
 
 terra Layer:set_text(s: &codepoint, len: int)
@@ -312,15 +312,17 @@ end
 terra Layer:get_text_maxlen() return self.text.layout.maxlen end
 terra Layer:set_text_maxlen(v: int)  self.text.layout.maxlen = v end
 
-terra Layer:get_base_dir()     return self.text.layout.base_dir end
-terra Layer:set_base_dir(v: tr.dir_t) self.text.layout.base_dir = v end
+terra Layer:get_text_dir()     return self.text.layout.dir end
+terra Layer:set_text_dir(v: tr.dir_t) self.text.layout.dir = v end
 
-terra Layer:get_text_align_x() return self.text.align_x end
-terra Layer:set_text_align_x(v: enum) self.text.align_x = v end
+terra Layer:get_text_align_x() return self.text.layout.align_x end
+terra Layer:get_text_align_y() return self.text.layout.align_y end
+terra Layer:set_text_align_x(v: enum) self.text.layout.align_x = v end
+terra Layer:set_text_align_y(v: enum) self.text.layout.align_y = v end
 
 --text spans
 
-for FIELD, T in pairs(tr.SPAN_FIELD_TYPES) do
+for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
 	Layer.methods['get_text_'..FIELD] = terra(self: &Layer, i: int, j: int, v: &T)
 		return self.text.layout:['get_'..FIELD](i, j, v)
 	end
@@ -703,12 +705,21 @@ function build()
 		get_text_maxlen=1,
 		set_text_maxlen=1,
 
+		get_text_dir=1,
+		set_text_dir=1,
+
+		get_text_align_x=1,
+		get_text_align_y=1,
+
+		set_text_align_x=1,
+		set_text_align_y=1,
+
 		get_text_font_id           =1,
 		get_text_font_size         =1,
 		get_text_features          =1,
 		get_text_script            =1,
 		get_text_lang              =1,
-		get_text_dir               =1,
+		get_text_paragraph_dir     =1,
 		get_text_line_spacing      =1,
 		get_text_hardline_spacing  =1,
 		get_text_paragraph_spacing =1,
@@ -722,7 +733,7 @@ function build()
 		set_text_features          =1,
 		set_text_script            =1,
 		set_text_lang              =1,
-		set_text_dir               =1,
+		set_text_paragraph_dir     =1,
 		set_text_line_spacing      =1,
 		set_text_hardline_spacing  =1,
 		set_text_paragraph_spacing =1,
@@ -730,12 +741,6 @@ function build()
 		set_text_color             =1,
 		set_text_opacity           =1,
 		set_text_operator          =1,
-
-		get_text_align_x=1,
-		get_text_align_y=1,
-
-		set_text_align_x=1,
-		set_text_align_y=1,
 
 		get_text_caret_width=1,
 		get_text_caret_color=1,

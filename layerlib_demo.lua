@@ -29,7 +29,7 @@ local function unload_font(font_id, file_data_buf, file_size_buf)
 	--nothing
 end
 
-local s = glue.readfile('lorem_ipsum.txt')
+local lorem_ipsum = glue.readfile('lorem_ipsum.txt')
 
 --assert(ll.memtotal() == 0)
 
@@ -47,10 +47,6 @@ e.padding_top    = 50
 e.padding_right  = 50
 e.padding_bottom = 50
 
---e.border_width_left   =  2
---e.border_width_top    =  2
---e.border_width_right  =  2
---e.border_width_bottom =  2
 e.border_color_left   = 0xff00ffff
 e.border_color_top    = 0xffff00ff
 e.border_color_right  = 0x008800ff
@@ -74,16 +70,16 @@ e:set_background_color_stop_color(0, 0xff0000ff)
 e:set_background_color_stop_color(1, 0x0000ffff)
 e.background_x1 = 1
 
-e:set_shadow_x       (0, 6)
-e:set_shadow_y       (0, 6)
-e:set_shadow_blur    (0, 4)
+--e:set_shadow_x       (0, 6)
+--e:set_shadow_y       (0, 6)
+--e:set_shadow_blur    (0, 4)
 e:set_shadow_color   (0, 0x000000ff)
 e:set_shadow_content (0, false)
 e:set_shadow_inset   (0, false)
 
-e:set_shadow_x       (1, 4)
-e:set_shadow_y       (1, 4)
-e:set_shadow_blur    (1, 0)
+--e:set_shadow_x       (1, 4)
+--e:set_shadow_y       (1, 4)
+--e:set_shadow_blur    (1, 0)
 e:set_shadow_color   (1, 0xffffffff)
 e:set_shadow_content (1, false)
 e:set_shadow_inset   (1, false)
@@ -108,41 +104,41 @@ e2.min_cw = 10; e2.min_ch = 10
 --llib.glyph_cache_size = 0
 --llib.glyph_run_cache_size = 0
 
---e1:set_text_utf8(s, -1)
-e1:set_text_span_font_id  (0, font1_id)
-e1:set_text_span_font_size(0, 14)
-e1:set_text_span_color    (0, 0xffffffff)
+e1:set_text_utf8(lorem_ipsum, -1)
+e1:set_text_font_id  (0, -1, font1_id)
+e1:set_text_font_size(0, -1, 14)
+e1:set_text_color    (0, -1, 0xffffffff)
 e1.text_align_y = ll.ALIGN_TOP
 e1.text_align_x = ll.ALIGN_RIGHT
 
-e1:set_shadow_x       (2, 1)
-e1:set_shadow_y       (2, 1)
-e1:set_shadow_blur    (2, 1)
-e1:set_shadow_color   (2, 0x000000ff)
-e1:set_shadow_content (2, true)
-e1:set_shadow_inset   (2, false)
+--e1:set_shadow_x       (2, 1)
+--e1:set_shadow_y       (2, 1)
+--e1:set_shadow_blur    (2, 1)
+--e1:set_shadow_color   (2, 0x000000ff)
+--e1:set_shadow_content (2, true)
+--e1:set_shadow_inset   (2, false)
 
 --e1.visible = false
 --e2.visible = false
 
 do local e = e2
 e:set_text_utf8('Yea but it\'s live!!', -1)
-e:set_text_span_font_id  (0, font2_id)
-e:set_text_span_font_size(0, 100)
-e:set_text_span_color    (0, 0x333333ff)
+e:set_text_font_id  (0, -1, font2_id)
+e:set_text_font_size(0, -1, 100)
+e:set_text_color    (0, -1, 0x333333ff)
 e.text_align_y = ll.ALIGN_CENTER
 e.text_align_x = ll.ALIGN_CENTER
 
-e:set_shadow_x       (0, 0)
-e:set_shadow_y       (0, 1)
-e:set_shadow_blur    (0, 2)
+--e:set_shadow_x       (0, 0)
+--e:set_shadow_y       (0, 1)
+--e:set_shadow_blur    (0, 2)
 e:set_shadow_color   (0, 0x000000ff)
 e:set_shadow_content (0, true)
 e:set_shadow_inset   (0, true)
 
-e:set_shadow_x       (1, 0)
-e:set_shadow_y       (1, 1)
-e:set_shadow_blur    (1, 1)
+--e:set_shadow_x       (1, 0)
+--e:set_shadow_y       (1, 1)
+--e:set_shadow_blur    (1, 1)
 e:set_shadow_color   (1, 0x888888ff)
 e:set_shadow_content (1, true)
 e:set_shadow_inset   (1, false)

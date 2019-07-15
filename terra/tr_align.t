@@ -5,13 +5,10 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 
-terra Layout:align()
-
-	assert(self.state >= STATE_ALIGNED - 1)
-	self.state = STATE_ALIGNED
+terra Layout:_align()
 
 	if self.lines.len == 0 then
-		return self
+		return
 	end
 
 	var w = self.align_w
@@ -58,5 +55,4 @@ terra Layout:align()
 
 	self.clip_valid = false
 
-	return self
 end
