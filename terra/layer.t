@@ -583,7 +583,6 @@ end
 --layer invalidation fw. decl.
 
 terra Layer.methods.size_changed :: {&Layer} -> {}
-terra Layer.methods.unwrap :: {&Layer} -> {}
 
 --layer hierarchy ------------------------------------------------------------
 

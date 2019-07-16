@@ -1206,7 +1206,7 @@ end)
 
 dealloc = macro(function(p, len, label)
 	label = label or ''
-	return `realloc(p, 0, label)
+	return quote p = realloc(p, 0, label) end
 end)
 
 new = macro(function(T, ...)
@@ -1220,14 +1220,12 @@ end)
 
 --Note the necessity to pass a `len` if freeing an array of objects that have
 --a free() method otherwise only the first element of the array will be freed!
-release = macro(function(p, len, nilvalue)
-	nilvalue = nilvalue or `nil
+release = macro(function(p, len)
 	len = len or 1
 	return quote
 		if p ~= nil then
 			call(p, 'free', len)
 			dealloc(p)
-			p = nilvalue
 		end
 	end
 end)

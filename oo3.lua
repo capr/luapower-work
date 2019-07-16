@@ -40,6 +40,17 @@ local function set_value_default_setter(self, k, v)
 	if set then set(self, k, v); return true end
 end
 
+local function set_value_prefixed_setter(self, k, v)
+	if type(k) == 'string' then
+		local cmd, k = k:match'^([^_]+)_(.*)'
+		local cmd = cmd and self.__prefix_methods[cmd]
+		if cmd then
+			self[cmd](self, k, v)
+			return true
+		end
+	end
+end
+
 local function get_value(self, k)
 	local v = get_value_specific_getter(self, k); if v ~= nil then return v end
 	local v = get_value_default_getter(self, k); if v ~= nil then return v end
@@ -54,25 +65,14 @@ local function set_value(self, k, v)
 	end
 end
 
-local function add_prefixed_field(self, k, v)
-	if type(k) == 'string' then
-		local cmd, k = k:match'^([^_]+)_(.*)'
-		local cmd = cmd and self.__commands[cmd]
-		if cmd then
-			self[cmd](self, k, v)
-			return true
-		end
-	end
-end
-
 local function add_class_field(self, k, v)
-	if not add_prefixed_field(self, k, v) then
+	if not set_value_prefixed_setter(self, k, v) then
 		rawset(self, k, v)
 	end
 end
 
 local function add_instance_field(self, k, v)
-	if not add_prefixed_field(self, k, v) then
+	if not set_value_prefixed_setter(self, k, v) then
 		self.fields[k] = v
 	end
 end
@@ -155,7 +155,7 @@ function Object.class:override(method_name, hook)
 	end
 end
 
-Object.class.__commands = {
+Object.class.__prefix_methods = {
 	before   = 'before';
 	after    = 'after';
 	override = 'override';

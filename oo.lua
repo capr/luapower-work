@@ -31,7 +31,10 @@ function Object:subclass(classname, overrides)
 	if classname then
 		subclass['is'..classname] = true
 	end
-	setmetatable(subclass, getmetatable(self))
+	setmetatable(subclass, subclass)
+	subclass.__index = self
+	subclass.__newindex = self.__newindex
+	subclass.__call = self.__call
 	if overrides then
 		for k,v in pairs(overrides) do
 			subclass[k] = v
@@ -40,19 +43,20 @@ function Object:subclass(classname, overrides)
 	return subclass
 end
 
+function Object.__call(o,...)
+	return o:create(...)
+end
+
 function Object:init(...) return ... end
 
 function Object:create(...)
-	local o = setmetatable({super = self}, getmetatable(self))
+	local o = setmetatable({super = self}, self.__instance_metatable)
 	o:init(...)
 	return o
 end
 
 local meta = {}
-
-function meta.__call(o,...)
-	return o:create(...)
-end
+Object.__instance_metatable = meta
 
 --note: this is the perf. bottleneck of the entire module.
 function meta:__index(k)
@@ -63,8 +67,7 @@ function meta:__index(k)
 			if k == 'super' then --'super' is not even inheritable
 				return nil
 			end
-			local isinstance = rawget(self, 'isclass') == nil
-			local getters = isinstance and self.__getters
+			local getters = self.__getters
 			local get = getters and getters[k]
 			if get then --virtual property
 				return get(self, k)
@@ -137,6 +140,8 @@ function meta:__newindex(k,v)
 		rawset(self, k, v)
 	end
 end
+
+Object.__newindex = meta.__newindex
 
 local function install(self, combine, method_name, hook)
 	if method_name:find'^get_' then
