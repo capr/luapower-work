@@ -22,6 +22,8 @@
 
 ]]
 
+if not ... then require'terra/layer_api'.build(); return end
+
 setfenv(1, require'terra/low'.module())
 require'terra/memcheck'
 require'terra/cairo'

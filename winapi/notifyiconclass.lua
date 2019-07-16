@@ -83,22 +83,13 @@ function NotifyIcon:set_visible(visible) --Vista+
 	Shell_NotifyIcon(NIM_MODIFY, self.__info)
 end
 
-function NotifyIcon.__get_vproperty(class, self, k)
-	if NOTIFYICONDATA.fields[k] then --publish info fields individually
-		return self.__info[k]
-	else
-		return NotifyIcon.__index.__get_vproperty(class, self, k)
-	end
-end
-
-function NotifyIcon.__set_vproperty(class, self, k, v)
-	if NOTIFYICONDATA.fields[k] then --publish info fields individually
-		self.__info[k] = v
-		Shell_NotifyIcon(NIM_MODIFY, self.__info)
-	else
-		NotifyIcon.__index.__set_vproperty(class, self, k, v)
-	end
-end
+--publish info fields individually.
+NotifyIcon:__gen_vproperties(NOTIFYICONDATA.fields, function(self, k)
+	return self.__info[k]
+end, function(self, k, v)
+	self.__info[k] = v
+	Shell_NotifyIcon(NIM_MODIFY, self.__info)
+end)
 
 --showcase
 

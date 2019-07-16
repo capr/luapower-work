@@ -844,3 +844,5 @@ if not ... then
 	build()
 	print(sizeof(Layer))
 end
+
+return _M
