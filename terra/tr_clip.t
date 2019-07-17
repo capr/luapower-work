@@ -1,5 +1,9 @@
 
---Mark segments as clipped.
+--Mark lines and segments that are outside of a clipping rectangle as clipped
+--so that they don't get painted.
+
+--NOTE: This is only an optimization. Clipping of partially-clipped segments
+--is out-of-scope. Actual clipping should be done by the blitting library.
 
 if not ... then require'terra/tr_test'; return end
 

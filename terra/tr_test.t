@@ -2,9 +2,7 @@
 setfenv(1, require'terra/low'.module())
 require'terra/memcheck'
 require'terra/tr_paint_cairo'
-require'terra/utf8'
-setfenv(1, require'terra/tr')
-require'terra/tr_api'
+setfenv(1, require'terra/tr_api')
 local strlen = includecstring'unsigned long long strlen (const char *str);'.strlen
 local sprintf = includecstring'int sprintf(char* str, const char* format, ...);'.sprintf
 
@@ -99,6 +97,8 @@ terra test()
 				layout.clip_h  = h
 				layout.x = offset_x
 				layout.y = 0
+
+				layout:layout()
 
 				--probe'layout'
 

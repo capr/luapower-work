@@ -10,6 +10,7 @@ local cairo = require'cairo'
 local app = nw:app()
 
 local win = app:window{
+	title = 'Hello!',
 	w = 1200, h = 700,
 }
 
@@ -109,7 +110,7 @@ e1:set_text_font_id  (0, -1, font1_id)
 e1:set_text_font_size(0, -1, 14)
 e1:set_text_color    (0, -1, 0xffffffff)
 e1.text_align_y = ll.ALIGN_TOP
-e1.text_align_x = ll.ALIGN_RIGHT
+e1.text_align_x = ll.ALIGN_CENTER
 
 e1:set_shadow_x       (2, 1)
 e1:set_shadow_y       (2, 1)

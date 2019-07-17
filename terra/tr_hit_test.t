@@ -1,4 +1,6 @@
 
+--Hit testing entire lines of text.
+
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
@@ -40,4 +42,3 @@ terra Layout:hit_test(x: num, y: num)
 		return line_i, 0
 	end
 end
-

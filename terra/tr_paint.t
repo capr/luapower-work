@@ -4,7 +4,6 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
-require'terra/tr_clip'
 require'terra/tr_rasterize'
 
 --NOTE: clip_left and clip_right are relative to glyph run's origin.
@@ -35,7 +34,8 @@ end
 
 terra Layout:paint(cr: &GraphicsContext)
 
-	self:layout()
+	assert(self.state >= STATE_ALIGNED)
+	assert(self.clip_valid)
 
 	var segs = &self.segs
 	var lines = &self.lines

@@ -4,7 +4,10 @@
 	Written by Cosmin Apreutesei. Public Domain.
 
 	This is a port of github.com/luapower/tr which was written in Lua.
-	Leverages harfbuzz, freetype, fribidi and libunibreak.
+
+	Leverages harfbuzz, freetype, fribidi and libunibreak for text shaping,
+	glyph rasterization, bidi reordering and line breaking respectively.
+
 	Scaling and blitting a raster image onto another is out of the scope of
 	the library. A module for doing that with cairo is included separately.
 
@@ -13,14 +16,13 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
-
-require'terra/tr_layout'
-require'terra/tr_rasterize'
+require'terra/tr_shape'
+require'terra/tr_wrap'
+require'terra/tr_align'
+require'terra/tr_clip'
 require'terra/tr_paint'
-require'terra/tr_hit_test'
 require'terra/tr_cursor'
-require'terra/tr_layoutedit'
-require'terra/tr_spanedit'
+require'terra/tr_hit_test'
 
 terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	fill(self) --this initializes all arr() types.

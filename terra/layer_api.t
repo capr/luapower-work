@@ -331,6 +331,12 @@ for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
 	end
 end
 
+--text measuring and hit-testing
+
+terra Layer:text_cursor_xs(line_i: int, outlen: &int)
+	return self.text.layout:cursor_xs_c(line_i, outlen)
+end
+
 do end --layouts
 
 terra Layer:get_align_items_x () return self.align_items_x end
@@ -414,7 +420,7 @@ terra Layer:set_grid_row_span(v: int) self.grid_row_span = v end
 terra Layer:get_hit_test_mask() return self.hit_test_mask end
 terra Layer:set_hit_test_mask(v: enum) self.hit_test_mask = v end
 
-terra Layer:hit_test_out(cr: &context, x: num, y: num, reason: enum, out: &&Layer)
+terra Layer:hit_test_c(cr: &context, x: num, y: num, reason: enum, out: &&Layer)
 	var layer, area = self:hit_test(cr, x, y, reason)
 	@out = layer
 	return area
@@ -742,6 +748,8 @@ function build()
 		set_text_opacity           =1,
 		set_text_operator          =1,
 
+		text_cursor_xs=1,
+
 		get_text_caret_width=1,
 		get_text_caret_color=1,
 		get_text_caret_insert_mode=1,
@@ -826,7 +834,7 @@ function build()
 		sync_top=1,
 		sync_layout_separate_axes=1, --for scrollbox
 		draw=1,
-		hit_test_out='hit_test',
+		hit_test_c='hit_test',
 
 	}, {
 		cname = 'layer_t',

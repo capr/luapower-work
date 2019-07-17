@@ -1,5 +1,6 @@
 
---get/set Span attributes between two arbitrary text offsets.
+--get/set individual Span attributes between any two text offsets
+--with minimal invalidation of state and minimum number of spans.
 
 if not ... then require'terra/tr_test'; return end
 

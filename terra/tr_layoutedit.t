@@ -1,10 +1,9 @@
 
---get/set Layout attributes.
+--get/set Layout attributes with minimal invalidation of state.
 
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
-require'terra/tr_spanedit'
 require'terra/utf8'
 
 terra Layout:text_changed()

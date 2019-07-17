@@ -1,4 +1,6 @@
 
+--Font loading and unloading and setting the font size.
+
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')

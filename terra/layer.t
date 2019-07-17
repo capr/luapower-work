@@ -28,7 +28,7 @@ setfenv(1, require'terra/low'.module())
 require'terra/memcheck'
 require'terra/cairo'
 require'terra/tr_paint_cairo'
-tr = require'terra/tr'
+tr = require'terra/tr_api'
 require'terra/bitmap'
 require'terra/boxblur'
 require'terra/utf8'

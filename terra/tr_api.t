@@ -1,8 +1,10 @@
 
---C/ffi API
+--C/ffi API.
 
 require'terra/memcheck'
 require'terra/tr_paint_cairo'
+require'terra/tr_layoutedit'
+require'terra/tr_spanedit'
 setfenv(1, require'terra/tr')
 
 terra tr_renderer_sizeof()
@@ -23,6 +25,12 @@ terra Renderer:layout()
 end
 terra Layout:release()
 	release(self)
+end
+
+terra Layout:cursor_xs_c(line_i: int, outlen: &int)
+	var xs = self:cursor_xs(line_i)
+	@outlen = xs.len
+	return xs.elements
 end
 
 function build()
@@ -149,6 +157,7 @@ function build()
 		layout=1,
 		paint=1,
 
+		cursor_xs_c='cursor_xs',
 	}, {
 		cname = 'tr_layout_t',
 		cprefix = 'tr_layout_',
@@ -167,3 +176,5 @@ end
 if not ... then
 	build()
 end
+
+return _M

@@ -16,6 +16,7 @@
 
 	v.elements, v.len                           fields are part of the API
 
+	v:clamp(i) -> i                             clamp i to valid index
 	v:index(i[,default]) -> i|default           valid positive index
 	v(i[,default]) -> t|default                 get element at index
 	v:at(i[,default]) -> &t|default             get element address at index
@@ -115,6 +116,10 @@ local function view_type(T, size_t, cmp)
 	addmethods(view, function()
 
 		--bounds-checked access
+
+		terra view:clamp(i: size_t)
+			return clamp(i, 0, self.len-1)
+		end
 
 		view.methods.index = overload'index'
 		view.methods.index:adddefinition(terra(self: &view, i: size_t, default: size_t)

@@ -1,9 +1,9 @@
 
---Module table & environment with dependencies, enums and types.
+--Module table with dependencies, enums and types.
 
 if not ... then require'terra/tr_test'; return end
 
-setfenv(1, require'terra/tr_env')
+setfenv(1, require'terra/tr_module')
 
 --dependencies ---------------------------------------------------------------
 
@@ -327,7 +327,7 @@ end
 
 terra Layout.methods.clip :: {&Layout} -> {}
 
-function Layout:layout()
+terra Layout:layout()
 	self:shape()
 	self:wrap()
 	self:align()
@@ -373,7 +373,7 @@ struct GlyphRun (gettersandsetters) {
 	--cached images for each subpixel-offset with painted glyph on them.
 	images          : arr{T = GlyphImage, context_t = &Renderer};
 	images_memsize  : int;
-	--for cursor positioning and hit testing (len = text_len+1)
+	--for cursor positioning and hit testing (len = text.len+1)
 	cursor_offsets  : arr(uint16);
 	cursor_xs       : arr(num);
 	trailing_space  : bool;
@@ -495,6 +495,7 @@ struct Renderer (gettersandsetters) {
 	substack:        arr(SubSeg);
 	ranges:          RangesFreelist;
 	sbuf:            arr(char);
+	xsbuf:           arr(double);
 
 	--constants that neeed to be initialized at runtime.
 	HB_LANGUAGE_EN: hb_language_t;
