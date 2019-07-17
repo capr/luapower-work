@@ -222,3 +222,128 @@ for i,FIELD in ipairs(FIELDS) do
 	end
 
 end
+
+--text editing ---------------------------------------------------------------
+
+--remove text between two offsets. return offset at removal point.
+local terra cmp_remove_first(s1: &Span, s2: &Span)
+	return s1.offset < s2.offset  -- < < [=] = > >
+end
+local terra cmp_remove_last(s1: &Span, s2: &Span)
+	return s1.offset <= s2.offset  -- < < = = [>] >
+end
+terra Span:remove(i1: int, i2: int)
+
+	local i1, len = self:text_range(i1, i2)
+	local i2 = i1 + len
+	local changed = false
+
+	--reallocate and copy the remaining ends of the codepoints buffer.
+	if len > 0 then
+		local old_len = self.len
+		local old_str = self.codepoints
+		local new_len = old_len - len
+		local new_str = self.alloc_codepoints(new_len + 1) -- +1 for linebreaks
+		ffi.copy(new_str, old_str, i1 * 4)
+		ffi.copy(new_str + i1, old_str + i2, (old_len - i2) * 4)
+		self.len = new_len
+		self.codepoints = new_str
+		changed = true
+	end
+
+	--adjust/remove affected spans.
+	--NOTE: this includes all zero-length text runs at both ends.
+
+	--1. find the first and last text runs which need to be entirely removed.
+	local tr_i1 = binsearch(i1, self, cmp_remove_first) or #self + 1
+	local tr_i2 = (binsearch(i2, self, cmp_remove_last) or #self + 1) - 1
+	--NOTE: clamping to #self-1 so that the last text run cannot be removed.
+	local tr_remove_count = clamp(tr_i2 - tr_i1 + 1, 0, #self-1)
+
+	local offset = 0
+
+	--2. adjust the length of the run before the first run that needs removing.
+	if tr_i1 > 1 then
+		local run = self[tr_i1-1]
+		local part_before_i1 = i1 - run.offset
+		local part_after_i2 = max(run.offset + run.len - i2, 0)
+		local new_len = part_before_i1 + part_after_i2
+		changed = changed or run.len ~= new_len
+		run.len = new_len
+		offset = run.offset + run.len
+	end
+
+	if tr_remove_count > 0 then
+
+		--3. adjust the offset of all runs after the last run that needs removing.
+		for tr_i = tr_i2+1, #self do
+			self[tr_i].offset = offset
+			offset = offset + self[tr_i].len
+		end
+
+		--4. remove all text runs that need removing from the text run list.
+		shift(self, tr_i1, -tr_remove_count)
+		for tr_i = #self, tr_i1 + tr_remove_count, -1 do
+			self[tr_i] = nil
+		end
+
+		changed = true
+	end
+
+	return i1, changed
+end
+
+--insert text at offset. return offset after inserted text.
+local function cmp_insert(text_runs, i, offset)
+	return text_runs[i].offset <= offset -- < < = = [>] >
+end
+function text_runs:insert(i, s, sz, charset, maxlen)
+	sz = sz or #s
+	charset = charset or 'utf8'
+	if sz <= 0 then return i, false end
+
+	--get the length of the inserted text in codepoints.
+	local len
+	if charset == 'utf8' then
+		maxlen = maxlen and max(0, floor(maxlen))
+		len = utf8.decode(s, sz, false, maxlen) or maxlen
+	elseif charset == 'utf32' then
+		len = sz
+	else
+		assert(false, 'Invalid charset: %s', charset)
+	end
+	if len <= 0 then return i, false end
+
+	--reallocate the codepoints buffer and copy over the existing codepoints
+	--and copy/convert the new codepoints at the insert point.
+	local old_len = self.len
+	local old_str = self.codepoints
+	local new_len = old_len + len
+	local new_str = self.alloc_codepoints(new_len + 1)
+	i = clamp(i, 0, old_len)
+	ffi.copy(new_str, old_str, i * 4)
+	ffi.copy(new_str + i + len, old_str + i, (old_len - i) * 4)
+	if charset == 'utf8' then
+		utf8.decode(s, sz, new_str + i, len)
+	else
+		ffi.copy(new_str + i, ffi.cast(const_char_ct, s), len * 4)
+	end
+	self.len = new_len
+	self.codepoints = new_str
+
+	--adjust affected text runs.
+
+	--1. find the text run which needs to be extended to include the new text.
+	local tr_i = (binsearch(i, self, cmp_insert) or #self + 1) - 1
+	assert(tr_i >= 0)
+
+	--2. adjust the length of that run to include the length of the new text.
+	self[tr_i].len = self[tr_i].len + len
+
+	--3. adjust offset for all runs after the extended run.
+	for tr_i = tr_i+1, #self do
+		self[tr_i].offset = self[tr_i].offset + len
+	end
+
+	return i+len, true
+end

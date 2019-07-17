@@ -185,10 +185,10 @@ struct Seg {
 	--for cursor positioning
 	span: &Span; --span of the first sub-segment
 	offset: int; --codepoint offset into the text
+	line_index: int;
 	--slots filled by layouting
 	x: num;
 	advance_x: num; --segment's x-axis boundaries
-	next: &Seg; --next segment on the same line in text order
 	next_vis: &Seg; --next segment on the same line in visual order
 	wrapped: bool; --segment is the last on a wrapped line
 	visible: bool; --segment is not entirely clipped

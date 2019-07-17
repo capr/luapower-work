@@ -114,8 +114,7 @@ terra Layout:_wrap()
 				line.advance_x = line.advance_x + prev_seg.advance_x
 			end
 
-			if prev_seg ~= nil then --break the next* chain.
-				prev_seg.next = nil
+			if prev_seg ~= nil then --break the next chain.
 				prev_seg.next_vis = nil
 			end
 
@@ -139,11 +138,11 @@ terra Layout:_wrap()
 
 		for seg_i = seg_i, next_seg_i do
 			var seg = self.segs:at(seg_i)
+			seg.line_index = lines.len-1
 			seg.advance_x = self:glyph_run(seg).advance_x
 			seg.x = 0
 			seg.wrapped = false
-			seg.next = self.segs:at(seg_i+1, nil)
-			seg.next_vis = seg.next
+			seg.next_vis = self.segs:at(seg_i+1, nil)
 		end
 
 		var last_seg = self.segs:at(next_seg_i-1)

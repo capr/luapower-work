@@ -373,7 +373,6 @@ terra Layout:_shape()
 			seg.offset = offset
 			--slots filled by layouting
 			seg.x = 0; seg.advance_x = 0 --seg's x-axis boundaries
-			seg.next = nil --next seg on the same line in text order
 			seg.next_vis = nil --next seg on the same line in visual order
 			seg.wrapped = false --seg is the last on a wrapped line
 			seg.visible = true --seg is not entirely clipped
