@@ -21,7 +21,6 @@ require'terra/tr_wrap'
 require'terra/tr_align'
 require'terra/tr_clip'
 require'terra/tr_paint'
-require'terra/tr_cursor'
 require'terra/tr_hit_test'
 
 terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)

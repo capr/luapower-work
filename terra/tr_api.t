@@ -5,6 +5,7 @@ require'terra/memcheck'
 require'terra/tr_paint_cairo'
 require'terra/tr_layoutedit'
 require'terra/tr_spanedit'
+require'terra/tr_selection'
 setfenv(1, require'terra/tr')
 
 terra tr_renderer_sizeof()
@@ -31,6 +32,20 @@ terra Layout:cursor_xs_c(line_i: int, outlen: &int)
 	var xs = self:cursor_xs(line_i)
 	@outlen = xs.len
 	return xs.elements
+end
+
+terra tr_cursor_sizeof()
+	return [int](sizeof(Cursor))
+end
+terra Layout:cursor()
+	return new(Cursor, self)
+end
+terra Cursor:release()
+	release(self)
+end
+
+terra Cursor:rect_c(caret_w: num, x: &num, y: &num, w: &num, h: &num)
+	@x, @y, @w, @h = self:rect(caret_w)
 end
 
 function build()
@@ -158,10 +173,32 @@ function build()
 		paint=1,
 
 		cursor_xs_c='cursor_xs',
+		cursor=1,
+
 	}, {
 		cname = 'tr_layout_t',
 		cprefix = 'tr_layout_',
 		opaque = true,
+	})
+
+	trlib(Cursor, {
+		release=1,
+
+		get_offset=1,
+		get_rtl=1,
+
+		rect_c='rect',
+
+		move_to_offset=1,
+		move_to_rel_cursor=1,
+		move_to_line=1,
+		move_to_pos=1,
+		move_to_page=1,
+		move_to_rel_page=1,
+
+		insert=1,
+		remove=1,
+
 	})
 
 	trlib:getenums(_M, nil, 'TR_')

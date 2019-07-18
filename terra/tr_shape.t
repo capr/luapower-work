@@ -147,17 +147,6 @@ Layout.methods.word_spans = macro(function(self, levels, scripts, langs, linebre
 		}, 0, self.text.len}
 end)
 
---search for the span that covers a specific text position.
-
-terra Layout:span_index_at_offset(offset: int, i0: int)
-	for i = i0 + 1, self.spans.len do
-		if self.spans:at(i).offset > offset then
-			return i-1
-		end
-	end
-	return self.spans.len-1
-end
-
 --for harfbuzz, language is a BCP 47 language code + country code,
 --but libunibreak only uses the language code part for a few languages.
 
@@ -186,19 +175,27 @@ terra ub_lang(hb_lang: hb_language_t): rawstring
 	elseif hb_lang == HB_LANGUAGE_ZH then return 'zh'
 	else return nil end
 end
+--search for the span that covers a specific text position.
+
+terra Layout:_span_index_at_offset(offset: int, i0: int)
+	for i = i0 + 1, self.spans.len do
+		if self.spans:at(i).offset > offset then
+			return i-1
+		end
+	end
+	return self.spans.len-1
+end
 
 terra Layout:_shape()
 
 	var r = self.r
 	var segs = &self.segs
 
+	--reset output
 	segs.len = 0
 	self.lines.len = 0
 	self._min_w = -inf
 	self._max_w =  inf
-	if self.spans.len == 0 then
-		return
-	end
 
 	--script and language detection and assignment
 	r.scripts.len = self.text.len
@@ -261,7 +258,7 @@ terra Layout:_shape()
 	for offset, len in paragraphs do
 		var str = self.text:at(offset)
 
-		span_index = self:span_index_at_offset(offset, span_index)
+		span_index = self:_span_index_at_offset(offset, span_index)
 		var span = self.spans:at(span_index)
 
 		--only the span that starts exactly where the paragraph starts can

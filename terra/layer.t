@@ -343,6 +343,7 @@ struct Text {
 	layout: tr.Layout;
 	caret_width: num;
 	caret_color: color;
+	caret_opacity: num;
 	caret_insert_mode: bool;
 	selectable: bool;
 	selection: tr.Selection;
@@ -353,6 +354,7 @@ terra Text:init(r: &tr.Renderer)
 	self.layout.maxlen = 4096
 	self.caret_width = 1
 	self.caret_color = DEFAULT_CARET_COLOR
+	self.caret_opacity = 1
 	self.selectable = true
 end
 
@@ -544,6 +546,8 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 	self.grid_row_span = 1
 
 	self:init_layout()
+
+	self.text.selection:init(&self.text.layout)
 end
 
 terra Layer.methods.free :: {&Layer} -> {}
@@ -1250,9 +1254,10 @@ end
 --text drawing & hit testing -------------------------------------------------
 
 terra Layer:sync_text_shape()
-	if not self.text.layout.visible then return false end
-	self.text.layout:shape()
-	return true
+	if self.text.layout:shape() then
+		self.text.selection:init(&self.text.layout)
+	end
+	return self.text.layout.visible
 end
 
 terra Layer:sync_text_wrap()
@@ -1263,9 +1268,6 @@ end
 terra Layer:sync_text_align()
 	self.text.layout.align_h = self.ch
 	self.text.layout:align()
-	if self.text.selectable then
-		self.text.selection:init(&self.text.layout)
-	end
 end
 
 terra Layer:get_baseline()
@@ -1298,42 +1300,42 @@ end
 
 --text caret & selection drawing ---------------------------------------------
 
---[[
 terra Layer:caret_rect()
-	local x, y, w, h = self.text.selection.cursor2:rect(self.caret_width)
-	local x, w = self:snapxw(x, w)
-	local y, h = self:snapyh(y, h)
+	print('caret_rect', self.text.selection.cursor)
+	var x, y, w, h = self.text.selection.cursor:rect(self.text.caret_width)
+	print(x, y, w, h)
+	x, w = self:snapxw(x, w)
+	y, h = self:snapyh(y, h)
 	return x, y, w, h
 end
 
 terra Layer:caret_visibility_rect()
-	local x, y, w, h = self:caret_rect()
+	var x, y, w, h = self:caret_rect()
 	--enlarge the caret rect to contain the line spacing.
-	local line = self.text.selection.cursor2.seg.line
-	local y = y + line.ascent - line.spaced_ascent
-	local h = line.spaced_ascent - line.spaced_descent
+	var line = self.text.selection.cursor.line
+	y = y + line.ascent - line.spaced_ascent
+	h = line.spaced_ascent - line.spaced_descent
 	return x, y, w, h
 end
 
-terra Layer:draw_caret(cr)
-	if not self.focused then return end
-	if not self.caret_visible then return end
-	local x, y, w, h = self:caret_rect()
-	local r, g, b, a = self.ui:rgba(self.caret_color)
-	a = a * self.caret_opacity
-	cr:rgba(r, g, b, a)
+terra Layer:draw_caret(cr: &context)
+	var x, y, w, h = self:caret_rect()
+	var c = self.text.caret_color
+	c.alpha = c.alpha * self.text.caret_opacity
+	cr:rgba(c.red, c.green, c.blue, c.alpha)
 	cr:new_path()
 	cr:rectangle(x, y, w, h)
 	cr:fill()
 end
 
-terra Layer:draw_selection_rect(x, y, w, h, cr)
+--[[
+terra Layer:draw_selection_rect(cr: &context, x: num, y: num, w: num, h: num)
 	cr:rectangle(x, y, w, h)
 	cr:fill()
 end
 
 terra Layer:draw_text_selection(cr)
-	local sel = self.text.selection
+	local sel = &self.text.selection
 	if not sel then return end
 	if sel:empty() then return end
 	cr:rgba(self.ui:rgba(self.text.selection_color))
@@ -1351,9 +1353,6 @@ terra Layer:make_visible_caret()
 	self:make_visible(self:caret_visibility_rect())
 end
 ]]
-
-terra Layer:draw_text_selection(cr: &context) end
-terra Layer:draw_caret(cr: &context) end
 
 --layer bbox -----------------------------------------------------------------
 
@@ -1423,7 +1422,7 @@ end
 
 terra Layer:draw_content(cr: &context) --called in own content space
 	self:draw_children(cr)
-	self:draw_text_selection(cr)
+	--self:draw_text_selection(cr)
 	self:draw_text(cr)
 	self:draw_caret(cr)
 end

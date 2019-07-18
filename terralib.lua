@@ -980,7 +980,7 @@ local function layoutstruct(st,tree,env)
     st.undefined = nil
 
     local function getstructentry(v) assert(v.kind == "structentry")
-        local resolvedtype = evalluaexpression(env,v.type)
+		  local resolvedtype = evalluaexpression(env,v.type)
         if not terra.types.istype(resolvedtype) then
             erroratlocation(v,"lua expression is not a terra type but ", terra.type(resolvedtype))
         end

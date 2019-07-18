@@ -4,6 +4,8 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
+require'terra/tr_font'
+require'terra/tr_hit_test'
 
 local DEFAULT = 0
 local DEFAULT_NUM = nan
@@ -22,11 +24,32 @@ terra Layout:cursor_x(seg: &Seg, i: int) --relative to line_pos().
 end
 
 terra Layout:cursor_rect(seg: &Seg, i: int, w: num, forward: bool) --relative to line_pos().
-	var line = self.lines:at(seg.line_index)
-	var x = self:cursor_x(seg, i)
-	var y = -line.ascent
+	var ascent: num
+	var descent: num
+	var x: num
+	if seg ~= nil then
+		var line = self.lines:at(seg.line_index)
+		ascent = line.ascent
+		descent = line.descent
+		x = self:cursor_x(seg, i)
+	else
+		var span = self.spans:at(0)
+		var font_id = span.font_id
+		var font = self.r.fonts:at(font_id, nil)
+		if font ~= nil and font:ref() then
+			font:setsize(span.font_size)
+			ascent = font.ascent
+			descent = font.descent
+			font:unref() --TODO: delay unref
+		else
+			ascent = 0
+			descent = 0
+		end
+		x = 0
+	end
+	var y = -ascent
 	var w = iif(forward ~= false, 1, -1) * iif(w ~= DEFAULT_NUM, w, 1)
-	var h = line.ascent - line.descent
+	var h = ascent - descent
 	if w < 0 then
 		x, w = x + w, -w
 	end
@@ -202,7 +225,7 @@ end
 
 --cursor objects -------------------------------------------------------------
 
-struct Cursor {
+struct Cursor (gettersandsetters) {
 
 	--cursor state that stays valid between re-layouts.
 	layout: &Layout;
@@ -237,6 +260,11 @@ terra Cursor:init(layout: &Layout)
 	self.park_home = true
 	self.park_end = true
 	self.insert_mode = true
+	self.seg = self.layout.segs:at(0, nil)
+end
+
+terra Cursor:get_line()
+	return iif(self.seg ~= nil, self.layout.lines:at(self.seg.line_index), nil)
 end
 
 terra Cursor:rel_physical_cursor(dir: enum,
@@ -253,20 +281,29 @@ terra Cursor:assign(c: &Cursor)
 end
 
 terra Cursor:set(seg: &Seg, i: int, x: num)
-	var changed = seg ~= self.seg or i ~= self.i
-	self.seg, self.i = seg, i
-	if x ~= DEFAULT_NUM then
-		self.x = x
+	if seg ~= self.seg or i ~= self.i then
+		self.seg = seg
+		self.i = i
+		if x ~= DEFAULT_NUM then
+			self.x = x
+		end
+		self.offset = iif(seg ~= nil, self.layout:offset_at_cursor(seg, i), 0)
+		return true
+	else
+		return false
 	end
-	return changed
 end
 
-terra Cursor:offset()
-	return self.layout:offset_at_cursor(self.seg, self.i)
+terra Cursor:set2(pos: {&Seg, int}, x: num)
+	self:set(pos._0, pos._1, x)
 end
 
-terra Cursor:rtl()
-	return self.layout:glyph_run(self.seg).rtl
+terra Cursor:get_offset()
+	return iif(self.seg ~= nil, self.layout:offset_at_cursor(self.seg, self.i), 0)
+end
+
+terra Cursor:get_rtl()
+	return iif(self.seg ~= nil, self.layout:glyph_run(self.seg).rtl, false)
 end
 
 local POS, CHAR, WORD, LINE = 1, 2, 3, 4
@@ -278,8 +315,8 @@ CURSOR_MODE_LINE = LINE
 terra Cursor.methods.find_rel_cursor :: {&Cursor, enum, enum, enum, bool} -> {&Seg, int}
 
 terra Cursor:rect(w: num)
-	--wide caret (spanning two adjacent cursor positions).
-	if self.insert_mode then
+	if not self.insert_mode then
+		--wide caret (spanning two adjacent cursor positions).
 		var seg1, i1 = self:find_rel_cursor(NEXT, DEFAULT, DEFAULT, false)
 		if seg1 ~= nil and seg1.line_index == self.seg.line_index then
 			var x, y, _, h = self.layout:cursor_rect(self.seg, self.i, DEFAULT_NUM, false)
@@ -293,9 +330,7 @@ terra Cursor:rect(w: num)
 		end
 	end
 	--normal caret, `w`-wide to the left or right of a cursor position.
-	var forward =
-		not self:rtl()
-		and self.layout.align_x ~= ALIGN_RIGHT
+	var forward = not self.rtl and self.layout.align_x ~= ALIGN_RIGHT
 	var x, y, w, h = self.layout:cursor_rect(self.seg, self.i, w, forward)
 	var x0, y0 = self.layout:line_pos(self.seg.line_index)
 	return x0 + x, y0 + y, w, h
@@ -355,9 +390,19 @@ terra Cursor:find_offset(offset: int, which: enum)
 		return seg, i
 	end
 end
+terra Cursor:move_to_offset(offset: int, which: enum)
+	self:set2(self:find_offset(offset, which), DEFAULT_NUM)
+end
+
+terra Cursor:reposition()
+	self:move_to_offset(self.offset, DEFAULT)
+end
 
 terra Cursor:find_rel_cursor(dir: enum, mode: enum, which: enum, clamp: bool)
 	return self:find_cursor(self.seg, self.i, dir, mode, which, clamp)
+end
+terra Cursor:move_to_rel_cursor(dir: enum, mode: enum, which: enum, clamp: bool)
+	self:set2(self:find_rel_cursor(dir, mode, which, clamp), DEFAULT_NUM)
 end
 
 terra Cursor:find_line(line_i: int, x: num)
@@ -369,15 +414,24 @@ terra Cursor:find_line(line_i: int, x: num)
 	end
 	return self.layout:hit_test_cursors(line_i, x, diff, valid, self, DEFAULT)
 end
+terra Cursor:move_to_line(line_i: int, x: num)
+	self:set2(self:find_line(line_i, x), x)
+end
 
 terra Cursor:find_rel_line(delta_lines: int, x: num)
 	var line_i = self.seg.line_index + (delta_lines or 0)
 	return self:find_line(line_i, x)
 end
+terra Cursor:move_to_rel_line(line_i: int, x: num)
+	self:set2(self:find_rel_line(line_i, x), x)
+end
 
 terra Cursor:find_pos(x: num, y: num)
 	var line_i = self.layout:hit_test_lines(y)
 	return self:find_line(line_i, x)
+end
+terra Cursor:move_to_pos(x: num, y: num)
+	self:set2(self:find_pos(x, y), x)
 end
 
 terra Cursor:find_page(page: int, x: num)
@@ -385,23 +439,20 @@ terra Cursor:find_page(page: int, x: num)
 	var y = line1_y + (page - 1) * self.layout.h
 	return self:find_pos(x, y)
 end
+terra Cursor:move_to_page(page: int, x: num)
+	self:set2(self:find_page(page, x), x)
+end
 
 terra Cursor:find_rel_page(delta_pages: int, x: num)
 	var _, line_y = self.layout:line_pos(self.seg.line_index)
 	var y = line_y + (delta_pages or 0) * self.layout.h
 	return self:find_pos(x, y)
 end
-
---[[
-terra Cursor:move(what, ...)
-	local vertical =
-		what == 'line' or what == 'rel_line'
-		or what == 'page' or what == 'rel_page'
-	self.x = vertical and (self.x or self:rect()) or false
-	local seg, i = self:find(what, ...)
-	return self:set(seg, i)
+terra Cursor:move_to_rel_page(delta_pages: int, x: num)
+	self:set2(self:find_rel_page(delta_pages, x), x)
 end
 
+--[[
 function cursor:insert(...) --insert text at cursor.
 	local offset = self.seg.offset + self.i
 	local offset, changed = self.segments:insert(offset, ...)
@@ -421,3 +472,4 @@ function cursor:remove(delta) --remove delta cursor positions of text.
 	return changed
 end
 ]]
+

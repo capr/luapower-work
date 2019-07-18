@@ -3,7 +3,9 @@ local C = ffi.load'tr'
 ffi.cdef[[
 typedef struct tr_renderer_t tr_renderer_t;
 typedef struct tr_layout_t tr_layout_t;
+typedef struct Cursor Cursor;
 typedef struct _cairo _cairo;
+typedef struct Seg Seg;
 typedef void (*tr_font_load_func) (int32_t, void**, uint64_t*);
 int32_t tr_renderer_sizeof();
 tr_renderer_t* tr_renderer_new(tr_font_load_func, tr_font_load_func);
@@ -27,6 +29,8 @@ int32_t tr_renderer_get_paint_glyph_num(tr_renderer_t*);
 void tr_renderer_set_paint_glyph_num(tr_renderer_t*, int32_t);
 int32_t tr_layout_sizeof();
 void tr_layout_release(tr_layout_t*);
+double* tr_layout_cursor_xs(tr_layout_t*, int32_t, int32_t*);
+Cursor* tr_layout_cursor(tr_layout_t*);
 void tr_layout_free(tr_layout_t*);
 bool tr_layout_get_clipped(tr_layout_t*);
 void tr_layout_clip(tr_layout_t*);
@@ -50,31 +54,31 @@ void tr_layout_set_x(tr_layout_t*, float);
 void tr_layout_set_y(tr_layout_t*, float);
 void tr_layout_paint(tr_layout_t*, _cairo*);
 bool tr_layout_get_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double*);
-bool tr_layout_get_operator(tr_layout_t*, int32_t, int32_t, const char *);
+bool tr_layout_get_color(tr_layout_t*, int32_t, int32_t, uint32_t*);
+bool tr_layout_get_lang(tr_layout_t*, int32_t, int32_t, const char **);
 bool tr_layout_get_font_id(tr_layout_t*, int32_t, int32_t, int32_t*);
+bool tr_layout_get_opacity(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_line_spacing(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_nowrap(tr_layout_t*, int32_t, int32_t, bool*);
+bool tr_layout_get_operator(tr_layout_t*, int32_t, int32_t, const char *);
 bool tr_layout_get_font_size(tr_layout_t*, int32_t, int32_t, double*);
 bool tr_layout_get_paragraph_dir(tr_layout_t*, int32_t, int32_t, int32_t*);
-bool tr_layout_get_color(tr_layout_t*, int32_t, int32_t, uint32_t*);
-bool tr_layout_get_opacity(tr_layout_t*, int32_t, int32_t, double*);
-bool tr_layout_get_nowrap(tr_layout_t*, int32_t, int32_t, bool*);
-bool tr_layout_get_script(tr_layout_t*, int32_t, int32_t, const char **);
-bool tr_layout_get_line_spacing(tr_layout_t*, int32_t, int32_t, double*);
 bool tr_layout_get_features(tr_layout_t*, int32_t, int32_t, const char **);
 bool tr_layout_get_hardline_spacing(tr_layout_t*, int32_t, int32_t, double*);
-bool tr_layout_get_lang(tr_layout_t*, int32_t, int32_t, const char **);
-void tr_layout_set_features(tr_layout_t*, int32_t, int32_t, const char *);
-void tr_layout_set_color(tr_layout_t*, int32_t, int32_t, uint32_t);
-void tr_layout_set_hardline_spacing(tr_layout_t*, int32_t, int32_t, double);
+bool tr_layout_get_script(tr_layout_t*, int32_t, int32_t, const char **);
 void tr_layout_set_nowrap(tr_layout_t*, int32_t, int32_t, bool);
-void tr_layout_set_paragraph_dir(tr_layout_t*, int32_t, int32_t, int32_t);
-void tr_layout_set_lang(tr_layout_t*, int32_t, int32_t, const char *);
+void tr_layout_set_color(tr_layout_t*, int32_t, int32_t, uint32_t);
 void tr_layout_set_font_size(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_paragraph_dir(tr_layout_t*, int32_t, int32_t, int32_t);
 void tr_layout_set_font_id(tr_layout_t*, int32_t, int32_t, int32_t);
-void tr_layout_set_opacity(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_lang(tr_layout_t*, int32_t, int32_t, const char *);
 void tr_layout_set_line_spacing(tr_layout_t*, int32_t, int32_t, double);
-void tr_layout_set_operator(tr_layout_t*, int32_t, int32_t, int8_t);
-void tr_layout_set_script(tr_layout_t*, int32_t, int32_t, const char *);
+void tr_layout_set_features(tr_layout_t*, int32_t, int32_t, const char *);
 void tr_layout_set_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_opacity(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_hardline_spacing(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_script(tr_layout_t*, int32_t, int32_t, const char *);
+void tr_layout_set_operator(tr_layout_t*, int32_t, int32_t, int8_t);
 int32_t tr_layout_get_maxlen(tr_layout_t*);
 uint32_t tr_layout_get_dir(tr_layout_t*);
 float tr_layout_get_align_w(tr_layout_t*);
@@ -89,10 +93,32 @@ float tr_layout_get_x(tr_layout_t*);
 float tr_layout_get_y(tr_layout_t*);
 void tr_layout_init(tr_layout_t*, tr_renderer_t*);
 bool tr_layout_get_visible(tr_layout_t*);
-void tr_layout_shape(tr_layout_t*);
-void tr_layout_wrap(tr_layout_t*);
-void tr_layout_align(tr_layout_t*);
+bool tr_layout_shape(tr_layout_t*);
+bool tr_layout_wrap(tr_layout_t*);
+bool tr_layout_align(tr_layout_t*);
 void tr_layout_layout(tr_layout_t*);
+struct Cursor {
+	tr_layout_t* layout;
+	int32_t offset;
+	Seg* seg;
+	int32_t i;
+	float x;
+	bool park_home;
+	bool park_end;
+	bool unique_offsets;
+	bool wrapped_space;
+	bool insert_mode;
+};
+void Cursor_release(Cursor*);
+void Cursor_rect(Cursor*, float, float*, float*, float*, float*);
+int32_t Cursor_get_offset(Cursor*);
+bool Cursor_get_rtl(Cursor*);
+void Cursor_move_to_offset(Cursor*, int32_t, int8_t);
+void Cursor_move_to_rel_cursor(Cursor*, int8_t, int8_t, int8_t, bool);
+void Cursor_move_to_line(Cursor*, int32_t, float);
+void Cursor_move_to_pos(Cursor*, float, float);
+void Cursor_move_to_page(Cursor*, int32_t, float);
+void Cursor_move_to_rel_page(Cursor*, int32_t, float);
 ]]
 local getters = {
 	glyph_run_cache_max_size = C.tr_renderer_get_glyph_run_cache_max_size,
@@ -164,6 +190,8 @@ local setters = {
 }
 local methods = {
 	release = C.tr_layout_release,
+	cursor_xs = C.tr_layout_cursor_xs,
+	cursor = C.tr_layout_cursor,
 	free = C.tr_layout_free,
 	clip = C.tr_layout_clip,
 	set_text = C.tr_layout_set_text,
@@ -172,31 +200,31 @@ local methods = {
 	set_clip_extents = C.tr_layout_set_clip_extents,
 	paint = C.tr_layout_paint,
 	get_paragraph_spacing = C.tr_layout_get_paragraph_spacing,
-	get_operator = C.tr_layout_get_operator,
+	get_color = C.tr_layout_get_color,
+	get_lang = C.tr_layout_get_lang,
 	get_font_id = C.tr_layout_get_font_id,
+	get_opacity = C.tr_layout_get_opacity,
+	get_line_spacing = C.tr_layout_get_line_spacing,
+	get_nowrap = C.tr_layout_get_nowrap,
+	get_operator = C.tr_layout_get_operator,
 	get_font_size = C.tr_layout_get_font_size,
 	get_paragraph_dir = C.tr_layout_get_paragraph_dir,
-	get_color = C.tr_layout_get_color,
-	get_opacity = C.tr_layout_get_opacity,
-	get_nowrap = C.tr_layout_get_nowrap,
-	get_script = C.tr_layout_get_script,
-	get_line_spacing = C.tr_layout_get_line_spacing,
 	get_features = C.tr_layout_get_features,
 	get_hardline_spacing = C.tr_layout_get_hardline_spacing,
-	get_lang = C.tr_layout_get_lang,
-	set_features = C.tr_layout_set_features,
-	set_color = C.tr_layout_set_color,
-	set_hardline_spacing = C.tr_layout_set_hardline_spacing,
+	get_script = C.tr_layout_get_script,
 	set_nowrap = C.tr_layout_set_nowrap,
-	set_paragraph_dir = C.tr_layout_set_paragraph_dir,
-	set_lang = C.tr_layout_set_lang,
+	set_color = C.tr_layout_set_color,
 	set_font_size = C.tr_layout_set_font_size,
+	set_paragraph_dir = C.tr_layout_set_paragraph_dir,
 	set_font_id = C.tr_layout_set_font_id,
-	set_opacity = C.tr_layout_set_opacity,
+	set_lang = C.tr_layout_set_lang,
 	set_line_spacing = C.tr_layout_set_line_spacing,
-	set_operator = C.tr_layout_set_operator,
-	set_script = C.tr_layout_set_script,
+	set_features = C.tr_layout_set_features,
 	set_paragraph_spacing = C.tr_layout_set_paragraph_spacing,
+	set_opacity = C.tr_layout_set_opacity,
+	set_hardline_spacing = C.tr_layout_set_hardline_spacing,
+	set_script = C.tr_layout_set_script,
+	set_operator = C.tr_layout_set_operator,
 	init = C.tr_layout_init,
 	shape = C.tr_layout_shape,
 	wrap = C.tr_layout_wrap,
@@ -204,6 +232,36 @@ local methods = {
 	layout = C.tr_layout_layout,
 }
 ffi.metatype('tr_layout_t', {
+	__index = function(self, k)
+		local getter = getters[k]
+		if getter then return getter(self) end
+		return methods[k]
+	end,
+	__newindex = function(self, k, v)
+		local setter = setters[k]
+		if not setter then
+			error(('field not found: %s'):format(tostring(k)), 2)
+		end
+		setter(self, v)
+	end,
+})
+local getters = {
+	offset = C.Cursor_get_offset,
+	rtl = C.Cursor_get_rtl,
+}
+local setters = {
+}
+local methods = {
+	release = C.Cursor_release,
+	rect = C.Cursor_rect,
+	move_to_offset = C.Cursor_move_to_offset,
+	move_to_rel_cursor = C.Cursor_move_to_rel_cursor,
+	move_to_line = C.Cursor_move_to_line,
+	move_to_pos = C.Cursor_move_to_pos,
+	move_to_page = C.Cursor_move_to_page,
+	move_to_rel_page = C.Cursor_move_to_rel_page,
+}
+ffi.metatype('Cursor', {
 	__index = function(self, k)
 		local getter = getters[k]
 		if getter then return getter(self) end
@@ -229,6 +287,15 @@ enum {
 	TR_BREAK_LINE = 1,
 	TR_BREAK_NONE = 0,
 	TR_BREAK_PARA = 2,
+	TR_CURSOR_DIR_CURR = 3,
+	TR_CURSOR_DIR_NEXT = 1,
+	TR_CURSOR_DIR_PREV = 2,
+	TR_CURSOR_MODE_CHAR = 2,
+	TR_CURSOR_MODE_LINE = 4,
+	TR_CURSOR_MODE_POS = 1,
+	TR_CURSOR_MODE_WORD = 3,
+	TR_CURSOR_WHICH_FIRST = 1,
+	TR_CURSOR_WHICH_LAST = 2,
 	TR_DEFAULT_TEXT_OPERATOR = 2,
 	TR_DIR_AUTO = 64,
 	TR_DIR_LTR = 272,

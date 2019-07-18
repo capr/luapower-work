@@ -76,8 +76,8 @@ terra Layout:split_spans(offset: int)
 end
 
 terra Layout:remove_duplicate_spans(i1: int, i2: int)
-	i1 = clamp(i1, 0, self.spans.len-1)
-	i2 = clamp(i2, 0, self.spans.len-1)
+	i1 = self.spans:clamp(i1)
+	i2 = self.spans:clamp(i2)
 	var s = self.spans:at(i2)
 	var i = i2 - 1
 	while i >= i1 do
@@ -185,7 +185,8 @@ local SPAN_FIELD_MAX_STATE = {
 	operator          = STATE_ALIGNED,
 }
 
---generate getters and setters for each text attr that can be set on an offset range.
+--Generate getters and setters for each text attr that can be set on an offset range.
+--Uses Layout:save_<field>() and Layout:load_<field> methods if available.
 for i,FIELD in ipairs(FIELDS) do
 
 	local T = SPAN_FIELD_TYPES[FIELD]
@@ -225,6 +226,7 @@ end
 
 --text editing ---------------------------------------------------------------
 
+--[[
 --remove text between two offsets. return offset at removal point.
 local terra cmp_remove_first(s1: &Span, s2: &Span)
 	return s1.offset < s2.offset  -- < < [=] = > >
@@ -232,31 +234,16 @@ end
 local terra cmp_remove_last(s1: &Span, s2: &Span)
 	return s1.offset <= s2.offset  -- < < = = [>] >
 end
-terra Span:remove(i1: int, i2: int)
-
-	local i1, len = self:text_range(i1, i2)
-	local i2 = i1 + len
-	local changed = false
-
-	--reallocate and copy the remaining ends of the codepoints buffer.
-	if len > 0 then
-		local old_len = self.len
-		local old_str = self.codepoints
-		local new_len = old_len - len
-		local new_str = self.alloc_codepoints(new_len + 1) -- +1 for linebreaks
-		ffi.copy(new_str, old_str, i1 * 4)
-		ffi.copy(new_str + i1, old_str + i2, (old_len - i2) * 4)
-		self.len = new_len
-		self.codepoints = new_str
-		changed = true
-	end
-
+terra Layout:remove(i1: int, i2: int)
+	i1 = self.spans:clamp(i1)
+	i2 = self.spans:clamp(i2)
+	self.text:remove(i1, i2-i1)
 	--adjust/remove affected spans.
 	--NOTE: this includes all zero-length text runs at both ends.
 
 	--1. find the first and last text runs which need to be entirely removed.
-	local tr_i1 = binsearch(i1, self, cmp_remove_first) or #self + 1
-	local tr_i2 = (binsearch(i2, self, cmp_remove_last) or #self + 1) - 1
+	local tr_i1 = self.spans:binsearch(Span{offset = i1}, cmp_remove_first) or #self + 1
+	local tr_i2 = self.spans:binsearch(Span{offset = i2}, cmp_remove_last) or #self + 1) - 1
 	--NOTE: clamping to #self-1 so that the last text run cannot be removed.
 	local tr_remove_count = clamp(tr_i2 - tr_i1 + 1, 0, #self-1)
 
@@ -292,7 +279,9 @@ terra Span:remove(i1: int, i2: int)
 
 	return i1, changed
 end
+]]
 
+--[[
 --insert text at offset. return offset after inserted text.
 local function cmp_insert(text_runs, i, offset)
 	return text_runs[i].offset <= offset -- < < = = [>] >
@@ -347,3 +336,4 @@ function text_runs:insert(i, s, sz, charset, maxlen)
 
 	return i+len, true
 end
+]]

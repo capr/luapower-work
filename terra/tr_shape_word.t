@@ -56,7 +56,7 @@ terra GlyphRun:shape(r: &Renderer)
 	--3. compute the run's total advance.
 	self.glyphs:init()
 	self.glyphs.len = len
-	var ax = [num](0)
+	var ax: num = 0.0
 	for i = 0, len do
 		var g = self.glyphs:at(i)
 		g.glyph_index = info[i].codepoint

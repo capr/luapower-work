@@ -122,7 +122,7 @@ terra test()
 
 			var s: char[200]
 			sprintf(s, 'out%d.png', layouts.len)
-			sr:save_png(s)
+			--sr:save_png(s)
 
 		end
 

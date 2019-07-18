@@ -760,6 +760,8 @@ function build()
 		set_text_caret_insert_mode=1,
 		set_text_selectable=1,
 
+		--
+
 		--layouts
 
 		set_layout_type=1,

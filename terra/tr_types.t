@@ -296,33 +296,35 @@ terra Layout:init(r: &Renderer)
 end
 
 terra Layout:get_visible()
-	return self.text.len > 0
-		and self.spans.len > 0
+	return self.text.len >= 0
 		and self.spans:at(0).font_id ~= -1
 		and self.spans:at(0).font_size > 0
 end
 
 terra Layout.methods._shape :: {&Layout} -> {}
 terra Layout:shape()
-	if self.state >= STATE_SHAPED then return end
+	if self.state >= STATE_SHAPED then return false end
 	self:_shape()
 	self.state = STATE_SHAPED
+	return true
 end
 
 terra Layout.methods._wrap :: {&Layout} -> {}
 terra Layout:wrap()
-	if self.state >= STATE_WRAPPED then return end
+	if self.state >= STATE_WRAPPED then return false end
 	assert(self.state == STATE_WRAPPED - 1)
 	self:_wrap()
 	self.state = STATE_WRAPPED
+	return true
 end
 
 terra Layout.methods._align :: {&Layout} -> {}
 terra Layout:align()
-	if self.state >= STATE_ALIGNED then return end
+	if self.state >= STATE_ALIGNED then return false end
 	assert(self.state == STATE_ALIGNED - 1)
 	self:_align()
 	self.state = STATE_ALIGNED
+	return true
 end
 
 terra Layout.methods.clip :: {&Layout} -> {}
@@ -346,7 +348,7 @@ struct GlyphInfo (gettersandsetters) {
 fixpointfields(GlyphInfo)
 
 struct GlyphImage {
-	surface: &GraphicsSurface;
+	surface: &surface;
  	x: int16; --image coordinates relative to the (first) glyph origin
 	y: int16;
 }
@@ -507,19 +509,5 @@ struct Renderer (gettersandsetters) {
 
 	paint_glyph_num: int;
 }
-
-struct Selection {
-	layout: &Layout;
-	offset: int;
-	len: int;
-	color: color;
-}
-
-terra Selection:init(layout: &Layout)
-	self.layout = layout
-	self.offset = 0
-	self.len = 0
-	self.color = DEFAULT_SELECTION_COLOR
-end
 
 return _M

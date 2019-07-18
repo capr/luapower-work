@@ -8,7 +8,7 @@ require'terra/tr_rasterize'
 
 --NOTE: clip_left and clip_right are relative to glyph run's origin.
 terra Renderer:paint_glyph_run(
-	cr: &GraphicsContext, gr: &GlyphRun, i: int, j: int,
+	cr: &context, gr: &GlyphRun, i: int, j: int,
 	ax: num, ay: num, clip: bool, clip_left: num, clip_right: num
 ): {}
 
@@ -32,7 +32,7 @@ terra Renderer:paint_glyph_run(
 
 end
 
-terra Layout:paint(cr: &GraphicsContext)
+terra Layout:paint(cr: &context)
 
 	assert(self.state >= STATE_ALIGNED)
 	assert(self.clip_valid)
@@ -75,3 +75,4 @@ terra Layout:paint(cr: &GraphicsContext)
 		end
 	end
 end
+
