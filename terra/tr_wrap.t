@@ -76,21 +76,56 @@ terra Layout:max_w()
 	return max_w
 end
 
+terra Line:_update_vertical_metrics(
+	run_line_spacing: num,
+	run_ascent: num,
+	run_descent: num,
+	ascent_factor: num,
+	descent_factor: num
+)
+	self.ascent = max(self.ascent, run_ascent)
+	self.descent = min(self.descent, run_descent)
+	var run_h = run_ascent - run_descent
+	var half_line_gap = run_h * (run_line_spacing - 1) / 2
+	self.spaced_ascent
+		= max(self.spaced_ascent,
+			(run_ascent + half_line_gap) * ascent_factor)
+	self.spaced_descent
+		= min(self.spaced_descent,
+			(run_descent - half_line_gap) * descent_factor)
+end
+
 terra Layout:_wrap()
 
-	var lines = &self.lines
-	lines.len = 0
+	self.lines.len = 0
 	self.h = 0
 	self.spaced_h = 0
 	self.baseline = 0
 	self.max_ax = 0
-	self.first_visible_line = 0
-	self.last_visible_line = -1
+
+	--special-case empty text: we still want to create valid wrapping output
+	--in order to properly display a cursor.
+	if self.segs.len == 0 then
+		var span = self.spans:at(0)
+		var font = self.r.fonts:at(span.font_id, nil)
+		var line = self.lines:add()
+		fill(line)
+		line.spacing = span.hardline_spacing
+		if font ~= nil then
+			line:_update_vertical_metrics(
+				span.hardline_spacing,
+				font.ascent,
+				font.descent,
+				1,
+				span.hardline_spacing
+			)
+		end
+	end
 
 	--do line wrapping and compute line advance.
-	var seg_i, seg_count = 0, self.segs.len
 	var line: &Line = nil
-	while seg_i < seg_count do
+	var seg_i = 0
+	while seg_i < self.segs.len do
 		var segs_wx, segs_ax, next_seg_i = self:nowrap_segments(seg_i)
 
 		var hardbreak = line == nil
@@ -118,8 +153,8 @@ terra Layout:_wrap()
 				prev_seg.next_vis = nil
 			end
 
-			line = lines:add()
-			line.index = lines.len-1
+			line = self.lines:add()
+			line.index = self.lines.len-1
 			line.first = self.segs:at(seg_i) --first segment in text order
 			line.first_vis = line.first --first segment in visual order
 			line.x = 0
@@ -129,7 +164,6 @@ terra Layout:_wrap()
 			line.descent = 0
 			line.spaced_ascent = 0
 			line.spaced_descent = 0
-			line.visible = true --entirely clipped or not
 			line.spacing = 1
 
 		end
@@ -138,7 +172,7 @@ terra Layout:_wrap()
 
 		for seg_i = seg_i, next_seg_i do
 			var seg = self.segs:at(seg_i)
-			seg.line_index = lines.len-1
+			seg.line_index = self.lines.len-1
 			seg.advance_x = self:glyph_run(seg).advance_x
 			seg.x = 0
 			seg.wrapped = false
@@ -163,14 +197,14 @@ terra Layout:_wrap()
 
 	--reorder RTL segments on each line separately and concatenate the runs.
 	if self.bidi then
-		for _,line in lines do
+		for _,line in self.lines do
 			--UAX#9/L2: reorder segments based on their bidi_level property.
 			line.first_vis = reorder_segs(line.first_vis, &self.r.ranges)
 		end
 	end
 
 	var last_line: &Line = nil
-	for _,line in lines do
+	for _,line in self.lines do
 
 		self.max_ax = max(self.max_ax, line.advance_x)
 
@@ -183,17 +217,13 @@ terra Layout:_wrap()
 		while seg ~= nil do
 			--compute line's vertical metrics.
 			var run = self:glyph_run(seg)
-			line.ascent = max(line.ascent, run.ascent)
-			line.descent = min(line.descent, run.descent)
-			var run_h = run.ascent - run.descent
-			var line_spacing = seg.span.line_spacing
-			var half_line_gap = run_h * (line_spacing - 1) / 2
-			line.spaced_ascent
-				= max(line.spaced_ascent,
-					(run.ascent + half_line_gap) * ascent_factor)
-			line.spaced_descent
-				= min(line.spaced_descent,
-					(run.descent - half_line_gap) * descent_factor)
+			line:_update_vertical_metrics(
+				seg.span.line_spacing,
+				run.ascent,
+				run.descent,
+				ascent_factor,
+				descent_factor
+			)
 			--set segments `x` to be relative to the line's origin.
 			seg.x = ax + seg.x
 			ax = ax + seg.advance_x
@@ -208,9 +238,9 @@ terra Layout:_wrap()
 		last_line = line
 	end
 
-	var first_line = lines:at(0, nil)
-	if first_line ~= nil then
-		var last_line = lines:at(lines.len-1)
+	do
+		var first_line = self.lines:at(0)
+		var last_line = self.lines:at(self.lines.len-1)
 		--compute the bounding-box height excluding paragraph spacing.
 		self.h =
 			first_line.ascent
@@ -221,8 +251,6 @@ terra Layout:_wrap()
 			first_line.spaced_ascent
 			+ last_line.y
 			- last_line.spaced_descent
-		--set the default visible line range.
-		self.last_visible_line = lines.len-1
 	end
 
 end

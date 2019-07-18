@@ -24,7 +24,6 @@ end
 terra Glyph:free(r: &Renderer)
 	if self.image.surface == nil then return end
 	self.image:free(r)
-	r.fonts:at(self.font_id):unref()
 end
 
 terra Glyph:rasterize(r: &Renderer)
@@ -36,8 +35,6 @@ terra Glyph:rasterize(r: &Renderer)
 		self.image.surface = nil
 		return
 	end
-
-	font:ref()
 
 	if glyph.format == FT_GLYPH_FORMAT_OUTLINE then
 		FT_Outline_Translate(&glyph.outline, self.subpixel_offset_x_8_6, 0)

@@ -24,32 +24,12 @@ terra Layout:cursor_x(seg: &Seg, i: int) --relative to line_pos().
 end
 
 terra Layout:cursor_rect(seg: &Seg, i: int, w: num, forward: bool) --relative to line_pos().
-	var ascent: num
-	var descent: num
-	var x: num
-	if seg ~= nil then
-		var line = self.lines:at(seg.line_index)
-		ascent = line.ascent
-		descent = line.descent
-		x = self:cursor_x(seg, i)
-	else
-		var span = self.spans:at(0)
-		var font_id = span.font_id
-		var font = self.r.fonts:at(font_id, nil)
-		if font ~= nil and font:ref() then
-			font:setsize(span.font_size)
-			ascent = font.ascent
-			descent = font.descent
-			font:unref() --TODO: delay unref
-		else
-			ascent = 0
-			descent = 0
-		end
-		x = 0
-	end
-	var y = -ascent
+	assert(self.state >= STATE_ALIGNED)
+	var line = self.lines:at(iif(seg ~= nil, seg.line_index, 0))
+	var x = iif(seg ~= nil, self:cursor_x(seg, i), 0)
+	var y = -line.ascent
 	var w = iif(forward ~= false, 1, -1) * iif(w ~= DEFAULT_NUM, w, 1)
-	var h = ascent - descent
+	var h = line.ascent - line.descent
 	if w < 0 then
 		x, w = x + w, -w
 	end
@@ -252,6 +232,11 @@ struct Cursor (gettersandsetters) {
 	wrapped_space: bool;
 
 	insert_mode: bool;
+
+	--drawing attributes
+	color: color;
+	opacity: num;
+	w: num;
 }
 
 terra Cursor:init(layout: &Layout)
@@ -260,6 +245,9 @@ terra Cursor:init(layout: &Layout)
 	self.park_home = true
 	self.park_end = true
 	self.insert_mode = true
+	self.color = DEFAULT_TEXT_COLOR
+	self.opacity = 1
+	self.w = 1
 	self.seg = self.layout.segs:at(0, nil)
 end
 
@@ -314,7 +302,7 @@ CURSOR_MODE_LINE = LINE
 
 terra Cursor.methods.find_rel_cursor :: {&Cursor, enum, enum, enum, bool} -> {&Seg, int}
 
-terra Cursor:rect(w: num)
+terra Cursor:rect()
 	if not self.insert_mode then
 		--wide caret (spanning two adjacent cursor positions).
 		var seg1, i1 = self:find_rel_cursor(NEXT, DEFAULT, DEFAULT, false)
@@ -331,9 +319,18 @@ terra Cursor:rect(w: num)
 	end
 	--normal caret, `w`-wide to the left or right of a cursor position.
 	var forward = not self.rtl and self.layout.align_x ~= ALIGN_RIGHT
-	var x, y, w, h = self.layout:cursor_rect(self.seg, self.i, w, forward)
-	var x0, y0 = self.layout:line_pos(self.seg.line_index)
+	var x, y, w, h = self.layout:cursor_rect(self.seg, self.i, self.w, forward)
+	var x0, y0 = self.layout:line_pos(iif(self.seg ~= nil, self.seg.line_index, 0))
 	return x0 + x, y0 + y, w, h
+end
+
+terra Cursor:visibility_rect()
+	var x, y, w, h = self:rect()
+	--enlarge the caret rect to contain the line spacing.
+	var line = self.line
+	y = y + line.ascent - line.spaced_ascent
+	h = line.spaced_ascent - line.spaced_descent
+	return x, y, w, h
 end
 
 local terra valid(obj: &opaque, seg: &Seg, i: int, mode: enum)
@@ -472,4 +469,3 @@ function cursor:remove(delta) --remove delta cursor positions of text.
 	return changed
 end
 ]]
-

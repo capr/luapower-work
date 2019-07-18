@@ -44,8 +44,8 @@ terra Cursor:release()
 	release(self)
 end
 
-terra Cursor:rect_c(caret_w: num, x: &num, y: &num, w: &num, h: &num)
-	@x, @y, @w, @h = self:rect(caret_w)
+terra Cursor:rect_c(x: &num, y: &num, w: &num, h: &num)
+	@x, @y, @w, @h = self:rect()
 end
 
 function build()
@@ -196,9 +196,15 @@ function build()
 		move_to_page=1,
 		move_to_rel_page=1,
 
+		paint=1,
+
 		insert=1,
 		remove=1,
 
+	}, {
+		cname = 'tr_cursor_t',
+		cprefix = 'tr_cursor_',
+		opaque = true,
 	})
 
 	trlib:getenums(_M, nil, 'TR_')

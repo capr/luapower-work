@@ -113,7 +113,7 @@ iter.load_values = function(self, i)
 		lang1      = self.langs(i)
 		if i >= span_eof then --time to load a new span
 			inc(span_index)
-			span_eof = self.layout:eof(span_index)
+			span_eof = self.layout:span_end_offset(span_index)
 			span1 = self.layout.spans:at(span_index)
 			span_diff = span0 == nil
 				or span1.font_id         ~= span0.font_id
@@ -186,6 +186,13 @@ terra Layout:_span_index_at_offset(offset: int, i0: int)
 	return self.spans.len-1
 end
 
+--the span that starts exactly where the paragraph starts can
+--set the paragraph base direction otherwise the layout's dir is used.
+terra Layout:span_dir(span: &Span, paragraph_offset: int)
+	return iif(span.offset == paragraph_offset and span.paragraph_dir ~= 0,
+		span.paragraph_dir, self.dir)
+end
+
 terra Layout:_shape()
 
 	var r = self.r
@@ -194,6 +201,17 @@ terra Layout:_shape()
 	--reset output
 	segs.len = 0
 	self.lines.len = 0
+
+	--special-case empty text: we still want to set valid shaping output
+	--fields in order to properly display a cursor.
+	if self.text.len == 0 then
+		self.bidi = false
+		self.base_dir = self:span_dir(self.spans:at(0), 0)
+		self._min_w = 0
+		self._max_w = 0
+		return
+	end
+
 	self._min_w = -inf
 	self._max_w =  inf
 
@@ -218,7 +236,7 @@ terra Layout:_shape()
 	--override scripts with user-provided values.
 	for span_index, span in self.spans do
 		if span.script ~= HB_SCRIPT_INVALID then
-			for i = span.offset, self:eof(span_index) do
+			for i = span.offset, self:span_end_offset(span_index) do
 				r.scripts:set(i, span.script)
 			end
 		end
@@ -234,7 +252,7 @@ terra Layout:_shape()
 	--override langs with user-provided values.
 	for span_index, span in self.spans do
 		if span.lang ~= nil then
-			for i = span.offset, self:eof(span_index) do
+			for i = span.offset, self:span_end_offset(span_index) do
 				r.langs:set(i, span.lang)
 			end
 		end
@@ -260,11 +278,7 @@ terra Layout:_shape()
 
 		span_index = self:_span_index_at_offset(offset, span_index)
 		var span = self.spans:at(span_index)
-
-		--only the span that starts exactly where the paragraph starts can
-		--set the paragraph base direction otherwise the layout's dir is used.
-		var dir = iif(span.offset == offset and span.paragraph_dir ~= 0,
-			span.paragraph_dir, self.dir)
+		var dir = self:span_dir(span, offset)
 
 		fribidi_get_bidi_types(str, len, r.bidi_types:at(offset))
 

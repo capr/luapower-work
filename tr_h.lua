@@ -3,9 +3,8 @@ local C = ffi.load'tr'
 ffi.cdef[[
 typedef struct tr_renderer_t tr_renderer_t;
 typedef struct tr_layout_t tr_layout_t;
-typedef struct Cursor Cursor;
+typedef struct tr_cursor_t tr_cursor_t;
 typedef struct _cairo _cairo;
-typedef struct Seg Seg;
 typedef void (*tr_font_load_func) (int32_t, void**, uint64_t*);
 int32_t tr_renderer_sizeof();
 tr_renderer_t* tr_renderer_new(tr_font_load_func, tr_font_load_func);
@@ -30,7 +29,7 @@ void tr_renderer_set_paint_glyph_num(tr_renderer_t*, int32_t);
 int32_t tr_layout_sizeof();
 void tr_layout_release(tr_layout_t*);
 double* tr_layout_cursor_xs(tr_layout_t*, int32_t, int32_t*);
-Cursor* tr_layout_cursor(tr_layout_t*);
+tr_cursor_t* tr_layout_cursor(tr_layout_t*);
 void tr_layout_free(tr_layout_t*);
 bool tr_layout_get_clipped(tr_layout_t*);
 void tr_layout_clip(tr_layout_t*);
@@ -97,28 +96,17 @@ bool tr_layout_shape(tr_layout_t*);
 bool tr_layout_wrap(tr_layout_t*);
 bool tr_layout_align(tr_layout_t*);
 void tr_layout_layout(tr_layout_t*);
-struct Cursor {
-	tr_layout_t* layout;
-	int32_t offset;
-	Seg* seg;
-	int32_t i;
-	float x;
-	bool park_home;
-	bool park_end;
-	bool unique_offsets;
-	bool wrapped_space;
-	bool insert_mode;
-};
-void Cursor_release(Cursor*);
-void Cursor_rect(Cursor*, float, float*, float*, float*, float*);
-int32_t Cursor_get_offset(Cursor*);
-bool Cursor_get_rtl(Cursor*);
-void Cursor_move_to_offset(Cursor*, int32_t, int8_t);
-void Cursor_move_to_rel_cursor(Cursor*, int8_t, int8_t, int8_t, bool);
-void Cursor_move_to_line(Cursor*, int32_t, float);
-void Cursor_move_to_pos(Cursor*, float, float);
-void Cursor_move_to_page(Cursor*, int32_t, float);
-void Cursor_move_to_rel_page(Cursor*, int32_t, float);
+void tr_cursor_release(tr_cursor_t*);
+void tr_cursor_rect(tr_cursor_t*, float*, float*, float*, float*);
+int32_t tr_cursor_get_offset(tr_cursor_t*);
+bool tr_cursor_get_rtl(tr_cursor_t*);
+void tr_cursor_move_to_offset(tr_cursor_t*, int32_t, int8_t);
+void tr_cursor_move_to_rel_cursor(tr_cursor_t*, int8_t, int8_t, int8_t, bool);
+void tr_cursor_move_to_line(tr_cursor_t*, int32_t, float);
+void tr_cursor_move_to_pos(tr_cursor_t*, float, float);
+void tr_cursor_move_to_page(tr_cursor_t*, int32_t, float);
+void tr_cursor_move_to_rel_page(tr_cursor_t*, int32_t, float);
+void tr_cursor_paint(tr_cursor_t*, _cairo*);
 ]]
 local getters = {
 	glyph_run_cache_max_size = C.tr_renderer_get_glyph_run_cache_max_size,
@@ -246,22 +234,23 @@ ffi.metatype('tr_layout_t', {
 	end,
 })
 local getters = {
-	offset = C.Cursor_get_offset,
-	rtl = C.Cursor_get_rtl,
+	offset = C.tr_cursor_get_offset,
+	rtl = C.tr_cursor_get_rtl,
 }
 local setters = {
 }
 local methods = {
-	release = C.Cursor_release,
-	rect = C.Cursor_rect,
-	move_to_offset = C.Cursor_move_to_offset,
-	move_to_rel_cursor = C.Cursor_move_to_rel_cursor,
-	move_to_line = C.Cursor_move_to_line,
-	move_to_pos = C.Cursor_move_to_pos,
-	move_to_page = C.Cursor_move_to_page,
-	move_to_rel_page = C.Cursor_move_to_rel_page,
+	release = C.tr_cursor_release,
+	rect = C.tr_cursor_rect,
+	move_to_offset = C.tr_cursor_move_to_offset,
+	move_to_rel_cursor = C.tr_cursor_move_to_rel_cursor,
+	move_to_line = C.tr_cursor_move_to_line,
+	move_to_pos = C.tr_cursor_move_to_pos,
+	move_to_page = C.tr_cursor_move_to_page,
+	move_to_rel_page = C.tr_cursor_move_to_rel_page,
+	paint = C.tr_cursor_paint,
 }
-ffi.metatype('Cursor', {
+ffi.metatype('tr_cursor_t', {
 	__index = function(self, k)
 		local getter = getters[k]
 		if getter then return getter(self) end

@@ -5,6 +5,7 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 require'terra/tr_rasterize'
+require'terra/tr_cursor'
 
 --NOTE: clip_left and clip_right are relative to glyph run's origin.
 terra Renderer:paint_glyph_run(
@@ -42,37 +43,47 @@ terra Layout:paint(cr: &context)
 
 	for line_i = self.first_visible_line, self.last_visible_line + 1 do
 		var line = lines:at(line_i)
-		if line.visible then
 
-			var ax = self.x + line.x
-			var ay = self.y + self.baseline + line.y
+		var ax = self.x + line.x
+		var ay = self.y + self.baseline + line.y
 
-			var seg = line.first_vis
-			while seg ~= nil do
-				if seg.visible then
+		var seg = line.first_vis --can be nil
+		while seg ~= nil do
+			if seg.visible then
 
-					var gr = self:glyph_run(seg)
-					var x, y = ax + seg.x, ay
+				var gr = self:glyph_run(seg)
+				var x, y = ax + seg.x, ay
 
-					--[[
-					--TODO: subsegments
-					if #seg > 0 then --has sub-segments, paint them separately
-						for i = 1, #seg, 5 do
-							var i, j, text_run, clip_left, clip_right = unpack(seg, i, i + 4)
-							rs:setcontext(cr, text_run)
-							paint_glyph_run(cr, rs, run, i, j, x, y, true, clip_left, clip_right)
-						end
-					else
-					]]
+				--[[
+				--TODO: subsegments
+				if #seg > 0 then --has sub-segments, paint them separately
+					for i = 1, #seg, 5 do
+						var i, j, text_run, clip_left, clip_right = unpack(seg, i, i + 4)
+						rs:setcontext(cr, text_run)
+						paint_glyph_run(cr, rs, run, i, j, x, y, true, clip_left, clip_right)
+					end
+				else
+				]]
 
-					self.r:setcontext(cr, seg.span)
-					self.r:paint_glyph_run(cr, gr, 0, gr.glyphs.len, x, y, false, 0, 0)
-					--end
+				self.r:setcontext(cr, seg.span)
+				self.r:paint_glyph_run(cr, gr, 0, gr.glyphs.len, x, y, false, 0, 0)
+				--end
 
-				end
-				seg = seg.next_vis
 			end
+			seg = seg.next_vis
 		end
 	end
 end
 
+terra Cursor:paint(cr: &context)
+	var x, y, w, h = self:rect()
+	x = snap(x, 1)
+	y = snap(y, 1)
+	h = snap(h, 1)
+	var c = iif(self.seg ~= nil, self.seg.span.color, self.color)
+	c.alpha = c.alpha * self.opacity
+	cr:rgba(c)
+	cr:new_path()
+	cr:rectangle(x, y, w, h)
+	cr:fill()
+end

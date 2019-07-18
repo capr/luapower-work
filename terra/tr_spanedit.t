@@ -5,6 +5,7 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
+require'terra/tr_font'
 require'terra/rawstringview'
 
 local FIELDS = {
@@ -150,6 +151,11 @@ end
 terra Span:save_script(layout: &Layout, out: &rawstring)
 	var tag = hb_script_to_iso15924_tag(self.script)
 	copy(@out, [rawstring](&tag), sizeof(tag))
+end
+
+terra Span:load_font_id(layout: &Layout, font_id: font_id_t)
+	var font = layout.r.fonts:at(font_id)
+	self.font_id = iif(font:ref(), font_id, -1)
 end
 
 terra Layout:offset_args(o1: int, o2: int)

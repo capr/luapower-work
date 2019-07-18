@@ -17,7 +17,6 @@ terra GlyphRun:free(r: &Renderer)
 	self.cursor_xs:free()
 	self.cursor_offsets:free()
 	var font = r.fonts:at(self.font_id)
-	font:unref()
 	self.text:free()
 	self.features:free()
 	self.glyphs:free()
@@ -25,9 +24,13 @@ terra GlyphRun:free(r: &Renderer)
 	fill(self)
 end
 
+terra GlyphRun.methods.compute_cursors :: {&GlyphRun, &Renderer, &Font} -> {}
+
 terra GlyphRun:shape(r: &Renderer)
-	var font = r.fonts:at(self.font_id)
-	if not font:ref() then return false end
+	var font = r.fonts:at(self.font_id, nil)
+	if font == nil then
+		return false
+	end
 	font:setsize(self.font_size)
 	self.text = self.text:copy()
 	self.features = self.features:copy()
@@ -75,6 +78,8 @@ terra GlyphRun:shape(r: &Renderer)
 
 	self.images:init(r)
 	self.images_memsize = 0
+
+	self:compute_cursors(r, font)
 
 	return true
 end
@@ -133,8 +138,9 @@ terra GlyphRun:pos_x(i: int)
 	return iif(i < self.glyphs.len, self.glyphs:at(i).x, self.advance_x)
 end
 
-terra GlyphRun:_add_cursors(
+terra GlyphRun:add_cursors(
 	r: &Renderer,
+	font: &Font,
 	glyph_offset: int,
 	glyph_len: int,
 	cluster: int,
@@ -144,8 +150,6 @@ terra GlyphRun:_add_cursors(
 	str: &codepoint,
 	str_len: int
 )
-	var font = r.fonts:at(self.font_id)
-
 	self.cursor_offsets:set(cluster, cluster)
 	self.cursor_xs:set(cluster, cluster_x)
 	if cluster_len <= 1 then return end
@@ -208,7 +212,7 @@ terra GlyphRun:_add_cursors(
 	end
 end
 
-terra GlyphRun:compute_cursors(r: &Renderer)
+terra GlyphRun:compute_cursors(r: &Renderer, f: &Font)
 
 	--NOTE: cursors are kept in logical order.
 	self.cursor_offsets:init()
@@ -233,14 +237,14 @@ terra GlyphRun:compute_cursors(r: &Renderer)
 		for i1, n1, c1 in cluster_runs do
 			cx = self:pos_x(i1)
 			if i ~= -1 then
-				self:_add_cursors(r, i, n, c, cn, cx, self.text.elements, self.text.len)
+				self:add_cursors(r, f, i, n, c, cn, cx, self.text.elements, self.text.len)
 			end
 			var cn1 = c - c1
 			i, n, c, cn = i1, n1, c1, cn1
 		end
 		if i ~= -1 then
 			cx = self.advance_x
-			self:_add_cursors(r, i, n, c, cn, cx, self.text.elements, self.text.len)
+			self:add_cursors(r, f, i, n, c, cn, cx, self.text.elements, self.text.len)
 		end
 	else
 		var i: int = -1 --index in glyph_info
@@ -251,14 +255,14 @@ terra GlyphRun:compute_cursors(r: &Renderer)
 		for i1, n1, c1 in cluster_runs do
 			if c ~= -1 then
 				var cn = c1 - c
-				self:_add_cursors(r, i, n, c, cn, cx, self.text.elements, self.text.len)
+				self:add_cursors(r, f, i, n, c, cn, cx, self.text.elements, self.text.len)
 			end
 			var cx1 = self:pos_x(i1)
 			i, n, c, cx = i1, n1, c1, cx1
 		end
 		if i ~= -1 then
 			var cn = self.text.len - c
-			self:_add_cursors(r, i, n, c, cn, cx, self.text.elements, self.text.len)
+			self:add_cursors(r, f, i, n, c, cn, cx, self.text.elements, self.text.len)
 		end
 		--add last logical (last visual), after-the-text cursor
 		self.cursor_offsets:set(self.text.len, self.text.len)
@@ -294,12 +298,10 @@ terra Renderer:shape_word(glyph_run: GlyphRun)
 	--get the shaped run from cache or shape it and cache it.
 	var glyph_run_id, pair = self.glyph_runs:get(glyph_run)
 	if pair == nil then
-		if not glyph_run:shape(self) then
-			return -1, [&GlyphRun](nil)
+		if glyph_run:shape(self) then
+			glyph_run_id, pair = self.glyph_runs:put(glyph_run, {})
+			assert(pair ~= nil)
 		end
-		glyph_run:compute_cursors(self)
-		glyph_run_id, pair = self.glyph_runs:put(glyph_run, {})
-		assert(pair~= nil)
 	end
 	return glyph_run_id, &pair.key
 end

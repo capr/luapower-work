@@ -34,9 +34,8 @@ terra Layout:clip()
 		return
 	end
 	if not self.clipped then
-		for _,line in self.lines do
-			line.visible = true
-		end
+		self.first_visible_line = 0
+		self.last_visible_line = self.lines.len-1
 		for _,seg in self.segs do
 			seg.visible = true
 		end
@@ -55,8 +54,8 @@ terra Layout:clip()
 			var bw = line.advance_x
 			var by = line.y - line.ascent
 			var bh = line.ascent - line.descent
-			line.visible = box_overlapping(x, y, w, h, bx, by, bw, bh)
-			if line.visible then
+			var line_visible = box_overlapping(x, y, w, h, bx, by, bw, bh)
+			if line_visible then
 				var seg = line.first_vis
 				while seg ~= nil do
 					var bx = bx + seg.x

@@ -7,16 +7,10 @@ setfenv(1, require'terra/tr_types')
 
 terra Layout:_align()
 
-	if self.lines.len == 0 then
-		return
-	end
-
 	var w = self.align_w
 	var h = self.align_h
 	if w == -1 then w = self.max_ax end   --self-box
 	if h == -1 then h = self.spaced_h end --self-box
-
-	self.min_x = inf
 
 	var align_x = self.align_x
 	if align_x == ALIGN_AUTO then
@@ -28,6 +22,7 @@ terra Layout:_align()
 		end
 	end
 
+	self.min_x = inf
 	for line_i, line in self.lines do
 		--compute line's aligned x position relative to the textbox origin.
 		if align_x == ALIGN_RIGHT then
@@ -39,18 +34,14 @@ terra Layout:_align()
 	end
 
 	--compute first line's baseline based on vertical alignment.
-	var first_line = self.lines:at( 0, nil)
-	var last_line  = self.lines:at(self.lines.len-1, nil)
-	if first_line == nil then
-		self.baseline = 0
-	else
-		if self.align_y == ALIGN_TOP then
-			self.baseline = first_line.spaced_ascent
-		elseif self.align_y == ALIGN_BOTTOM then
-			self.baseline = h - (last_line.y - last_line.spaced_descent)
-		elseif self.align_y == ALIGN_CENTER then
-			self.baseline = first_line.spaced_ascent + (h - self.spaced_h) / 2
-		end
+	var first_line = self.lines:at(0)
+	var last_line  = self.lines:at(self.lines.len-1)
+	if self.align_y == ALIGN_TOP then
+		self.baseline = first_line.spaced_ascent
+	elseif self.align_y == ALIGN_BOTTOM then
+		self.baseline = h - (last_line.y - last_line.spaced_descent)
+	elseif self.align_y == ALIGN_CENTER then
+		self.baseline = first_line.spaced_ascent + (h - self.spaced_h) / 2
 	end
 
 	self.clip_valid = false

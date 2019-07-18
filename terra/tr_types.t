@@ -167,6 +167,13 @@ terra Span:copy()
 	return s
 end
 
+struct Embed {
+	offset: int; --offset in the text
+	ascent: num;
+	descent: num;
+	advance_x: num;
+}
+
 struct SubSeg {
 	i: int16;
 	j: int16;
@@ -211,7 +218,6 @@ struct Line {
 	spaced_ascent: num;
 	spaced_descent: num;
 	spacing: num;
-	visible: bool; --entirely clipped or not
 }
 
 --NOTE: the initial not-even-shaped state is 0.
@@ -223,6 +229,7 @@ struct Layout (gettersandsetters) {
 	r: &Renderer;
 	--input/shape
 	spans: arr(Span);
+	embeds: arr(Embed);
 	text: arr(codepoint);
 	_maxlen: int;
 	_dir: dir_t; --default base paragraph direction.
@@ -240,7 +247,6 @@ struct Layout (gettersandsetters) {
 	_y: num;
 	--state
 	state: enum; --STATE_*
-	clip_valid: bool;
 	--shaping output: segments and bidi info
 	segs: arr(Seg);
 	bidi: bool; --`true` if the text is bidirectional.
@@ -251,9 +257,11 @@ struct Layout (gettersandsetters) {
 	h: num; --text's wrapped height.
 	spaced_h: num; --text's wrapped height including line and paragraph spacing.
 	baseline: num;
+	min_x: num;
+	--clip output
+	clip_valid: bool;
 	first_visible_line: int;
 	last_visible_line: int;
-	min_x: num;
 	--cached computed values
 	_min_w: num;
 	_max_w: num;
@@ -276,7 +284,7 @@ Layout.methods.glyph_run = macro(function(self, seg)
 	return `&self.r.glyph_runs:pair(seg.glyph_run_id).key
 end)
 
-terra Layout:eof(i: int)
+terra Layout:span_end_offset(i: int)
 	var next_span = self.spans:at(i+1, nil)
 	return iif(next_span ~= nil, next_span.offset, self.text.len)
 end

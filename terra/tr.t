@@ -79,6 +79,11 @@ terra Layout:free()
 	end
 	self.segs:free()
 	self.text:free()
+	for _,span in self.spans do
+		if span.font_id ~= -1 then
+			self.r.fonts:at(span.font_id):unref()
+		end
+	end
 	self.spans:free()
 end
 

@@ -100,7 +100,6 @@ HIT_TEXT_SELECTION = 4
 
 DEFAULT_BORDER_COLOR = DEFAULT_BORDER_COLOR or `color {0xffffffff}
 DEFAULT_SHADOW_COLOR = DEFAULT_SHADOW_COLOR or `color {0x000000ff}
-DEFAULT_CARET_COLOR  = DEFAULT_CARET_COLOR  or `color {0x000000ff}
 
 --bool bitmap ----------------------------------------------------------------
 
@@ -341,20 +340,13 @@ end
 
 struct Text {
 	layout: tr.Layout;
-	caret_width: num;
-	caret_color: color;
-	caret_opacity: num;
-	caret_insert_mode: bool;
-	selectable: bool;
 	selection: tr.Selection;
+	selectable: bool;
 }
 
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
-	self.caret_width = 1
-	self.caret_color = DEFAULT_CARET_COLOR
-	self.caret_opacity = 1
 	self.selectable = true
 end
 
@@ -1254,10 +1246,8 @@ end
 --text drawing & hit testing -------------------------------------------------
 
 terra Layer:sync_text_shape()
-	if self.text.layout:shape() then
-		self.text.selection:init(&self.text.layout)
-	end
-	return self.text.layout.visible
+	self.text.layout:shape()
+	self.text.selection:init(&self.text.layout)
 end
 
 terra Layer:sync_text_wrap()
@@ -1301,12 +1291,7 @@ end
 --text caret & selection drawing ---------------------------------------------
 
 terra Layer:caret_rect()
-	print('caret_rect', self.text.selection.cursor)
-	var x, y, w, h = self.text.selection.cursor:rect(self.text.caret_width)
-	print(x, y, w, h)
-	x, w = self:snapxw(x, w)
-	y, h = self:snapyh(y, h)
-	return x, y, w, h
+	return self.text.selection.cursor:rect()
 end
 
 terra Layer:caret_visibility_rect()
@@ -1319,13 +1304,7 @@ terra Layer:caret_visibility_rect()
 end
 
 terra Layer:draw_caret(cr: &context)
-	var x, y, w, h = self:caret_rect()
-	var c = self.text.caret_color
-	c.alpha = c.alpha * self.text.caret_opacity
-	cr:rgba(c.red, c.green, c.blue, c.alpha)
-	cr:new_path()
-	cr:rectangle(x, y, w, h)
-	cr:fill()
+	self.text.selection.cursor:paint(cr)
 end
 
 --[[
@@ -1422,9 +1401,11 @@ end
 
 terra Layer:draw_content(cr: &context) --called in own content space
 	self:draw_children(cr)
-	--self:draw_text_selection(cr)
-	self:draw_text(cr)
-	self:draw_caret(cr)
+	if self.layout_solver.type < 2 then
+		--self:draw_text_selection(cr)
+		self:draw_text(cr)
+		self:draw_caret(cr)
+	end
 end
 
 terra Layer:hit_test_content(cr: &context, x: num, y: num, reason: enum)
@@ -1676,10 +1657,9 @@ local terra null_sync(self: &Layer)
 	if not self.visible then return end
 	self.x, self.w = self:snapxw(self.x, self.w)
 	self.y, self.h = self:snapyh(self.y, self.h)
-	if self:sync_text_shape() then
-		self:sync_text_wrap()
-		self:sync_text_align()
-	end
+	self:sync_text_shape()
+	self:sync_text_wrap()
+	self:sync_text_align()
 	self:sync_layout_children()
 end
 
@@ -1734,11 +1714,7 @@ local null_layout = constant(`LayoutSolver {
 
 local terra text_sync(self: &Layer)
 	if not self.visible then return end
-	if not self:sync_text_shape() then
-		self.cw = 0
-		self.ch = 0
-		return
-	end
+	self:sync_text_shape()
 	self.cw = max(self.text.layout:min_w(), self.min_cw)
 	self:sync_text_wrap()
 	self.cw = max(self.text.layout.max_ax, self.min_cw)
@@ -1752,7 +1728,8 @@ end
 local terra text_sync_min_w(self: &Layer, other_axis_synced: bool)
 	var min_cw: num
 	if not other_axis_synced then --TODO: or self.nowrap
-		min_cw = iif(self:sync_text_shape(), self.text.layout:min_w(), 0)
+		self:sync_text_shape()
+		min_cw = self.text.layout:min_w()
 	else
 		--height-in-width-out parent layout with wrapping text not supported
 		min_cw = 0
