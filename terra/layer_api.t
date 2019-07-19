@@ -1,5 +1,5 @@
 
---Layerlib C/ffi API
+--Layer C/ffi API
 
 setfenv(1, require'terra/layer')
 

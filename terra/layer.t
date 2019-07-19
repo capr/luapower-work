@@ -340,7 +340,7 @@ end
 
 struct Text {
 	layout: tr.Layout;
-	selection: tr.Selection;
+	selection: &tr.Selection;
 	selectable: bool;
 }
 
@@ -539,7 +539,7 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 
 	self:init_layout()
 
-	self.text.selection:init(&self.text.layout)
+	self.text.selection = self.text.layout:selection()
 end
 
 terra Layer.methods.free :: {&Layer} -> {}
@@ -1247,7 +1247,6 @@ end
 
 terra Layer:sync_text_shape()
 	self.text.layout:shape()
-	self.text.selection:init(&self.text.layout)
 end
 
 terra Layer:sync_text_wrap()

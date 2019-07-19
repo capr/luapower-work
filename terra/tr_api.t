@@ -8,6 +8,8 @@ require'terra/tr_spanedit'
 require'terra/tr_selection'
 setfenv(1, require'terra/tr')
 
+--Renderer API
+
 terra tr_renderer_sizeof()
 	return [int](sizeof(Renderer))
 end
@@ -17,6 +19,8 @@ end
 terra Renderer:release()
 	release(self)
 end
+
+--Layout API
 
 terra tr_layout_sizeof()
 	return [int](sizeof(Layout))
@@ -34,18 +38,117 @@ terra Layout:cursor_xs_c(line_i: int, outlen: &int)
 	return xs.elements
 end
 
-terra tr_cursor_sizeof()
-	return [int](sizeof(Cursor))
+--[[
+terra Layout:get_bidi()
+	assert(self.state >= STATE_SHAPED)
+	return self.bidi
 end
-terra Layout:cursor()
-	return new(Cursor, self)
+
+terra Layout:get_base_dir()
+	assert(self.state >= STATE_SHAPED)
+	return self.base_dir
 end
-terra Cursor:release()
-	release(self)
+
+terra Layout:get_line_count()
+	assert(self.state >= STATE_WRAPPED)
+	return self.lines.len
 end
+
+terra Layout:get_line(line_i: int)
+	assert(self.state >= STATE_WRAPPED)
+	return self.lines:at(line_i)
+end
+
+terra Layout:get_max_ax()
+	assert(self.state >= STATE_WRAPPED)
+	return self.max_ax
+end
+
+terra Layout:get_h()
+	assert(self.state >= STATE_WRAPPED)
+	return self.h
+end
+
+terra Layout:get_spaced_h()
+	assert(self.state >= STATE_WRAPPED)
+	return self.spaced_h
+end
+
+terra Layout:get_baseline()
+	assert(self.state >= STATE_ALIGNED)
+	return self.baseline
+end
+
+terra Layout:get_min_x()
+	assert(self.state >= STATE_WRAPPED)
+	return self.min_x
+end
+
+terra Layout:get_first_visible_line()
+	assert(self.clip_valid)
+	return self.first_visible_line
+end
+
+terra Layout:get_last_visible_line()
+	assert(self.clip_valid)
+	return self.last_visible_line
+end
+
+--line API
+
+terra Line:get_x() return self.x end
+terra Line:get_y() return self.y end
+terra Line:get_advance_x() return self.advance_x end
+terra Line:get_ascent() return self.ascent end
+terra Line:get_descent() return self.descent end
+terra Line:get_spaced_ascent() return self.spaced_ascent end
+terra Line:get_spaced_descent() return self.spaced_descent end
+terra Line:get_spacing() return self.spacing end
+
+--segment API
+
+	line_num: int; --physical line number
+	--for line breaking
+	linebreak: enum;
+	--for bidi reordering
+	bidi_level: FriBidiLevel;
+	--for cursor positioning
+	span: &Span; --span of the first sub-segment
+	offset: int; --codepoint offset into the text
+	line_index: int;
+	--slots filled by layouting
+	x: num;
+	advance_x: num; --segment's x-axis boundaries
+	next_vis: &Seg; --next segment on the same line in visual order
+	wrapped: bool; --segment is the last on a wrapped line
+	visible: bool; --segment is not entirely clipped
+	subsegs: arr(SubSeg);
+
+	first: &Seg; --first segment in text order
+	first_vis: &Seg; --first segment in visual order
+
+]]
+
+--cursor API
 
 terra Cursor:rect_c(x: &num, y: &num, w: &num, h: &num)
 	@x, @y, @w, @h = self:rect()
+end
+
+--selection API
+
+terra tr_selection_sizeof()
+	return [int](sizeof(Selection))
+end
+terra Layout:selection()
+	return new(Selection, self)
+end
+terra Selection:release()
+	release(self)
+end
+
+terra Selection:get_cursor()
+	return &self.cursor
 end
 
 function build()
@@ -172,8 +275,22 @@ function build()
 		layout=1,
 		paint=1,
 
-		cursor_xs_c='cursor_xs',
-		cursor=1,
+		--get_bidi=1,
+		--get_base_dir=1,
+		--get_line_count=1,
+		--get_line=1,
+		--get_max_ax=1,
+		--get_h=1,
+		--get_spaced_h=1,
+		--get_baseline=1,
+		--get_min_x=1,
+		--get_first_visible_line=1,
+		--get_last_visible_line=1,
+
+		get_line_count=1,
+		get_line=1,
+
+		selection=1,
 
 	}, {
 		cname = 'tr_layout_t',
@@ -181,8 +298,17 @@ function build()
 		opaque = true,
 	})
 
+	trlib(Line, {
+
+
+	}, {
+		cname = 'tr_line_t',
+		cprefix = 'tr_line_',
+		opaque = true,
+	})
+
+
 	trlib(Cursor, {
-		release=1,
 
 		get_offset=1,
 		get_rtl=1,
@@ -204,6 +330,17 @@ function build()
 	}, {
 		cname = 'tr_cursor_t',
 		cprefix = 'tr_cursor_',
+		opaque = true,
+	})
+
+	trlib(Selection, {
+		release=1,
+
+		get_cursor=1,
+
+	}, {
+		cname = 'tr_selection_t',
+		cprefix = 'tr_selection_',
 		opaque = true,
 	})
 

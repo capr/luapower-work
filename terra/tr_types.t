@@ -180,7 +180,7 @@ struct SubSeg {
 	span: &Span;
 	clip_left: num;
 	clip_right: num;
-};
+}
 
 struct Seg {
 	glyph_run_id: int;
@@ -206,7 +206,7 @@ terra Seg:free()
 	self.subsegs:free()
 end
 
-struct Line {
+struct Line (gettersandsetters) {
 	index: int;
 	first: &Seg; --first segment in text order
 	first_vis: &Seg; --first segment in visual order
@@ -219,6 +219,48 @@ struct Line {
 	spaced_descent: num;
 	spacing: num;
 }
+
+struct Layout;
+
+struct Cursor (gettersandsetters) {
+	--cursor state that stays valid between re-layouts.
+	layout: &Layout;
+	offset: int; --offset in logical text.
+	--cursor state that needs updating after re-layouting.
+	seg: &Seg;
+	i: int;
+	x: num;
+	--park cursor to home/end if vertical nav goes above/beyond available lines.
+	park_home: bool;
+	park_end: bool;
+	--jump-through same-text-offset cursors: most text editors remove duplicate
+	--cursors to keep a 1:1 relationship between text positions and cursor
+	--positions, which gets funny with BiDi and you also can't tell if there's
+	--a space at the end of a wrapped line or not.
+	unique_offsets: bool;
+	--keep a cursor after the last space char on a wrapped line: this cursor can
+	--be trouble because it is outside the textbox and if there's not enough room
+	--on the wrap-side of the textbox it can get clipped out.
+	wrapped_space: bool;
+	insert_mode: bool;
+	--drawing attributes
+	color: color;
+	opacity: num;
+	w: num;
+}
+
+terra Cursor:free()
+	self.layout = nil
+end
+
+struct Selection (gettersandsetters) {
+	cursor: Cursor;
+	len: int;
+	color: color;
+}
+
+terra Selection.methods.free :: {&Selection} -> {}
+--^^for Layout.selections to take ownership.
 
 --NOTE: the initial not-even-shaped state is 0.
 STATE_SHAPED  = 1
@@ -265,6 +307,8 @@ struct Layout (gettersandsetters) {
 	--cached computed values
 	_min_w: num;
 	_max_w: num;
+	--text selections that are kept synchronized with text changes.
+	selections: arr(&Selection);
 }
 
 terra Layout:get_maxlen  () return self._maxlen end

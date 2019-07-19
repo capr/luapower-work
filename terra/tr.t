@@ -73,6 +73,7 @@ terra Renderer:free()
 end
 
 terra Layout:free()
+	self.selections:free()
 	self.lines:free()
 	for _,seg in self.segs do
 		self.r.glyph_runs:forget(seg.glyph_run_id)

@@ -3,16 +3,15 @@ local C = ffi.load'layer'
 ffi.cdef[[
 typedef struct layerlib_t layerlib_t;
 typedef struct layer_t layer_t;
+typedef struct double2 double2;
 typedef struct _cairo _cairo;
 typedef struct Bitmap Bitmap;
 typedef struct cairo_argb32_color_t cairo_argb32_color_t;
-typedef struct double2 double2;
 typedef void (*tr_font_load_func) (int32_t, void**, uint64_t*);
 typedef void (*ll_border_lineto_func) (layer_t*, _cairo*, double, double, double);
 uint64_t memtotal();
 void memreport();
 layerlib_t* layerlib(tr_font_load_func, tr_font_load_func);
-void layerlib_free(layerlib_t*);
 layer_t* layerlib_layer(layerlib_t*, layer_t*);
 double layerlib_get_font_size_resolution(layerlib_t*);
 double layerlib_get_subpixel_x_resolution(layerlib_t*);
@@ -26,6 +25,37 @@ void layerlib_set_glyph_cache_size(layerlib_t*, int32_t);
 void layerlib_set_glyph_run_cache_size(layerlib_t*, int32_t);
 int32_t layerlib_font(layerlib_t*);
 void layerlib_dump_stats(layerlib_t*);
+void layerlib_free(layerlib_t*);
+layer_t* layer_get_parent(layer_t*);
+void layer_free(layer_t*);
+int32_t layer_get_index(layer_t*);
+void layer_move(layer_t*, layer_t*, int32_t);
+void layer_set_index(layer_t*, int32_t);
+void layer_set_parent(layer_t*, layer_t*);
+int32_t layer_get_child_count(layer_t*);
+void layer_set_child_count(layer_t*, int32_t);
+layer_t* layer_child(layer_t*, int32_t);
+double layer_get_cw(layer_t*);
+double layer_get_ch(layer_t*);
+void layer_set_cw(layer_t*, double);
+void layer_set_ch(layer_t*, double);
+double layer_get_cx(layer_t*);
+double layer_get_cy(layer_t*);
+void layer_set_cx(layer_t*, double);
+void layer_set_cy(layer_t*, double);
+double2 layer_from_box_to_parent(layer_t*, double, double);
+double2 layer_from_parent_to_box(layer_t*, double, double);
+double2 layer_to_parent(layer_t*, double, double);
+double2 layer_from_parent(layer_t*, double, double);
+double2 layer_to_window(layer_t*, double, double);
+double2 layer_from_window(layer_t*, double, double);
+double2 layer_to_content(layer_t*, double, double);
+double2 layer_from_content(layer_t*, double, double);
+void layer_draw(layer_t*, _cairo*);
+void layer_sync_top(layer_t*, double, double);
+void layer_sync_layout_separate_axes(layer_t*, int8_t, double, double);
+int8_t layer_get_layout_type(layer_t*);
+void layer_set_layout_type(layer_t*, int8_t);
 double layer_get_x(layer_t*);
 double layer_get_y(layer_t*);
 double layer_get_w(layer_t*);
@@ -180,32 +210,32 @@ int8_t layer_get_text_align_x(layer_t*);
 int8_t layer_get_text_align_y(layer_t*);
 void layer_set_text_align_x(layer_t*, int8_t);
 void layer_set_text_align_y(layer_t*, int8_t);
-bool layer_get_text_script(layer_t*, int32_t, int32_t, const char **);
-bool layer_get_text_paragraph_spacing(layer_t*, int32_t, int32_t, double*);
-bool layer_get_text_font_id(layer_t*, int32_t, int32_t, int32_t*);
+bool layer_get_text_lang(layer_t*, int32_t, int32_t, const char **);
+bool layer_get_text_nowrap(layer_t*, int32_t, int32_t, bool*);
+bool layer_get_text_color(layer_t*, int32_t, int32_t, uint32_t*);
 bool layer_get_text_paragraph_dir(layer_t*, int32_t, int32_t, int32_t*);
 bool layer_get_text_font_size(layer_t*, int32_t, int32_t, double*);
-bool layer_get_text_line_spacing(layer_t*, int32_t, int32_t, double*);
-bool layer_get_text_color(layer_t*, int32_t, int32_t, uint32_t*);
-bool layer_get_text_features(layer_t*, int32_t, int32_t, const char **);
-bool layer_get_text_operator(layer_t*, int32_t, int32_t, const char *);
-bool layer_get_text_nowrap(layer_t*, int32_t, int32_t, bool*);
-bool layer_get_text_hardline_spacing(layer_t*, int32_t, int32_t, double*);
+bool layer_get_text_font_id(layer_t*, int32_t, int32_t, int32_t*);
 bool layer_get_text_opacity(layer_t*, int32_t, int32_t, double*);
-bool layer_get_text_lang(layer_t*, int32_t, int32_t, const char **);
-void layer_set_text_font_size(layer_t*, int32_t, int32_t, double);
-void layer_set_text_lang(layer_t*, int32_t, int32_t, const char *);
-void layer_set_text_operator(layer_t*, int32_t, int32_t, int8_t);
-void layer_set_text_hardline_spacing(layer_t*, int32_t, int32_t, double);
+bool layer_get_text_script(layer_t*, int32_t, int32_t, const char **);
+bool layer_get_text_hardline_spacing(layer_t*, int32_t, int32_t, double*);
+bool layer_get_text_paragraph_spacing(layer_t*, int32_t, int32_t, double*);
+bool layer_get_text_features(layer_t*, int32_t, int32_t, const char **);
+bool layer_get_text_line_spacing(layer_t*, int32_t, int32_t, double*);
+bool layer_get_text_operator(layer_t*, int32_t, int32_t, const char *);
+void layer_set_text_paragraph_spacing(layer_t*, int32_t, int32_t, double);
 void layer_set_text_color(layer_t*, int32_t, int32_t, uint32_t);
 void layer_set_text_features(layer_t*, int32_t, int32_t, const char *);
-void layer_set_text_paragraph_dir(layer_t*, int32_t, int32_t, int32_t);
+void layer_set_text_hardline_spacing(layer_t*, int32_t, int32_t, double);
 void layer_set_text_nowrap(layer_t*, int32_t, int32_t, bool);
-void layer_set_text_line_spacing(layer_t*, int32_t, int32_t, double);
 void layer_set_text_opacity(layer_t*, int32_t, int32_t, double);
+void layer_set_text_line_spacing(layer_t*, int32_t, int32_t, double);
+void layer_set_text_paragraph_dir(layer_t*, int32_t, int32_t, int32_t);
+void layer_set_text_lang(layer_t*, int32_t, int32_t, const char *);
 void layer_set_text_script(layer_t*, int32_t, int32_t, const char *);
 void layer_set_text_font_id(layer_t*, int32_t, int32_t, int32_t);
-void layer_set_text_paragraph_spacing(layer_t*, int32_t, int32_t, double);
+void layer_set_text_operator(layer_t*, int32_t, int32_t, int8_t);
+void layer_set_text_font_size(layer_t*, int32_t, int32_t, double);
 double* layer_text_cursor_xs(layer_t*, int32_t, int32_t*);
 int8_t layer_get_align_items_x(layer_t*);
 int8_t layer_get_align_items_y(layer_t*);
@@ -258,36 +288,6 @@ void layer_set_grid_row_span(layer_t*, int32_t);
 int8_t layer_get_hit_test_mask(layer_t*);
 void layer_set_hit_test_mask(layer_t*, int8_t);
 int8_t layer_hit_test(layer_t*, _cairo*, double, double, int8_t, layer_t**);
-layer_t* layer_get_parent(layer_t*);
-void layer_free(layer_t*);
-int32_t layer_get_index(layer_t*);
-void layer_move(layer_t*, layer_t*, int32_t);
-void layer_set_index(layer_t*, int32_t);
-void layer_set_parent(layer_t*, layer_t*);
-int32_t layer_get_child_count(layer_t*);
-void layer_set_child_count(layer_t*, int32_t);
-layer_t* layer_child(layer_t*, int32_t);
-double layer_get_cw(layer_t*);
-double layer_get_ch(layer_t*);
-void layer_set_cw(layer_t*, double);
-void layer_set_ch(layer_t*, double);
-double layer_get_cx(layer_t*);
-double layer_get_cy(layer_t*);
-void layer_set_cx(layer_t*, double);
-void layer_set_cy(layer_t*, double);
-double2 layer_from_box_to_parent(layer_t*, double, double);
-double2 layer_from_parent_to_box(layer_t*, double, double);
-double2 layer_to_parent(layer_t*, double, double);
-double2 layer_from_parent(layer_t*, double, double);
-double2 layer_to_window(layer_t*, double, double);
-double2 layer_from_window(layer_t*, double, double);
-double2 layer_to_content(layer_t*, double, double);
-double2 layer_from_content(layer_t*, double, double);
-void layer_draw(layer_t*, _cairo*);
-void layer_sync_top(layer_t*, double, double);
-void layer_sync_layout_separate_axes(layer_t*, int8_t, double, double);
-int8_t layer_get_layout_type(layer_t*);
-void layer_set_layout_type(layer_t*, int8_t);
 ]]
 pcall(ffi.cdef, 'struct double2 { double _0; double _1; };')
 local getters = {
@@ -305,10 +305,10 @@ local setters = {
 	glyph_run_cache_size = C.layerlib_set_glyph_run_cache_size,
 }
 local methods = {
-	free = C.layerlib_free,
 	layer = C.layerlib_layer,
 	font = C.layerlib_font,
 	dump_stats = C.layerlib_dump_stats,
+	free = C.layerlib_free,
 }
 ffi.metatype('layerlib_t', {
 	__index = function(self, k)
@@ -325,6 +325,14 @@ ffi.metatype('layerlib_t', {
 	end,
 })
 local getters = {
+	parent = C.layer_get_parent,
+	index = C.layer_get_index,
+	child_count = C.layer_get_child_count,
+	cw = C.layer_get_cw,
+	ch = C.layer_get_ch,
+	cx = C.layer_get_cx,
+	cy = C.layer_get_cy,
+	layout_type = C.layer_get_layout_type,
 	x = C.layer_get_x,
 	y = C.layer_get_y,
 	w = C.layer_get_w,
@@ -412,16 +420,16 @@ local getters = {
 	grid_col_span = C.layer_get_grid_col_span,
 	grid_row_span = C.layer_get_grid_row_span,
 	hit_test_mask = C.layer_get_hit_test_mask,
-	parent = C.layer_get_parent,
-	index = C.layer_get_index,
-	child_count = C.layer_get_child_count,
-	cw = C.layer_get_cw,
-	ch = C.layer_get_ch,
-	cx = C.layer_get_cx,
-	cy = C.layer_get_cy,
-	layout_type = C.layer_get_layout_type,
 }
 local setters = {
+	index = C.layer_set_index,
+	parent = C.layer_set_parent,
+	child_count = C.layer_set_child_count,
+	cw = C.layer_set_cw,
+	ch = C.layer_set_ch,
+	cx = C.layer_set_cx,
+	cy = C.layer_set_cy,
+	layout_type = C.layer_set_layout_type,
 	x = C.layer_set_x,
 	y = C.layer_set_y,
 	w = C.layer_set_w,
@@ -512,16 +520,22 @@ local setters = {
 	grid_col_span = C.layer_set_grid_col_span,
 	grid_row_span = C.layer_set_grid_row_span,
 	hit_test_mask = C.layer_set_hit_test_mask,
-	index = C.layer_set_index,
-	parent = C.layer_set_parent,
-	child_count = C.layer_set_child_count,
-	cw = C.layer_set_cw,
-	ch = C.layer_set_ch,
-	cx = C.layer_set_cx,
-	cy = C.layer_set_cy,
-	layout_type = C.layer_set_layout_type,
 }
 local methods = {
+	free = C.layer_free,
+	move = C.layer_move,
+	child = C.layer_child,
+	from_box_to_parent = C.layer_from_box_to_parent,
+	from_parent_to_box = C.layer_from_parent_to_box,
+	to_parent = C.layer_to_parent,
+	from_parent = C.layer_from_parent,
+	to_window = C.layer_to_window,
+	from_window = C.layer_from_window,
+	to_content = C.layer_to_content,
+	from_content = C.layer_from_content,
+	draw = C.layer_draw,
+	sync_top = C.layer_sync_top,
+	sync_layout_separate_axes = C.layer_sync_layout_separate_axes,
 	get_border_dash = C.layer_get_border_dash,
 	set_border_dash = C.layer_set_border_dash,
 	get_background_color_stop_color = C.layer_get_background_color_stop_color,
@@ -545,52 +559,38 @@ local methods = {
 	set_text = C.layer_set_text,
 	set_text_utf8 = C.layer_set_text_utf8,
 	get_text_utf8 = C.layer_get_text_utf8,
-	get_text_script = C.layer_get_text_script,
-	get_text_paragraph_spacing = C.layer_get_text_paragraph_spacing,
-	get_text_font_id = C.layer_get_text_font_id,
+	get_text_lang = C.layer_get_text_lang,
+	get_text_nowrap = C.layer_get_text_nowrap,
+	get_text_color = C.layer_get_text_color,
 	get_text_paragraph_dir = C.layer_get_text_paragraph_dir,
 	get_text_font_size = C.layer_get_text_font_size,
-	get_text_line_spacing = C.layer_get_text_line_spacing,
-	get_text_color = C.layer_get_text_color,
-	get_text_features = C.layer_get_text_features,
-	get_text_operator = C.layer_get_text_operator,
-	get_text_nowrap = C.layer_get_text_nowrap,
-	get_text_hardline_spacing = C.layer_get_text_hardline_spacing,
+	get_text_font_id = C.layer_get_text_font_id,
 	get_text_opacity = C.layer_get_text_opacity,
-	get_text_lang = C.layer_get_text_lang,
-	set_text_font_size = C.layer_set_text_font_size,
-	set_text_lang = C.layer_set_text_lang,
-	set_text_operator = C.layer_set_text_operator,
-	set_text_hardline_spacing = C.layer_set_text_hardline_spacing,
+	get_text_script = C.layer_get_text_script,
+	get_text_hardline_spacing = C.layer_get_text_hardline_spacing,
+	get_text_paragraph_spacing = C.layer_get_text_paragraph_spacing,
+	get_text_features = C.layer_get_text_features,
+	get_text_line_spacing = C.layer_get_text_line_spacing,
+	get_text_operator = C.layer_get_text_operator,
+	set_text_paragraph_spacing = C.layer_set_text_paragraph_spacing,
 	set_text_color = C.layer_set_text_color,
 	set_text_features = C.layer_set_text_features,
-	set_text_paragraph_dir = C.layer_set_text_paragraph_dir,
+	set_text_hardline_spacing = C.layer_set_text_hardline_spacing,
 	set_text_nowrap = C.layer_set_text_nowrap,
-	set_text_line_spacing = C.layer_set_text_line_spacing,
 	set_text_opacity = C.layer_set_text_opacity,
+	set_text_line_spacing = C.layer_set_text_line_spacing,
+	set_text_paragraph_dir = C.layer_set_text_paragraph_dir,
+	set_text_lang = C.layer_set_text_lang,
 	set_text_script = C.layer_set_text_script,
 	set_text_font_id = C.layer_set_text_font_id,
-	set_text_paragraph_spacing = C.layer_set_text_paragraph_spacing,
+	set_text_operator = C.layer_set_text_operator,
+	set_text_font_size = C.layer_set_text_font_size,
 	text_cursor_xs = C.layer_text_cursor_xs,
 	get_grid_col_fr = C.layer_get_grid_col_fr,
 	get_grid_row_fr = C.layer_get_grid_row_fr,
 	set_grid_col_fr = C.layer_set_grid_col_fr,
 	set_grid_row_fr = C.layer_set_grid_row_fr,
 	hit_test = C.layer_hit_test,
-	free = C.layer_free,
-	move = C.layer_move,
-	child = C.layer_child,
-	from_box_to_parent = C.layer_from_box_to_parent,
-	from_parent_to_box = C.layer_from_parent_to_box,
-	to_parent = C.layer_to_parent,
-	from_parent = C.layer_from_parent,
-	to_window = C.layer_to_window,
-	from_window = C.layer_from_window,
-	to_content = C.layer_to_content,
-	from_content = C.layer_from_content,
-	draw = C.layer_draw,
-	sync_top = C.layer_sync_top,
-	sync_layout_separate_axes = C.layer_sync_layout_separate_axes,
 }
 ffi.metatype('layer_t', {
 	__index = function(self, k)

@@ -11,6 +11,7 @@ local DEFAULT = 0
 local DEFAULT_NUM = nan
 
 terra Layout:line_pos(line_i: int)
+	assert(self.state >= STATE_ALIGNED)
 	var line = self.lines:at(line_i)
 	var x = self.x + line.x
 	var y = self.y + self.baseline + line.y
@@ -18,15 +19,27 @@ terra Layout:line_pos(line_i: int)
 end
 
 terra Layout:cursor_x(seg: &Seg, i: int) --relative to line_pos().
-	var run = self:glyph_run(seg)
-	var i = run.cursor_xs:clamp(i)
-	return seg.x + run.cursor_xs(i)
+	assert(self.state >= STATE_SHAPED)
+	self.segs:index(seg)
+	if seg ~= nil then
+		var run = self:glyph_run(seg)
+		var i = run.cursor_xs:clamp(i)
+		return seg.x + run.cursor_xs(i)
+	else
+		return 0
+	end
+end
+
+terra Layout:seg_line(seg: &Seg)
+	assert(self.state >= STATE_ALIGNED)
+	self.segs:index(seg)
+	return self.lines:at(iif(seg ~= nil, seg.line_index, 0))
 end
 
 terra Layout:cursor_rect(seg: &Seg, i: int, w: num, forward: bool) --relative to line_pos().
 	assert(self.state >= STATE_ALIGNED)
-	var line = self.lines:at(iif(seg ~= nil, seg.line_index, 0))
-	var x = iif(seg ~= nil, self:cursor_x(seg, i), 0)
+	var line = self:seg_line(seg)
+	var x = self:cursor_x(seg, i)
 	var y = -line.ascent
 	var w = iif(forward ~= false, 1, -1) * iif(w ~= DEFAULT_NUM, w, 1)
 	var h = line.ascent - line.descent
@@ -40,22 +53,29 @@ local terra cmp_offsets(seg1: &Seg, seg2: &Seg)
 	return seg1.offset <= seg2.offset -- < < = = [<] <
 end
 terra Layout:cursor_at_offset(offset: int)
+	assert(self.state >= STATE_SHAPED)
 	var seg_i = self.segs:binsearch(Seg{offset = offset}, cmp_offsets) - 1
-	var seg = self.segs:at(seg_i)
-	var i = offset - seg.offset
-	assert(i >= 0)
-	var run = self:glyph_run(seg)
-	i = run.cursor_offsets:clamp(i) --fix if inside inter-segment gap.
-	i = run.cursor_offsets(i) --normalize to the first cursor.
-	return seg, i
+	var seg = self.segs:at(seg_i, nil)
+	if seg ~= nil then
+		var i = offset - seg.offset
+		assert(i >= 0)
+		var run = self:glyph_run(seg)
+		i = run.cursor_offsets:clamp(i) --fix if inside inter-segment gap.
+		i = run.cursor_offsets(i) --normalize to the first cursor.
+		return seg, i
+	else
+		return nil, 0
+	end
 end
 
 terra Layout:offset_at_cursor(seg: &Seg, i: int)
+	assert(self.state >= STATE_SHAPED)
 	var run = self:glyph_run(seg)
 	return seg.offset + run.cursor_offsets(i)
 end
 
---iterate all visually-unique cursor positions in visual order.
+--Iterate all visually-unique cursor positions in visual order.
+--Useful for mapping editbox password bullet positions to actual positions.
 terra Layout:cursor_xs(line_i: int)
 	self.r.xsbuf.len = 0
 	var line = self.lines:at(line_i, nil)
@@ -205,54 +225,20 @@ end
 
 --cursor objects -------------------------------------------------------------
 
-struct Cursor (gettersandsetters) {
-
-	--cursor state that stays valid between re-layouts.
-	layout: &Layout;
-	offset: int; --offset in logical text.
-
-	--cursor state that needs updating after re-layouting.
-	seg: &Seg;
-	i: int;
-	x: num;
-
-	--park cursor to home/end if vertical nav goes above/beyond available lines.
-	park_home: bool;
-	park_end: bool;
-
-	--jump-through same-text-offset cursors: most text editors remove duplicate
-	--cursors to keep a 1:1 relationship between text positions and cursor
-	--positions, which gets funny with BiDi and you also can't tell if there's
-	--a space at the end of a wrapped line or not.
-	unique_offsets: bool;
-
-	--keep a cursor after the last space char on a wrapped line: this cursor can
-	--be trouble because it is outside the textbox and if there's not enough room
-	--on the wrap-side of the textbox it can get clipped out.
-	wrapped_space: bool;
-
-	insert_mode: bool;
-
-	--drawing attributes
-	color: color;
-	opacity: num;
-	w: num;
-}
-
 terra Cursor:init(layout: &Layout)
 	fill(self)
 	self.layout = layout
+	self.seg = self.layout.segs:at(0, nil)
 	self.park_home = true
 	self.park_end = true
 	self.insert_mode = true
 	self.color = DEFAULT_TEXT_COLOR
 	self.opacity = 1
 	self.w = 1
-	self.seg = self.layout.segs:at(0, nil)
 end
 
 terra Cursor:get_line()
-	return iif(self.seg ~= nil, self.layout.lines:at(self.seg.line_index), nil)
+	return self.layout:seg_line(self.seg)
 end
 
 terra Cursor:rel_physical_cursor(dir: enum,
