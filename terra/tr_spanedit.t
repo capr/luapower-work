@@ -59,9 +59,9 @@ terra Layout:find_span(offset: int) --always returns a valid span index
 	return self.spans:binsearch(Span{offset = offset}, cmp_spans) - 1
 end
 
-terra Layout:split_spans(offset: int)
-	if offset >= self.text.len then
-		return self.spans.len --return the would-be index without creating the span
+terra Layout:split_spans(offset: int, allow_add: bool)
+	if not allow_add and self.spans:at(self.spans.len-1).offset < offset then
+		return self.spans.len --return that span that would have been added
 	end
 	var i = self:find_span(offset)
 	var s = self.spans:at(i)
@@ -148,6 +148,7 @@ terra Span:load_script(layout: &Layout, s: rawstring)
 	self.script = hb_script_from_string(s, -1)
 end
 
+--TODO: use an internal buffer
 terra Span:save_script(layout: &Layout, out: &rawstring)
 	var tag = hb_script_to_iso15924_tag(self.script)
 	copy(@out, [rawstring](&tag), sizeof(tag))
@@ -158,10 +159,13 @@ terra Span:load_font_id(layout: &Layout, font_id: font_id_t)
 	self.font_id = iif(font:ref(), font_id, -1)
 end
 
-terra Layout:offset_args(o1: int, o2: int)
-	if o1 < 0 then o1 = self.text.len + o1 + 1 end
-	if o2 < 0 then o2 = self.text.len + o2 + 1 end
-	if o1 > o2 then o1, o2 = o2, o1 end
+--NOTE: -1 is two positions outside the text, not one. This allows
+--range (0, -1) on empty text to have length 1 otherwise setting span
+--attributes on range (0, -1) would not have any effect on empty text.
+terra Layout:offset_range(o1: int, o2: int)
+	if o1 < 0 then o1 = self.text.len + o1 + 2 end
+	if o2 < 0 then o2 = self.text.len + o2 + 2 end
+	if o2 < o1 then o2 = o1 end
 	return o1, o2
 end
 
@@ -202,11 +206,11 @@ for i,FIELD in ipairs(FIELDS) do
 	local SAVE = Span:getmethod('save_'..FIELD)
 		or macro(function(self, layout, out) return quote @out = self.[FIELD] end end)
 
-	Layout.methods['get_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: &T)
-		offset1, offset2 = self:offset_args(offset1, offset2)
+	Layout.methods['get_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, out: &T)
+		offset1, offset2 = self:offset_range(offset1, offset2)
 		var span, mask = self:get_span_common_values(offset1, offset2)
 		if hasbit(mask, [BIT(i)]) then
-			SAVE(span, self, val)
+			SAVE(span, self, out)
 			return true
 		else
 			return false
@@ -217,14 +221,29 @@ for i,FIELD in ipairs(FIELDS) do
 		or macro(function(self, layout, val) return quote self.[FIELD] = val end end)
 
 	Layout.methods['set_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: T)
-		offset1, offset2 = self:offset_args(offset1, offset2)
-		var i1 = self:split_spans(offset1)
-		var i2 = self:split_spans(offset2)
+		offset1, offset2 = self:offset_range(offset1, offset2)
+		var i1 = self:split_spans(offset1, true)
+		var i2 = self:split_spans(offset2, false)
 		for i = i1, i2 do
 			var span = self.spans:at(i)
 			LOAD(span, self, val)
 		end
 		self:remove_duplicate_spans(i1-1, i2+1)
+		self.state = min(self.state, MAX_STATE)
+	end
+
+	--generate an API for working with spans directly as an array.
+
+	Layout.methods['get_span_'..FIELD] = terra(self: &Layout, span_i: int)
+		var span = self.spans(span_i, [Span.empty])
+		var out: T
+		SAVE(&span, self, &out)
+		return out
+	end
+
+	Layout.methods['set_span_'..FIELD] = terra(self: &Layout, span_i: int, val: T)
+		var span = self.spans:getat(span_i, [Span.empty])
+		LOAD(span, self, val)
 		self.state = min(self.state, MAX_STATE)
 	end
 

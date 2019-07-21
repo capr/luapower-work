@@ -51,6 +51,12 @@ cairo_argb32_color_t.metamethods.__ne = macro(function(c1, c2)
 	return not (c1 == c2)
 end)
 
+terra cairo_argb32_color_t:apply_alpha(a: num)
+	var c = @self
+	c.channels.alpha = c.channels.alpha * clamp(a, 0, 1)
+	return c
+end
+
 local struct cairo_color_t {
 	red:   double;
 	green: double;

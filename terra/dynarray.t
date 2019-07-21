@@ -120,14 +120,14 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 				self.context = context
 			end
 			terra arr:free_element(i: size_t)
-				call(self.elements[i], 'free', 1, self.context)
+				optcall(self.elements[i], 'free', 1, self.context)
 			end
 		else
 			terra arr:init()
 				@self = [arr.empty]
 			end
 			terra arr:free_element(i: size_t)
-				call(self.elements[i], 'free')
+				optcall(self.elements[i], 'free')
 			end
 		end
 
@@ -143,8 +143,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			if own_elements then
 				self:free_elements()
 			end
-			realloc(self.view.elements, 0)
-			self.view.elements = nil
+			dealloc(self.view.elements)
 			self.view.len = 0
 			self._capacity = 0
 		end
@@ -163,12 +162,12 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		end
 
 		terra arr:set_capacity(capacity: size_t)
-			assert(self:setcapacity(max(self.len, capacity)))
+			assert(self:setcapacity(max(self.len, capacity)), 'out of memory')
 		end
 
 		terra arr:set_min_capacity(capacity: size_t)
 			capacity = nextpow2(capacity)
-			assert(self:setcapacity(max(self.capacity, capacity)))
+			assert(self:setcapacity(max(self.capacity, capacity)), 'out of memory')
 		end
 
 		terra arr:set_len(len: size_t)
@@ -205,7 +204,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 
 		arr.methods.set = overload'set'
 		arr.methods.set:adddefinition(terra(self: &arr, i: size_t)
-			assert(i >= 0 and i < self.len)
+			self:index(i)
 			if own_elements then
 				self:free_element(i)
 			end
@@ -262,7 +261,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 
 		terra arr:pop()
 			var i = self.len-1
-			assert(i >= 0)
+			assert(i >= 0, 'pop: array empty')
 			var val = self.elements[i]
 			self.view.len = i
 			return val
@@ -274,7 +273,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		arr.methods.insertn = overload'insertn'
 		arr.methods.insertn:adddefinition(terra(self: &arr, i: size_t, n: size_t)
 			var len = self.len
-			assert(i >= 0 and i <= len) --no gaps allowed
+			assert(i >= 0 and i <= len, 'index out of range') --no gaps allowed
 			if n <= 0 then return end
 			self.len = len + n
 			var move_n = len - i
@@ -303,6 +302,10 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		end)
 		arr.methods.insert:adddefinition(terra(self: &arr, i: size_t, val: T)
 			self:insertn(i, 1)
+			self.elements[i] = val
+		end)
+		arr.methods.insert:adddefinition(terra(self: &arr, i: size_t, val: T, empty_val: T)
+			self:insertn(i, 1, empty_val)
 			self.elements[i] = val
 		end)
 		arr.methods.insert:adddefinition(terra(self: &arr, i: size_t, p: &T, n: size_t)

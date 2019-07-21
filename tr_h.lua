@@ -32,6 +32,11 @@ int32_t tr_layout_sizeof();
 void tr_layout_release(tr_layout_t*);
 tr_selection_t* tr_layout_selection(tr_layout_t*);
 void tr_layout_free(tr_layout_t*);
+bool tr_layout_get_visible(tr_layout_t*);
+bool tr_layout_shape(tr_layout_t*);
+bool tr_layout_wrap(tr_layout_t*);
+bool tr_layout_align(tr_layout_t*);
+void tr_layout_layout(tr_layout_t*);
 bool tr_layout_get_clipped(tr_layout_t*);
 void tr_layout_clip(tr_layout_t*);
 int32_t tr_layout_get_text_len(tr_layout_t*);
@@ -53,29 +58,29 @@ void tr_layout_set_clip_extents(tr_layout_t*, float, float, float, float);
 void tr_layout_set_x(tr_layout_t*, float);
 void tr_layout_set_y(tr_layout_t*, float);
 void tr_layout_paint(tr_layout_t*, _cairo*);
-bool tr_layout_get_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double*);
-bool tr_layout_get_font_size(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_operator(tr_layout_t*, int32_t, int32_t, const char *);
 bool tr_layout_get_font_id(tr_layout_t*, int32_t, int32_t, int32_t*);
-bool tr_layout_get_color(tr_layout_t*, int32_t, int32_t, uint32_t*);
-bool tr_layout_get_lang(tr_layout_t*, int32_t, int32_t, const char **);
+bool tr_layout_get_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_script(tr_layout_t*, int32_t, int32_t, const char **);
 bool tr_layout_get_line_spacing(tr_layout_t*, int32_t, int32_t, double*);
+bool tr_layout_get_lang(tr_layout_t*, int32_t, int32_t, const char **);
+bool tr_layout_get_font_size(tr_layout_t*, int32_t, int32_t, double*);
 bool tr_layout_get_features(tr_layout_t*, int32_t, int32_t, const char **);
 bool tr_layout_get_nowrap(tr_layout_t*, int32_t, int32_t, bool*);
-bool tr_layout_get_paragraph_dir(tr_layout_t*, int32_t, int32_t, int32_t*);
-bool tr_layout_get_script(tr_layout_t*, int32_t, int32_t, const char **);
-bool tr_layout_get_operator(tr_layout_t*, int32_t, int32_t, const char *);
-bool tr_layout_get_hardline_spacing(tr_layout_t*, int32_t, int32_t, double*);
 bool tr_layout_get_opacity(tr_layout_t*, int32_t, int32_t, double*);
-void tr_layout_set_nowrap(tr_layout_t*, int32_t, int32_t, bool);
-void tr_layout_set_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double);
-void tr_layout_set_font_size(tr_layout_t*, int32_t, int32_t, double);
+bool tr_layout_get_color(tr_layout_t*, int32_t, int32_t, uint32_t*);
+bool tr_layout_get_paragraph_dir(tr_layout_t*, int32_t, int32_t, int32_t*);
+bool tr_layout_get_hardline_spacing(tr_layout_t*, int32_t, int32_t, double*);
 void tr_layout_set_color(tr_layout_t*, int32_t, int32_t, uint32_t);
-void tr_layout_set_paragraph_dir(tr_layout_t*, int32_t, int32_t, int32_t);
+void tr_layout_set_font_size(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_nowrap(tr_layout_t*, int32_t, int32_t, bool);
 void tr_layout_set_operator(tr_layout_t*, int32_t, int32_t, int8_t);
 void tr_layout_set_opacity(tr_layout_t*, int32_t, int32_t, double);
 void tr_layout_set_line_spacing(tr_layout_t*, int32_t, int32_t, double);
 void tr_layout_set_features(tr_layout_t*, int32_t, int32_t, const char *);
 void tr_layout_set_font_id(tr_layout_t*, int32_t, int32_t, int32_t);
+void tr_layout_set_paragraph_spacing(tr_layout_t*, int32_t, int32_t, double);
+void tr_layout_set_paragraph_dir(tr_layout_t*, int32_t, int32_t, int32_t);
 void tr_layout_set_script(tr_layout_t*, int32_t, int32_t, const char *);
 void tr_layout_set_lang(tr_layout_t*, int32_t, int32_t, const char *);
 void tr_layout_set_hardline_spacing(tr_layout_t*, int32_t, int32_t, double);
@@ -92,11 +97,6 @@ float tr_layout_get_clip_h(tr_layout_t*);
 float tr_layout_get_x(tr_layout_t*);
 float tr_layout_get_y(tr_layout_t*);
 void tr_layout_init(tr_layout_t*, tr_renderer_t*);
-bool tr_layout_get_visible(tr_layout_t*);
-bool tr_layout_shape(tr_layout_t*);
-bool tr_layout_wrap(tr_layout_t*);
-bool tr_layout_align(tr_layout_t*);
-void tr_layout_layout(tr_layout_t*);
 void tr_cursor_rect(tr_cursor_t*, float*, float*, float*, float*);
 int32_t tr_cursor_get_offset(tr_cursor_t*);
 bool tr_cursor_get_rtl(tr_cursor_t*);
@@ -108,7 +108,6 @@ void tr_cursor_move_to_page(tr_cursor_t*, int32_t, float);
 void tr_cursor_move_to_rel_page(tr_cursor_t*, int32_t, float);
 void tr_cursor_paint(tr_cursor_t*, _cairo*);
 void tr_selection_release(tr_selection_t*);
-tr_cursor_t* tr_selection_get_cursor(tr_selection_t*);
 ]]
 local getters = {
 	glyph_run_cache_max_size = C.tr_renderer_get_glyph_run_cache_max_size,
@@ -147,6 +146,7 @@ ffi.metatype('tr_renderer_t', {
 	end,
 })
 local getters = {
+	visible = C.tr_layout_get_visible,
 	clipped = C.tr_layout_get_clipped,
 	text_len = C.tr_layout_get_text_len,
 	text = C.tr_layout_get_text,
@@ -162,7 +162,6 @@ local getters = {
 	clip_h = C.tr_layout_get_clip_h,
 	x = C.tr_layout_get_x,
 	y = C.tr_layout_get_y,
-	visible = C.tr_layout_get_visible,
 }
 local setters = {
 	maxlen = C.tr_layout_set_maxlen,
@@ -182,43 +181,43 @@ local methods = {
 	release = C.tr_layout_release,
 	selection = C.tr_layout_selection,
 	free = C.tr_layout_free,
+	shape = C.tr_layout_shape,
+	wrap = C.tr_layout_wrap,
+	align = C.tr_layout_align,
+	layout = C.tr_layout_layout,
 	clip = C.tr_layout_clip,
 	set_text = C.tr_layout_set_text,
 	get_text_utf8 = C.tr_layout_get_text_utf8,
 	set_text_utf8 = C.tr_layout_set_text_utf8,
 	set_clip_extents = C.tr_layout_set_clip_extents,
 	paint = C.tr_layout_paint,
-	get_paragraph_spacing = C.tr_layout_get_paragraph_spacing,
-	get_font_size = C.tr_layout_get_font_size,
+	get_operator = C.tr_layout_get_operator,
 	get_font_id = C.tr_layout_get_font_id,
-	get_color = C.tr_layout_get_color,
-	get_lang = C.tr_layout_get_lang,
+	get_paragraph_spacing = C.tr_layout_get_paragraph_spacing,
+	get_script = C.tr_layout_get_script,
 	get_line_spacing = C.tr_layout_get_line_spacing,
+	get_lang = C.tr_layout_get_lang,
+	get_font_size = C.tr_layout_get_font_size,
 	get_features = C.tr_layout_get_features,
 	get_nowrap = C.tr_layout_get_nowrap,
-	get_paragraph_dir = C.tr_layout_get_paragraph_dir,
-	get_script = C.tr_layout_get_script,
-	get_operator = C.tr_layout_get_operator,
-	get_hardline_spacing = C.tr_layout_get_hardline_spacing,
 	get_opacity = C.tr_layout_get_opacity,
-	set_nowrap = C.tr_layout_set_nowrap,
-	set_paragraph_spacing = C.tr_layout_set_paragraph_spacing,
-	set_font_size = C.tr_layout_set_font_size,
+	get_color = C.tr_layout_get_color,
+	get_paragraph_dir = C.tr_layout_get_paragraph_dir,
+	get_hardline_spacing = C.tr_layout_get_hardline_spacing,
 	set_color = C.tr_layout_set_color,
-	set_paragraph_dir = C.tr_layout_set_paragraph_dir,
+	set_font_size = C.tr_layout_set_font_size,
+	set_nowrap = C.tr_layout_set_nowrap,
 	set_operator = C.tr_layout_set_operator,
 	set_opacity = C.tr_layout_set_opacity,
 	set_line_spacing = C.tr_layout_set_line_spacing,
 	set_features = C.tr_layout_set_features,
 	set_font_id = C.tr_layout_set_font_id,
+	set_paragraph_spacing = C.tr_layout_set_paragraph_spacing,
+	set_paragraph_dir = C.tr_layout_set_paragraph_dir,
 	set_script = C.tr_layout_set_script,
 	set_lang = C.tr_layout_set_lang,
 	set_hardline_spacing = C.tr_layout_set_hardline_spacing,
 	init = C.tr_layout_init,
-	shape = C.tr_layout_shape,
-	wrap = C.tr_layout_wrap,
-	align = C.tr_layout_align,
-	layout = C.tr_layout_layout,
 }
 ffi.metatype('tr_layout_t', {
 	__index = function(self, k)
@@ -266,28 +265,9 @@ ffi.metatype('tr_cursor_t', {
 		setter(self, v)
 	end,
 })
-local getters = {
-	cursor = C.tr_selection_get_cursor,
-}
-local setters = {
-}
-local methods = {
+ffi.metatype('tr_selection_t', {__index = {
 	release = C.tr_selection_release,
-}
-ffi.metatype('tr_selection_t', {
-	__index = function(self, k)
-		local getter = getters[k]
-		if getter then return getter(self) end
-		return methods[k]
-	end,
-	__newindex = function(self, k, v)
-		local setter = setters[k]
-		if not setter then
-			error(('field not found: %s'):format(tostring(k)), 2)
-		end
-		setter(self, v)
-	end,
-})
+}})
 ffi.cdef[[
 enum {
 	TR_ALIGN_AUTO = 4,

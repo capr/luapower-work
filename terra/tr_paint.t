@@ -5,7 +5,6 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 require'terra/tr_rasterize'
-require'terra/tr_cursor'
 
 --NOTE: clip_left and clip_right are relative to glyph run's origin.
 terra Renderer:paint_glyph_run(
@@ -33,7 +32,7 @@ terra Renderer:paint_glyph_run(
 
 end
 
-terra Layout:paint(cr: &context)
+terra Layout:paint_text(cr: &context)
 
 	assert(self.state >= STATE_ALIGNED)
 	assert(self.clip_valid)
@@ -75,15 +74,13 @@ terra Layout:paint(cr: &context)
 	end
 end
 
-terra Cursor:paint(cr: &context)
-	var x, y, w, h = self:rect()
-	x = snap(x, 1)
-	y = snap(y, 1)
-	h = snap(h, 1)
-	var c = iif(self.seg ~= nil, self.seg.span.color, self.color)
-	c.alpha = c.alpha * self.opacity
-	cr:rgba(c)
+terra Layout:paint_rect(cr: &context,
+	x: num, y: num, w: num, h: num,
+	color: color, opacity: num
+)
+	cr:rgba(color:apply_alpha(opacity))
 	cr:new_path()
 	cr:rectangle(x, y, w, h)
 	cr:fill()
 end
+

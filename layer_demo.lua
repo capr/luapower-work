@@ -21,7 +21,6 @@ local fonts = {
 
 local function load_font(font_id, file_data_buf, file_size_buf)
 	local s = assert(fonts[font_id+1])
-	print(font_id, #s)
 	file_data_buf[0] = ffi.cast('void*', s)
 	file_size_buf[0] = #s
 end
@@ -123,7 +122,7 @@ e1:set_shadow_inset   (2, false)
 --e2.visible = false
 
 do local e = e2
-e:set_text_utf8('Yea but it\'s live!!', -1)
+e:set_text_utf8('It\'s just text but it\'s alive!', -1)
 e:set_text_font_id  (0, -1, font2_id)
 e:set_text_font_size(0, -1, 100)
 e:set_text_color    (0, -1, 0x333333ff)

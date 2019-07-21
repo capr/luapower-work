@@ -329,6 +329,12 @@ for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
 	Layer.methods['set_text_'..FIELD] = terra(self: &Layer, i: int, j: int, v: T)
 		self.text.layout:['set_'..FIELD](i, j, v)
 	end
+	Layer.methods['get_text_span_'..FIELD] = terra(self: &Layer, span_i: int)
+		return self.text.layout:['get_span_'..FIELD](span_i)
+	end
+	Layer.methods['set_text_span_'..FIELD] = terra(self: &Layer, span_i: int, v: T)
+		self.text.layout:['set_span_'..FIELD](span_i, v)
+	end
 end
 
 --text measuring and hit-testing
@@ -747,6 +753,36 @@ function build()
 		set_text_color             =1,
 		set_text_opacity           =1,
 		set_text_operator          =1,
+
+		--[[
+		get_text_span_font_id           =1,
+		get_text_span_font_size         =1,
+		get_text_span_features          =1,
+		get_text_span_script            =1,
+		get_text_span_lang              =1,
+		get_text_span_paragraph_dir     =1,
+		get_text_span_line_spacing      =1,
+		get_text_span_hardline_spacing  =1,
+		get_text_span_paragraph_spacing =1,
+		get_text_span_nowrap            =1,
+		get_text_span_color             =1,
+		get_text_span_opacity           =1,
+		get_text_span_operator          =1,
+
+		set_text_span_font_id           =1,
+		set_text_span_font_size         =1,
+		set_text_span_features          =1,
+		set_text_span_script            =1,
+		set_text_span_lang              =1,
+		set_text_span_paragraph_dir     =1,
+		set_text_span_line_spacing      =1,
+		set_text_span_hardline_spacing  =1,
+		set_text_span_paragraph_spacing =1,
+		set_text_span_nowrap            =1,
+		set_text_span_color             =1,
+		set_text_span_opacity           =1,
+		set_text_span_operator          =1,
+		]]
 
 		text_cursor_xs=1,
 

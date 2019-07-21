@@ -81,13 +81,13 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal)
 		if cancall(key_t, 'free') or cancall(val_t, 'free') then
 			if context_t then
 				terra pair:free(context: context_t)
-					call(&self.key, 'free', 1, context)
-					call(&self.val, 'free', 1, context)
+					optcall(&self.key, 'free', 1, context)
+					optcall(&self.val, 'free', 1, context)
 				end
 			else
 				terra pair:free()
-					call(&self.key, 'free')
-					call(&self.val, 'free')
+					optcall(&self.key, 'free')
+					optcall(&self.val, 'free')
 				end
 			end
 		end

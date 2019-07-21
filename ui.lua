@@ -100,6 +100,7 @@ end
 
 function object:warn(...)
 	io.stderr:write(string.format(...))
+	io.stderr:write'\n'
 	io.stderr:write(debug.traceback())
 	io.stderr:write'\n'
 end
@@ -295,55 +296,55 @@ end
 --native app proxy methods ---------------------------------------------------
 
 function ui:native_window(t)
-	return self().app:window(t)
+	return self.app:window(t)
 end
 
 function ui:get_active_window()
-	local win = self().app:active_window()
+	local win = self.app:active_window()
 	return win and win.ui_window
 end
 
 function ui:clock()                return time.clock() end
-function ui:run(func)              return self().app:run(func) end
-function ui:poll(timeout)          return self().app:poll(timeout) end
-function ui:stop()                 return self().app:stop() end
-function ui:quit()                 return self().app:quit() end
-function ui:get_autoquit()         return self().app:autoquit() end
-function ui:set_autoquit(aq)       return self().app:autoquit(aq or false) end
-function ui:get_maxfps()           return self().app:maxfps() end
-function ui:set_maxfps(fps)        return self().app:maxfps(fps or false) end
-function ui:runevery(t, f)         return self().app:runevery(t, f) end
-function ui:runafter(t, f)         return self().app:runafter(t, f) end
-function ui:sleep(s)               return self().app:sleep(s) end
+function ui:run(func)              return self.app:run(func) end
+function ui:poll(timeout)          return self.app:poll(timeout) end
+function ui:stop()                 return self.app:stop() end
+function ui:quit()                 return self.app:quit() end
+function ui:get_autoquit()         return self.app:autoquit() end
+function ui:set_autoquit(aq)       return self.app:autoquit(aq or false) end
+function ui:get_maxfps()           return self.app:maxfps() end
+function ui:set_maxfps(fps)        return self.app:maxfps(fps or false) end
+function ui:runevery(t, f)         return self.app:runevery(t, f) end
+function ui:runafter(t, f)         return self.app:runafter(t, f) end
+function ui:sleep(s)               return self.app:sleep(s) end
 
-function ui:get_app_active()       return self().app:active() end
-function ui:activate_app()         return self().app:activate() end
-function ui:get_app_visible()      return self().app:visible() end
-function ui:set_app_visible(v)     return self().app:visible(v or false) end
-function ui:hide_app()             return self().app:hide() end
-function ui:unhide_app()           return self().app:unhide() end
+function ui:get_app_active()       return self.app:active() end
+function ui:activate_app()         return self.app:activate() end
+function ui:get_app_visible()      return self.app:visible() end
+function ui:set_app_visible(v)     return self.app:visible(v or false) end
+function ui:hide_app()             return self.app:hide() end
+function ui:unhide_app()           return self.app:unhide() end
 
-function ui:key(query)             return self().app:key(query) end
-function ui:get_caret_blink_time() return self().app:caret_blink_time() end
+function ui:key(query)             return self.app:key(query) end
+function ui:get_caret_blink_time() return self.app:caret_blink_time() end
 
-function ui:get_displays()         return self().app:displays() end
-function ui:get_main_display()     return self().app:main_display() end
-function ui:get_active_display()   return self().app:active_display() end
+function ui:get_displays()         return self.app:displays() end
+function ui:get_main_display()     return self.app:main_display() end
+function ui:get_active_display()   return self.app:active_display() end
 
-function ui:getclipboard(type)     return self().app:getclipboard(type) end
-function ui:setclipboard(s, type)  return self().app:setclipboard(s, type) end
+function ui:getclipboard(type)     return self.app:getclipboard(type) end
+function ui:setclipboard(s, type)  return self.app:setclipboard(s, type) end
 
-function ui:opendialog(t)          return self().app:opendialog(t) end
-function ui:savedialog(t)          return self().app:savedialog(t) end
+function ui:opendialog(t)          return self.app:opendialog(t) end
+function ui:savedialog(t)          return self.app:savedialog(t) end
 
-function ui:set_app_id(id)         self().app.nw.app_id = id end
+function ui:set_app_id(id)         self.app.nw.app_id = id end
 function ui:get_app_id(id)         return nw.app_id end
-function ui:app_already_running()  return self().app:already_running() end
+function ui:app_already_running()  return self.app:already_running() end
 function ui:wakeup_other_app_instances()
-	return self().app:wakeup_other_instances()
+	return self.app:wakeup_other_instances()
 end
 function ui:check_single_app_instance()
-	return self().app:check_single_instance()
+	return self.app:check_single_instance()
 end
 
 --local files ----------------------------------------------------------------
@@ -1015,7 +1016,9 @@ function element:override_create(inherited, ...)
 		local setters = self.__setters
 		while setters do
 			for k in pairs(setters) do --prop has a setter
-				if self[k] ~= nil then --prop has a class default
+				if k ~= '__index' and k ~= '__newindex'
+					and self[k] ~= nil
+				then --prop has a class default
 					push(wt, k)
 				end
 			end
@@ -1504,6 +1507,7 @@ function window:create_native_window(t)
 end
 
 function window:override_init(inherited, t)
+
 	local show_it
 	local win = t.native_window
 	local parent = t.parent
@@ -2972,15 +2976,15 @@ layer._font_size   = false
 layer._bold        = false
 layer._italic      = false
 
-local function after_set_font_prop(self, k)
+local function after_set_text_prop(self)
 	local font_name = self.font_name or self.font
 	local font, font_size = self.ui.font_db:find_font(
 		font_name, self.font_weight, slant, self.bold)
 	local slant = self.italic and 'italic' or self.font_slant
 	local font_size = self.font_size or font_size
 	if font and font_size then
-		self.l:set_text_span_font_id(0, font.id)
-		self.l:set_text_span_font_size(0, font_size)
+		self.l:set_text_font_id(0, -1, font.id)
+		self.l:set_text_font_size(0, -1, font_size)
 	end
 end
 
@@ -2993,7 +2997,7 @@ layer:stored_properties({
 	font_size=1,
 	bold=1,
 	italic=1,
-}, function() return after_set_font_prop end)
+}, function() return after_set_text_prop end)
 
 function layer:after_set_text(s)
 	s = s or ''
@@ -3016,20 +3020,20 @@ for k in pairs{
 	paragraph_spacing=1,
 	text_operator=1,
 } do
-	local getter = 'get_text_span_'..k:gsub('^text_', '')
-	local setter = 'set_text_span_'..k:gsub('^text_', '')
+	local getter = 'get_text_'..k
+	local setter = 'set_text_'..k
 	layer['get_'..k] = function(self)
-		return self.l[getter](self.l, 0)
+		return self.l[getter](self.l, 0, -1)
 	end
 	layer['set_'..k] = function(self, v)
-		self.l[setter](self.l, 0, v)
+		self.l[setter](self.l, 0, -1, v)
 	end
 end
 
 layer._text_color = '#fff'
 
 layer:stored_property('text_color', function(self, v)
-	self.l:set_text_span_color(0, self.ui:rgba32(v))
+	self.l:set_text_color(0, -1, self.ui:rgba32(v))
 end)
 
 layer:enum_property('dir', {
@@ -3039,12 +3043,12 @@ layer:enum_property('dir', {
 })
 
 function layer:get_script()
-	local s = self.l:get_text_span_script(0)
+	local s = self.l:get_text_script(0, -1)
 	return s[0] ~= 0 and ffi.string(s) or nil
 end
 
 function layer:get_lang()
-	local lang = self.l:get_text_span_lang(0)
+	local lang = self.l:get_text_lang(0, -1)
 	return lang ~= nil and ffi.string(lang) or nil
 end
 
@@ -4419,6 +4423,7 @@ local hit_test_areas = index{
 local layer_buf = ffi.new'layer_t*[1]'
 function view:hit_test(x, y, reason)
 	local area = self.l:hit_test(self.window.cr, x, y, hit_test_bits[reason], layer_buf)
+	print(layer_buf[0], layer, area, hit_test_areas[area])
 	local layer = self.ui.layers[addr(layer_buf[0])]
 	local area = layer and hit_test_areas[area]
 	return layer, area

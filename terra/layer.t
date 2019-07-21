@@ -338,11 +338,18 @@ end
 
 --text -----------------------------------------------------------------------
 
-struct Text {
+struct Text (gettersandsetters) {
 	layout: tr.Layout;
-	selection: &tr.Selection;
 	selectable: bool;
 }
+
+terra Text:get_cursor()
+	return self.layout.cursors(0, nil)
+end
+
+terra Text:get_selection()
+	return self.layout.selections(0, nil)
+end
 
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
@@ -538,8 +545,6 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 	self.grid_row_span = 1
 
 	self:init_layout()
-
-	self.text.selection = self.text.layout:selection()
 end
 
 terra Layer.methods.free :: {&Layer} -> {}
@@ -1245,8 +1250,20 @@ end
 
 --text drawing & hit testing -------------------------------------------------
 
+terra Layer:get_caret()
+	return self.text.layout.cursors(0, nil)
+end
+
+terra Layer:get_text_selection()
+	return self.text.layout.selections(0, nil)
+end
+
 terra Layer:sync_text_shape()
 	self.text.layout:shape()
+	if self.caret == nil then
+		self.text.layout:cursor()
+		self.text.layout:selection()
+	end
 end
 
 terra Layer:sync_text_wrap()
@@ -1287,40 +1304,20 @@ terra Layer:hit_test_text(cr: &context, x: num, y: num, reason: enum)
 	end
 end
 
---text caret & selection drawing ---------------------------------------------
-
 terra Layer:caret_rect()
-	return self.text.selection.cursor:rect()
+	return self.caret:rect()
 end
 
 terra Layer:caret_visibility_rect()
 	var x, y, w, h = self:caret_rect()
 	--enlarge the caret rect to contain the line spacing.
-	var line = self.text.selection.cursor.line
+	var line = self.text.cursor.line
 	y = y + line.ascent - line.spaced_ascent
 	h = line.spaced_ascent - line.spaced_descent
 	return x, y, w, h
 end
 
-terra Layer:draw_caret(cr: &context)
-	self.text.selection.cursor:paint(cr)
-end
-
 --[[
-terra Layer:draw_selection_rect(cr: &context, x: num, y: num, w: num, h: num)
-	cr:rectangle(x, y, w, h)
-	cr:fill()
-end
-
-terra Layer:draw_text_selection(cr)
-	local sel = &self.text.selection
-	if not sel then return end
-	if sel:empty() then return end
-	cr:rgba(self.ui:rgba(self.text.selection_color))
-	cr:new_path()
-	sel:rectangles(self.draw_selection_rect, self, cr)
-end
-
 terra Layer:make_visible_caret()
 	local segs = self.text.segments
 	local lines = segs.lines
@@ -1401,9 +1398,7 @@ end
 terra Layer:draw_content(cr: &context) --called in own content space
 	self:draw_children(cr)
 	if self.layout_solver.type < 2 then
-		--self:draw_text_selection(cr)
 		self:draw_text(cr)
-		self:draw_caret(cr)
 	end
 end
 

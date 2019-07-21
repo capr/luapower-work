@@ -38,7 +38,7 @@
 	cmp = {&T, &T} -> int32                     type of element comparison function
 	v:sort([cmp])                               sort elements
 	v:sort_desc()                               sort descending
-	v:find(t[,default]) -> i|-1                 find element
+	v:find(t[,default]) -> i                    find element
 	v:count(t) -> n                             element occurences
 	v:binsearch(t, [cmp]) -> i                  binsearch (sort the view first!)
 	v:binsearch(t, v.lt|v.lte|v.gt|v.gte) -> i  binsearch with built-in cmp
@@ -47,8 +47,8 @@
 	v:call(method, args...)                     call method on each element
 
 	v:index(&t[,default]) -> i|default          element index by address
-	v:next(&t,[default]) -> &t|default          next element
-	v:prev(&t,[default]) -> &t|default          previous element
+	v:next(&t,[&default]) -> &t|&default        next element
+	v:prev(&t,[&default]) -> &t|&default        previous element
 
 ]]
 
@@ -126,7 +126,7 @@ local function view_type(T, size_t, cmp)
 			return iif(i >= 0 and i < self.len, i, default)
 		end)
 		view.methods.index:adddefinition(terra(self: &view, i: size_t)
-			assert(i >= 0 and i < self.len)
+			assert(i >= 0 and i < self.len, 'index out of range')
 			return i
 		end)
 
@@ -415,7 +415,7 @@ local function view_type(T, size_t, cmp)
 		end)
 		view.methods.next:adddefinition(terra(self: &view, pv: &T)
 			var i = pv - self.elements
-			assert(i >= 0 and i < self.len-1)
+			assert(i >= 0 and i < self.len-1, 'next: eoa')
 			return self.elements + i + 1
 		end)
 
@@ -426,7 +426,7 @@ local function view_type(T, size_t, cmp)
 		end)
 		view.methods.prev:adddefinition(terra(self: &view, pv: &T)
 			var i = pv - self.elements
-			assert(i > 0 and i < self.len)
+			assert(i > 0 and i < self.len, 'prev: boa')
 			return self.elements + i - 1
 		end)
 

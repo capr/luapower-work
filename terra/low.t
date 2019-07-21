@@ -701,9 +701,9 @@ enum {
 	SEEK_SET = 0,
 };
 
-int    printf (const char*, ...);
+int    printf   (const char*, ...);
+int    fprintf  (FILE*, const char*, ...);
 
-int    fprintf (FILE*, const char*, ...);
 int    fflush  (FILE*);
 FILE*  fopen   (const char*, const char*);
 int    fclose  (FILE*);
@@ -741,6 +741,8 @@ if Windows then
 C([[
 typedef unsigned long long int size_t;
 
+int    _snprintf (char*, size_t, const char*, ...);
+
 struct _iobuf {
 	char *_ptr;
 	int _cnt;
@@ -762,7 +764,9 @@ else
 C([[
 typedef unsigned long int size_t;
 
---TODO: stdio...
+int    snprintf (char*, size_t, const char*, ...);
+
+// TODO: stdio...
 
 ]] .. common_cdef)
 end
@@ -1147,18 +1151,24 @@ end, cancall_lua)
 call = macro(function(t, method, len, ...)
 	len = len and len:isliteral() and len:asvalue() or len or 1
 	method = method:asvalue()
-	if cancall(t, method) then
-		local args = args(...)
-		if len == 1 then
-			return quote t:[method]([args]) in t end
-		else
-			return quote
-				for i=0,len do
-					(t+i):[method]([args])
-				end
-				in t
+	local args = args(...)
+	if len == 1 then
+		return quote t:[method]([args]) end
+	else
+		return quote
+			for i=0,len do
+				t[i]:[method]([args])
 			end
 		end
+	end
+end)
+
+optcall = macro(function(t, method, len, ...)
+	len = len or `1
+	local T = type(t) == 'terratype' and t or t:istype() and t:astype() or t:gettype()
+	if cancall(T, method:asvalue()) then
+		local args = args(...)
+		return quote call(t, method, len, [args]) end
 	else
 		return quote end
 	end

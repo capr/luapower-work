@@ -3,9 +3,6 @@
 
 require'terra/memcheck'
 require'terra/tr_paint_cairo'
-require'terra/tr_layoutedit'
-require'terra/tr_spanedit'
-require'terra/tr_selection'
 setfenv(1, require'terra/tr')
 
 --Renderer API
@@ -135,21 +132,8 @@ terra Cursor:rect_c(x: &num, y: &num, w: &num, h: &num)
 	@x, @y, @w, @h = self:rect()
 end
 
---selection API
-
-terra tr_selection_sizeof()
-	return [int](sizeof(Selection))
-end
-terra Layout:selection()
-	return new(Selection, self)
-end
-terra Selection:release()
-	release(self)
-end
-
-terra Selection:get_cursor()
-	return &self.cursor
-end
+terra Cursor:get_visible() return self.visible end
+terra Cursor:set_visible(v: bool) self.visible = v end
 
 function build()
 	local trlib = publish'tr'
@@ -310,6 +294,9 @@ function build()
 
 	trlib(Cursor, {
 
+		get_visible=1,
+		set_visible=1,
+
 		get_offset=1,
 		get_rtl=1,
 
@@ -335,8 +322,6 @@ function build()
 
 	trlib(Selection, {
 		release=1,
-
-		get_cursor=1,
 
 	}, {
 		cname = 'tr_selection_t',

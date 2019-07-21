@@ -230,6 +230,7 @@ local function test_text()
 		layout = 'textbox',
 		text = 'Hello',
 		border_width = 10,
+		padding = 20,
 		min_cw = 100,
 		min_ch = 100,
 	}

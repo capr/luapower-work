@@ -31,14 +31,20 @@ local terra test_dynarray()
 	a:set(19, 4321, 0)
 	assert(a(19) == 4321)
 	var x = -1
-	for i,v in a:sub(0, 15) do
-		@v = x
-		x = x * 2
+	do
+		var sub = a:sub(0, 15)
+		for i,v in sub do
+			@v = x
+			x = x * 2
+		end
 	end
 	x = 2000
-	for i,v in a:sub(16, 19) do
-		@v = x
-		x = x + 100
+	do
+		var sub = a:sub(16, 19)
+		for i,v in sub do
+			@v = x
+			x = x + 100
+		end
 	end
 	a:sort(cmp)
 	--for i,v in a do print(i, @v) end
@@ -72,7 +78,8 @@ local terra test_stack()
 	for i = 0, 10000 do
 		a:push(i)
 	end
-	for i, v in a:backwards() do
+	var bk = a:backwards()
+	for i, v in bk do
 		assert(a:pop() == i)
 	end
 	assert(a.len == 0)
@@ -82,6 +89,7 @@ local terra test_stack()
 end
 test_stack()
 
+--[[ --TODO: stringarr type
 local S = arr(int8)
 local terra test_arrayofstrings()
 	var a = arr(S)
@@ -96,6 +104,7 @@ local terra test_arrayofstrings()
 	assert(a.len == 0)
 end
 test_arrayofstrings()
+]]
 
 local terra test_wrap()
 	var len = 10

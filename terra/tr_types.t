@@ -89,9 +89,10 @@ struct Font;
 
 --overridable constants ------------------------------------------------------
 
-DEFAULT_TEXT_COLOR      = DEFAULT_TEXT_COLOR      or `color {0xffffffff}
-DEFAULT_SELECTION_COLOR = DEFAULT_SELECTION_COLOR or `color {0x6666ff66}
-DEFAULT_TEXT_OPERATOR   = DEFAULT_TEXT_OPERATOR   or 2 --CAIRO_OPERATOR_OVER
+DEFAULT_TEXT_COLOR        = DEFAULT_TEXT_COLOR      or `color {0xffffffff}
+DEFAULT_SELECTION_COLOR   = DEFAULT_SELECTION_COLOR or `color {0x6666ff66}
+DEFAULT_TEXT_OPERATOR     = DEFAULT_TEXT_OPERATOR   or 2 --CAIRO_OPERATOR_OVER
+DEFAULT_SELECTION_OPACITY = DEFAULT_SELECTION_OPACITY or 1
 
 --font type ------------------------------------------------------------------
 
@@ -220,52 +221,18 @@ struct Line (gettersandsetters) {
 	spacing: num;
 }
 
-struct Layout;
-
-struct Cursor (gettersandsetters) {
-	--cursor state that stays valid between re-layouts.
-	layout: &Layout;
-	offset: int; --offset in logical text.
-	--cursor state that needs updating after re-layouting.
-	seg: &Seg;
-	i: int;
-	x: num;
-	--park cursor to home/end if vertical nav goes above/beyond available lines.
-	park_home: bool;
-	park_end: bool;
-	--jump-through same-text-offset cursors: most text editors remove duplicate
-	--cursors to keep a 1:1 relationship between text positions and cursor
-	--positions, which gets funny with BiDi and you also can't tell if there's
-	--a space at the end of a wrapped line or not.
-	unique_offsets: bool;
-	--keep a cursor after the last space char on a wrapped line: this cursor can
-	--be trouble because it is outside the textbox and if there's not enough room
-	--on the wrap-side of the textbox it can get clipped out.
-	wrapped_space: bool;
-	insert_mode: bool;
-	--drawing attributes
-	color: color;
-	opacity: num;
-	w: num;
-}
-
-terra Cursor:free()
-	self.layout = nil
-end
-
-struct Selection (gettersandsetters) {
-	cursor: Cursor;
-	len: int;
-	color: color;
-}
-
-terra Selection.methods.free :: {&Selection} -> {}
---^^for Layout.selections to take ownership.
-
 --NOTE: the initial not-even-shaped state is 0.
 STATE_SHAPED  = 1
 STATE_WRAPPED = 2
 STATE_ALIGNED = 3
+
+struct Cursor;
+terra Cursor.methods.free :: {&Cursor} -> {}
+--^^for Layout.cursors to take ownership.
+
+struct Selection;
+terra Selection.methods.free :: {&Selection} -> {}
+--^^for Layout.selections to take ownership.
 
 struct Layout (gettersandsetters) {
 	r: &Renderer;
@@ -307,7 +274,8 @@ struct Layout (gettersandsetters) {
 	--cached computed values
 	_min_w: num;
 	_max_w: num;
-	--text selections that are kept synchronized with text changes.
+	--text cursors and selections that are kept synchronized with text changes.
+	cursors: arr(&Cursor);
 	selections: arr(&Selection);
 }
 
@@ -324,13 +292,13 @@ terra Layout:get_clip_h  () return self._clip_h end
 terra Layout:get_x       () return self._x end
 terra Layout:get_y       () return self._y end
 
-Layout.methods.glyph_run = macro(function(self, seg)
-	return `&self.r.glyph_runs:pair(seg.glyph_run_id).key
-end)
-
 terra Layout:span_end_offset(i: int)
 	var next_span = self.spans:at(i+1, nil)
 	return iif(next_span ~= nil, next_span.offset, self.text.len)
+end
+
+terra Layout:seg_index(seg: &Seg)
+	return self.segs:index(seg)
 end
 
 terra Layout:init(r: &Renderer)
@@ -345,47 +313,6 @@ terra Layout:init(r: &Renderer)
 	self._clip_w   =  inf
 	self._clip_h   =  inf
 	self.spans:add([Span.empty])
-end
-
-terra Layout:get_visible()
-	return self.text.len >= 0
-		and self.spans:at(0).font_id ~= -1
-		and self.spans:at(0).font_size > 0
-end
-
-terra Layout.methods._shape :: {&Layout} -> {}
-terra Layout:shape()
-	if self.state >= STATE_SHAPED then return false end
-	self:_shape()
-	self.state = STATE_SHAPED
-	return true
-end
-
-terra Layout.methods._wrap :: {&Layout} -> {}
-terra Layout:wrap()
-	if self.state >= STATE_WRAPPED then return false end
-	assert(self.state == STATE_WRAPPED - 1)
-	self:_wrap()
-	self.state = STATE_WRAPPED
-	return true
-end
-
-terra Layout.methods._align :: {&Layout} -> {}
-terra Layout:align()
-	if self.state >= STATE_ALIGNED then return false end
-	assert(self.state == STATE_ALIGNED - 1)
-	self:_align()
-	self.state = STATE_ALIGNED
-	return true
-end
-
-terra Layout.methods.clip :: {&Layout} -> {}
-
-terra Layout:layout()
-	self:shape()
-	self:wrap()
-	self:align()
-	self:clip()
 end
 
 --glyph run type -------------------------------------------------------------
@@ -506,6 +433,48 @@ end
 
 terra Glyph.methods.free :: {&Glyph, &Renderer} -> {}
 
+--cursor & selection types ---------------------------------------------------
+
+--visual position in shaped text and matching offset in logical text.
+struct Pos {
+	seg: &Seg;
+	i: int;
+}
+
+struct Cursor (gettersandsetters) {
+	layout: &Layout;
+	p: Pos;
+	offset: int; --offset in logical text
+	x: num; --x-position to try to go to when navigating up and down.
+	--park cursor to home or end if vertical navigation goes above or beyond
+	--available text lines.
+	park_home: bool;
+	park_end: bool;
+	--jump-through same-text-offset cursors: most text editors remove duplicate
+	--cursors to keep a 1:1 relationship between text positions and cursor
+	--positions, which gets funny with BiDi and you also can't tell if there's
+	--a space at the end of a wrapped line or not.
+	unique_offsets: bool;
+	--keep a cursor after the last space char on a wrapped line: this cursor can
+	--be trouble because it is outside the textbox and if there's not enough room
+	--on the wrap-side of the textbox it can get clipped out.
+	wrapped_space: bool;
+	insert_mode: bool;
+	--drawing attributes
+	visible: bool;
+	color: color;
+	opacity: num;
+	w: num;
+}
+
+struct Selection (gettersandsetters) {
+	layout: &Layout;
+	p1: Pos;
+	p2: Pos;
+	color: color;
+	opacity: num;
+}
+
 --renderer type --------------------------------------------------------------
 
 struct SegRange {
@@ -561,5 +530,10 @@ struct Renderer (gettersandsetters) {
 
 	paint_glyph_num: int;
 }
+
+terra Layout:glyph_run(seg: &Seg)
+	return &self.r.glyph_runs:pair(seg.glyph_run_id).key
+end
+
 
 return _M

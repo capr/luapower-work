@@ -22,6 +22,10 @@ require'terra/tr_align'
 require'terra/tr_clip'
 require'terra/tr_paint'
 require'terra/tr_hit_test'
+require'terra/tr_layoutedit'
+require'terra/tr_spanedit'
+require'terra/tr_cursor'
+require'terra/tr_selection'
 
 terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	fill(self) --this initializes all arr() types.
@@ -74,6 +78,7 @@ end
 
 terra Layout:free()
 	self.selections:free()
+	self.cursors:free()
 	self.lines:free()
 	for _,seg in self.segs do
 		self.r.glyph_runs:forget(seg.glyph_run_id)
@@ -86,6 +91,50 @@ terra Layout:free()
 		end
 	end
 	self.spans:free()
+end
+
+terra Layout:get_visible()
+	return self.text.len >= 0
+		and self.spans:at(0).font_id ~= -1
+		and self.spans:at(0).font_size > 0
+end
+
+terra Layout:shape()
+	if self.state >= STATE_SHAPED then return false end
+	self:_shape()
+	self.state = STATE_SHAPED
+	self.cursors:call'reposition'
+	self.selections:call'reposition'
+	return true
+end
+
+terra Layout:wrap()
+	if self.state >= STATE_WRAPPED then return false end
+	assert(self.state == STATE_WRAPPED - 1)
+	self:_wrap()
+	self.state = STATE_WRAPPED
+	return true
+end
+
+terra Layout:align()
+	if self.state >= STATE_ALIGNED then return false end
+	assert(self.state == STATE_ALIGNED - 1)
+	self:_align()
+	self.state = STATE_ALIGNED
+	return true
+end
+
+terra Layout:layout()
+	self:shape()
+	self:wrap()
+	self:align()
+	self:clip()
+end
+
+terra Layout:paint(cr: &context)
+	self.selections:call('paint', cr, true)
+	self:paint_text(cr)
+	self.cursors:call('paint', cr)
 end
 
 terra Renderer:font()
