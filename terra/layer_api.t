@@ -519,6 +519,12 @@ function build()
 		set_min_cw=1,
 		set_min_ch=1,
 
+		get_align_x=1,
+		get_align_y=1,
+
+		set_align_x=1,
+		set_align_y=1,
+
 		get_padding_left=1,
 		get_padding_top=1,
 		get_padding_right=1,

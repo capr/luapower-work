@@ -2965,6 +2965,7 @@ layer:forward_properties('l', {
 	maxlen='text_maxlen',
 	text_align_x=1,
 	text_align_y=1,
+	text_selectable=1,
 })
 
 layer._text = false
@@ -3071,6 +3072,8 @@ layer:enum_property('text_align_y', {
 
 layer:forward_properties('l', {
 	layout='layout_type',
+	align_x=1,
+	align_y=1,
 	align_items_x=1,
 	align_items_y=1,
 	item_align_x=1,
@@ -3732,6 +3735,21 @@ function layer:bbox(strict) --child interface
 	return x, y, w, h
 end
 
+local hit_test_areas = index{
+	border         = C.HIT_BORDER,
+	background     = C.HIT_BACKGROUND,
+	text           = C.HIT_TEXT,
+	text_selection = C.HIT_TEXT_SELECTION,
+}
+
+local layer_buf = ffi.new'layer_t*[1]'
+function layer:hit_test(x, y, reason)
+	local area = self.l:hit_test(self.window.cr, x, y, hit_test_bits[reason], layer_buf)
+	local layer = self.ui.layers[addr(layer_buf[0])]
+	local area = layer and hit_test_areas[area]
+	return layer, area
+end
+
 --element interface
 
 function layer:get_clock()
@@ -3889,7 +3907,6 @@ layer.caret_width = 1
 layer.caret_color = '#fff'
 layer.caret_opacity = 1
 
-layer.text_selectable = false
 layer.text_selection = false --selection object
 layer.text_selection_color = '#66f6'
 
@@ -4027,7 +4044,7 @@ end
 function layer:mousemove_text(x, y)
 	if not self.active then return end
 	self:validate()
-	self.text_selection.cursor2:move('pos', x, y)
+	--TODO: self.text_selection.cursor2:move('pos', x, y)
 end
 
 function layer:mouseup_text()
@@ -4411,21 +4428,6 @@ end
 
 function view:draw(cr)
 	self.l:draw(cr)
-end
-
-local hit_test_areas = index{
-	border         = C.HIT_BORDER,
-	background     = C.HIT_BACKGROUND,
-	text           = C.HIT_TEXT,
-	text_selection = C.HIT_TEXT_SELECTION,
-}
-
-local layer_buf = ffi.new'layer_t*[1]'
-function view:hit_test(x, y, reason)
-	local area = self.l:hit_test(self.window.cr, x, y, hit_test_bits[reason], layer_buf)
-	local layer = self.ui.layers[addr(layer_buf[0])]
-	local area = layer and hit_test_areas[area]
-	return layer, area
 end
 
 function view:run_after_layout_funcs()

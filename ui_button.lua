@@ -14,6 +14,7 @@ button.layout = 'textbox'
 button.min_ch = 20
 button.align_x = 'start'
 button.align_y = 'center'
+button.text_align_x = 'center'
 button.padding_left = 8
 button.padding_right = 8
 button.padding_top = 2
@@ -119,22 +120,16 @@ function button:press()
 end
 
 function button:override_set_text(inherited, s)
-	if not inherited(self, s) then return end
-	if s == '' or not s then s = false end
-	if not s then
-		self._text = false
-		self.underline_pos = false
-		self.underline_text = false
-	else
-		s = s:gsub('&&', '\0') --TODO: hack
-		local pos, key = s:match'()&(.)'
-		self._text = s:gsub('&', ''):gsub('%z', '&')
-		if key then
-			self._key_from_text = key:upper()
-			self.underline_pos = pos
-			self.underline_text = key
-		end
+	s = s or ''
+	s = s:gsub('&&', '\0') --TODO: hack
+	local pos, key = s:match'()&(.)'
+	s = s:gsub('&', ''):gsub('%z', '&')
+	if key then
+		self._key_from_text = key:upper()
+		self.underline_pos = pos
+		self.underline_text = key
 	end
+	inherited(self, s)
 end
 
 button:stored_property('key', function(self, key)
@@ -377,7 +372,7 @@ local clabel = ui.layer:subclass'checkbox_label'
 checkbox.label_class = clabel
 
 clabel.layout = 'textbox'
-clabel.line_spacing = .6
+clabel.line_spacing = .8
 
 function clabel:hit_test(mx, my, reason) end --cbutton does it for us
 
@@ -712,10 +707,10 @@ if not ... then require('ui_demo')(function(ui, win)
 	ui:inherit()
 
 	win.view.grid_wrap = 10
-	win.view.grid_flow = 'y'
 	win.view.item_align_x = 'left'
 	win.view.grid_min_lines = 2
 
+	--[[
 	local b1 = ui:button{
 		id = 'OK',
 		parent = win,
@@ -749,6 +744,7 @@ if not ... then require('ui_demo')(function(ui, win)
 
 	function b1:pressed() print'b1 pressed' end
 	function b2:pressed() print'b2 pressed' end
+	]]
 
 	local cb1 = ui:checkbox{
 		id = 'CB1',
@@ -759,6 +755,7 @@ if not ... then require('ui_demo')(function(ui, win)
 		--enabled = false,
 	}
 
+	--[[
 	local cb2 = ui:checkbox{
 		id = 'CB2',
 		parent = win,
@@ -811,5 +808,7 @@ if not ... then require('ui_demo')(function(ui, win)
 			b.id = 'CHOICE'..i
 		end
 	end
+
+	]]
 
 end) end

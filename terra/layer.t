@@ -354,7 +354,7 @@ end
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
-	self.selectable = true
+	self.selectable = false
 end
 
 terra Text:free()
@@ -1258,9 +1258,23 @@ terra Layer:get_text_selection()
 	return self.text.layout.selections(0, nil)
 end
 
+terra Layer:get_text_selectable()
+	return self.text.selectable
+end
+
+terra Layer:set_text_selectable(v: bool)
+	if self.text.selectable ~= v then
+		self.text.selectable = v
+		if self.caret ~= nil and not v then
+			self.caret:release()
+			self.text_selection:release()
+		end
+	end
+end
+
 terra Layer:sync_text_shape()
 	self.text.layout:shape()
-	if self.caret == nil then
+	if self.caret == nil and self.text.selectable then
 		self.text.layout:cursor()
 		self.text.layout:selection()
 	end

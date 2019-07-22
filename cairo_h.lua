@@ -458,9 +458,6 @@ union _cairo_path_data_t {
 		double x, y;
 	} point;
 	struct {
-		double x, y;
-	} points[1];
-	struct {
 		int64_t e1, e2;
 	} opaque;
 };
