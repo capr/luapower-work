@@ -29,7 +29,7 @@ local function unload_font(font_id, file_data_buf, file_size_buf)
 	--nothing
 end
 
-local lorem_ipsum = glue.readfile('lorem_ipsum.txt')
+local lorem_ipsum = glue.readfile('lorem_ipsum.txt'):sub(1, 1000)
 
 --assert(ll.memtotal() == 0)
 
@@ -87,9 +87,11 @@ e:set_shadow_inset   (1, false)
 e.layout_type = ll.LAYOUT_FLEXBOX
 --e.flex_flow = ll.FLEX_FLOW_Y
 
+e1.layout_type = ll.LAYOUT_TEXTBOX
 e1.clip_content = ll.CLIP_BACKGROUND
 e2.clip_content = ll.CLIP_PADDING
 
+e2.layout_type = ll.LAYOUT_TEXTBOX
 e2.background_type = ll.BACKGROUND_COLOR
 e2.background_color = 0x33333366
 

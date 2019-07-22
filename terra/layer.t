@@ -71,15 +71,15 @@ ALIGN_AUTO          = tr.ALIGN_AUTO    --only for text_align_x
 ALIGN_LEFT          = tr.ALIGN_LEFT
 ALIGN_RIGHT         = tr.ALIGN_RIGHT
 ALIGN_CENTER        = tr.ALIGN_CENTER
-ALIGN_TOP           = tr.ALIGN_TOP     --same as ALIGN_LEFT!
-ALIGN_BOTTOM        = tr.ALIGN_BOTTOM  --same as ALIGN_RIGHT!
+ALIGN_TOP           = tr.ALIGN_TOP     --needs to be same as ALIGN_LEFT!
+ALIGN_BOTTOM        = tr.ALIGN_BOTTOM  --needs to be same as ALIGN_RIGHT!
 ALIGN_STRETCH       = tr.ALIGN_MAX + 1
 ALIGN_START         = tr.ALIGN_MAX + 2 --left for LTR text, right for RTL
 ALIGN_END           = tr.ALIGN_MAX + 3 --right for LTR text, left for RTL
 ALIGN_SPACE_EVENLY  = tr.ALIGN_MAX + 4
 ALIGN_SPACE_AROUND  = tr.ALIGN_MAX + 5
 ALIGN_SPACE_BETWEEN = tr.ALIGN_MAX + 6
-ALIGN_BASELINE      = tr.ALIGN_MAX + 7
+ALIGN_BASELINE      = tr.ALIGN_MAX + 7 --only for item_align_y
 
 local function map_enum(C, src_prefix, dst_prefix)
 	for k,v in pairs(C) do
@@ -589,9 +589,9 @@ terra Layer.methods.size_changed :: {&Layer} -> {}
 
 Layer.metamethods.__for = function(self, body)
 	return quote
-		var self = &self --workaround for terra issue #368
-		for i = 0, self.children.len do
-			[ body(`self.children(i)) ]
+		var children = self.children --workaround for terra issue #368
+		for i = 0, children.len do
+			[ body(`children(i)) ]
 		end
 	end
 end
@@ -1297,11 +1297,13 @@ terra Layer:text_bbox()
 end
 
 terra Layer:hit_test_text(cr: &context, x: num, y: num, reason: enum)
-	if not self.text.layout.visible then return HIT_NONE end
-	var line_i, line_hit = self.text.layout:hit_test(x, y)
-	if line_i >= 0 and line_i < self.text.layout.lines.len and line_hit == 0 then
-		return HIT_TEXT
+	if self.text.layout.visible then
+		var line_i, x_flag = self.text.layout:hit_test(x, y)
+		if line_i >= 0 and line_i < self.text.layout.lines.len and x_flag == 0 then
+			return HIT_TEXT
+		end
 	end
+	return HIT_NONE
 end
 
 terra Layer:caret_rect()
@@ -1770,7 +1772,7 @@ local text_layout = constant(`LayoutSolver {
 	sync_min_w = text_sync_min_w;
 	sync_min_h = text_sync_min_h;
 	sync_x     = text_sync_x;
-	sync_y     = text_sync_x;
+	sync_y     = text_sync_y;
 	sync_top   = sync_top;
 })
 
@@ -2087,10 +2089,11 @@ local function gen_funcs(X, Y, W, H)
 	local struct linewrap {layer: &Layer}
 	linewrap.metamethods.__for = function(self, body)
 		return quote
+			var layer = self.layer --workaround for terra issue #368
 			var i = -1
 			var j = 0
 			while true do
-				i, j = linewrap_next(self.layer, j-1)
+				i, j = linewrap_next(layer, j-1)
 				if j == -1 then break end
 				[ body(i, j) ]
 			end

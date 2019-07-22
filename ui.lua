@@ -3113,7 +3113,6 @@ layer:enum_property('align_items_x', {
 	space_evenly  = C.ALIGN_SPACE_EVENLY ,
 	space_around  = C.ALIGN_SPACE_AROUND ,
 	space_between = C.ALIGN_SPACE_BETWEEN,
-	baseline      = C.ALIGN_BASELINE     ,
 })
 
 layer:enum_property('align_items_y', {
@@ -3126,7 +3125,6 @@ layer:enum_property('align_items_y', {
 	space_evenly  = C.ALIGN_SPACE_EVENLY ,
 	space_around  = C.ALIGN_SPACE_AROUND ,
 	space_between = C.ALIGN_SPACE_BETWEEN,
-	baseline      = C.ALIGN_BASELINE     ,
 })
 
 local align_x = {
@@ -3138,7 +3136,7 @@ local align_x = {
 	['end']       = C.ALIGN_END          ,
 }
 layer:enum_property('item_align_x', align_x)
-layer:enum_property(     'align_x', update({
+layer:enum_property('align_x', update({
 	[false] = C.ALIGN_DEFAULT,
 }, align_x))
 
@@ -3150,8 +3148,10 @@ local align_y = {
 	start         = C.ALIGN_START        ,
 	['end']       = C.ALIGN_END          ,
 }
-layer:enum_property('item_align_y', align_y)
-layer:enum_property(     'align_y', update({
+layer:enum_property('item_align_y', update({
+	baseline = C.ALIGN_BASELINE,
+}, align_y))
+layer:enum_property('align_y', update({
 	[false] = C.ALIGN_DEFAULT,
 }, align_y))
 
@@ -4423,7 +4423,6 @@ local hit_test_areas = index{
 local layer_buf = ffi.new'layer_t*[1]'
 function view:hit_test(x, y, reason)
 	local area = self.l:hit_test(self.window.cr, x, y, hit_test_bits[reason], layer_buf)
-	print(layer_buf[0], layer, area, hit_test_areas[area])
 	local layer = self.ui.layers[addr(layer_buf[0])]
 	local area = layer and hit_test_areas[area]
 	return layer, area

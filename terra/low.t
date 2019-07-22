@@ -775,9 +775,9 @@ end
 
 --Lua compat
 PI     = math.pi
-min    = macro(function(a, b) return `iif(a < b, a, b) end, math.min)
-max    = macro(function(a, b) return `iif(a > b, a, b) end, math.max)
-abs    = macro(function(x) return `iif(x < 0, -x, x) end, math.abs)
+min    = macro(function(a, b) return quote var a = a; var b = b in iif(a < b, a, b) end end, math.min)
+max    = macro(function(a, b) return quote var a = a; var b = b in iif(a > b, a, b) end end, math.max)
+abs    = macro(function(x) return quote var x = x in iif(x < 0, -x, x) end end, math.abs)
 sqrt   = macro(function(x) return `C.sqrt(x) end, math.sqrt)
 pow    = C.pow --beacause ^ means xor in terra
 log    = macro(function(x) return `C.log(x) end, math.log)
@@ -797,7 +797,7 @@ dec    = macro(function(x, i) i=i or 1; return quote x = x - i in x end end)
 swap   = macro(function(a, b) return quote var c = a; a = b; b = c end end)
 isodd  = macro(function(x) return `x % 2 == 1 end)
 iseven = macro(function(x) return `x % 2 == 0 end)
-isnan  = macro(function(x) return `x ~= x end)
+isnan  = macro(function(x) return quote var x = x in x ~= x end end)
 inf    = 1/0
 nan    = 0/0
 maxint = int:max()
@@ -844,22 +844,34 @@ end)
 
 div_up = macro(function(x, p)
 	if x:gettype():isintegral() and p:gettype():isintegral() then
-		return `x / p + iif(x % p ~= 0, [int]((x > 0) == (p > 0)), 0)
+		return quote
+			var x = x; var p = p
+			in x / p + iif(x % p ~= 0, [int]((x > 0) == (p > 0)), 0)
+		end
 	end
 	return `C.ceil(x / p)
 end)
 
 div_down = macro(function(x, p)
 	if x:gettype():isfloat() or p:gettype():isfloat() then
-		return `C.floor(x / p) * p
+		return quote
+			var x = x; var p = p
+			in C.floor(x / p) * p
+		end
 	else
-		return `(x / p) * p
+		return quote
+			var x = x; var p = p
+			in (x / p) * p
+		end
 	end
 end)
 
 div_nearest = macro(function(x, p)
 	if x:gettype():isintegral() and p:gettype():isintegral() then
-		return `(2*x - p + 2*([int]((x < 0) ~= (p > 0))*p)) / (2*p)
+		return quote
+			var x = x; var p = p
+			in (2*x - p + 2*([int]((x < 0) ~= (p > 0))*p)) / (2*p)
+		end
 	end
 	return `C.floor(x / p + .5)
 end)
@@ -868,18 +880,27 @@ end)
 
 round = macro(function(x, p)
 	p = p or 1
-	return `div_nearest(x, p) * p
+	return quote
+		var x = x; var p = p
+		in div_nearest(x, p) * p
+	end
 end, glue.round)
 snap = round
 
 floor = macro(function(x, p)
 	p = p or 1
-	return `div_down(x, p) * p
+	return quote
+		var x = x; var p = p
+		in div_down(x, p) * p
+	end
 end, glue.floor)
 
 ceil = macro(function(x, p)
 	p = p or 1
-	return `div_up(x, p) * p
+	return quote
+		var x = x; var p = p
+		in div_up(x, p) * p
+	end
 end, glue.ceil)
 
 clamp = macro(function(x, m, M)
@@ -887,8 +908,14 @@ clamp = macro(function(x, m, M)
 end, glue.clamp)
 
 lerp = macro(function(x, x0, x1, y0, y1)
-	return `[double](y0) + ([double](x)-[double](x0))
-		* (([double](y1)-[double](y0)) / ([double](x1) - [double](x0)))
+	return quote
+		var x: double = x
+		var x0: double = x0
+		var x1: double = x1
+		var y0: double = y0
+		var y1: double = y1
+		in y0 + (x - x0) * ((y1 - y0) / (x1 - x0))
+	end
 end, glue.lerp)
 
 --binary search for the first insert position that keeps the array sorted.

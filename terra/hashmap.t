@@ -157,9 +157,10 @@ local map_type = memoize(function(
 	end)
 
 	function map.metamethods.__for(h, body)
+		if h:islvalue() then h = `&h end
 		if is_map then
 			return quote
-				var h = &h --workaround for terra issue #368
+				var h = h --workaround for terra issue #368
 				for i = 0, h.n_buckets do
 					if h:has_at_index(i) then
 						[ body(`&h.keys[i], `&h.vals[i]) ]
@@ -168,7 +169,7 @@ local map_type = memoize(function(
 			end
 		else
 			return quote
-				var h = &h --see terra#368
+				var h = h --workaround for terra issue #368
 				for i = 0, h.n_buckets do
 					if h:has_at_index(i) then
 						[ body(`&h.keys[i]) ]
@@ -415,12 +416,12 @@ local map_type = memoize(function(
 			return false
 		end
 
-		map.methods.has_at_index = macro(function(h, i)
-			return `i >= 0 and i < h.n_buckets and not iseither(h.flags, i)
-		end)
-		map.methods.key_at_index = macro(function(h, i) return `@deref(h, &h.keys[i]) end)
-		map.methods.val_at_index = macro(function(h, i) return `h.vals[i] end)
-		map.methods.noderef_key_at_index = macro(function(h, i) return `h.keys[i] end)
+		map.methods.has_at_index = terra(h: &map, i: size_t)
+			return i >= 0 and i < h.n_buckets and not iseither(h.flags, i)
+		end
+		map.methods.key_at_index = terra(h: &map, i: size_t) return @deref(h, &h.keys[i]) end
+		map.methods.val_at_index = terra(h: &map, i: size_t) return h.vals[i] end
+		map.methods.noderef_key_at_index = terra(h: &map, i: size_t) return h.keys[i] end
 
 		--returns -1 on eof, which is also the start index which can be omitted.
 		map.methods.next_index = macro(function(h, i)

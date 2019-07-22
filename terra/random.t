@@ -71,7 +71,7 @@ end
 
 _M.random = macro(function(n, m)
 	if n and m then
-		return `floor(random()*(m-n+1.0)) + n -- range [n, m]
+		return quote var n = n; in floor(random()*(m-n+1.0)) + n end -- range [n, m]
 	elseif n then
 		return `floor(random()*n) + 1.0 -- range [1, n]
 	else

@@ -33,7 +33,7 @@ local struct gsplit_iter{
 }
 function gsplit_iter.metamethods.__for(self, body)
 	return quote
-		var self = &self
+		var self = self --workaround for terra issue #368
 		var i = 0
 		var k = -1
 		var len = self.view.len
