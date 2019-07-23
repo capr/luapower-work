@@ -32,16 +32,14 @@ local terra test_dynarray()
 	assert(a(19) == 4321)
 	var x = -1
 	do
-		var sub = a:sub(0, 15)
-		for i,v in sub do
+		for i,v in a:sub(0, 15) do
 			@v = x
 			x = x * 2
 		end
 	end
 	x = 2000
 	do
-		var sub = a:sub(16, 19)
-		for i,v in sub do
+		for i,v in a:sub(16, 19) do
 			@v = x
 			x = x + 100
 		end
@@ -78,8 +76,7 @@ local terra test_stack()
 	for i = 0, 10000 do
 		a:push(i)
 	end
-	var bk = a:backwards()
-	for i, v in bk do
+	for i, v in a:backwards() do
 		assert(a:pop() == i)
 	end
 	assert(a.len == 0)

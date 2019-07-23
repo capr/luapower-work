@@ -190,8 +190,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			return self.view:sub(len0)
 		end)
 		arr.methods.setlen:adddefinition(terra(self: &arr, len: size_t, empty_val: T)
-			var new_elems = self:setlen(len)
-			for _,e in new_elems do
+			for _,e in self:setlen(len) do
 				@e = empty_val
 			end
 		end)

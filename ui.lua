@@ -2949,7 +2949,7 @@ for k in pairs{
 		return self.l[getter](self.l, 0)
 	end
 	layer['set_shadow_'..k] = function(self, v)
-		self.l[setter](self.l, 0, v)
+		--self.l[setter](self.l, 0, v)
 	end
 end
 
@@ -3002,7 +3002,7 @@ layer:stored_properties({
 
 function layer:after_set_text(s)
 	s = s or ''
-	self.l:set_text_utf8(s, #s)
+	--self.l:set_text_utf8(s, #s)
 	self:fire'text_changed'
 end
 

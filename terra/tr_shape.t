@@ -272,8 +272,7 @@ terra Layout:_shape()
 	self.bidi = false --is bidi reordering needed on line-wrapping or not?
 
 	var span_index = 0
-	var paragraphs = self:paragraphs()
-	for offset, len in paragraphs do
+	for offset, len in self:paragraphs() do
 		var str = self.text:at(offset)
 
 		span_index = self:_span_index_at_offset(offset, span_index)
@@ -311,8 +310,7 @@ terra Layout:_shape()
 	self.text.len = len0 + 1
 	self.text:set(len0, @('.'))
 	r.linebreaks.len = len0 + 1
-	var lang_spans = r:lang_spans(len0)
-	for offset, len, lang in lang_spans do
+	for offset, len, lang in r:lang_spans(len0) do
 		self.text:at(offset + len) --upper-boundary check
 		set_linebreaks_utf32(self.text:at(offset), len + 1,
 			ub_lang(lang), r.linebreaks:at(offset))
@@ -328,13 +326,12 @@ terra Layout:_shape()
 
 	var line_num = 0
 
-	var word_spans = self:word_spans(
+	for offset, len, span, level, script, lang in self:word_spans(
 		r.levels.view,
 		r.scripts.view,
 		r.langs.view,
 		r.linebreaks.view
-	)
-	for offset, len, span, level, script, lang in word_spans do
+	) do
 
 		--UBA codes: 0: required, 1: allowed, 2: not allowed.
 		var linebreak_code = r.linebreaks(offset + len - 1)

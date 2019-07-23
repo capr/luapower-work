@@ -25,6 +25,60 @@ local layout = r:layout()
 layout:set_font_id   (0, -1, 0)
 layout:set_font_size (0, -1, 11)
 
+--[[
+set_maxlen=1,
+set_dir=1,
+set_align_w=1,
+set_align_h=1,
+set_align_x=1,
+set_align_y=1,
+set_clip_x=1,
+set_clip_y=1,
+set_clip_w=1,
+set_clip_h=1,
+set_clip_extents=1,
+set_x=1,
+set_y=1,
+set_font_id           =1,
+set_font_size         =1,
+set_features          =1,
+set_script            =1,
+set_lang              =1,
+set_paragraph_dir     =1,
+set_line_spacing      =1,
+set_hardline_spacing  =1,
+set_paragraph_spacing =1,
+set_nowrap            =1,
+set_color             =1,
+set_opacity           =1,
+set_operator          =1,
+]]
+
+--[[
+get_visible=1,
+get_clipped=1,
+
+shape=1,
+wrap=1,
+align=1,
+clip=1,
+layout=1,
+paint=1,
+
+--get_bidi=1,
+--get_base_dir=1,
+--get_line_count=1,
+--get_line=1,
+--get_max_ax=1,
+--get_h=1,
+--get_spaced_h=1,
+--get_baseline=1,
+--get_min_x=1,
+--get_first_visible_line=1,
+--get_last_visible_line=1,
+
+]]
+
 local c = layout:cursor()
 
 local app = nw:app()

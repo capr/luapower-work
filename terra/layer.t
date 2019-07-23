@@ -1735,9 +1735,18 @@ local terra text_sync(self: &Layer)
 	self:sync_layout_children()
 end
 
+terra Layer:get_nowrap()
+	var nowrap: bool
+	if self.text.layout:get_nowrap(0, -1, &nowrap) then
+		return nowrap
+	else
+		return false
+	end
+end
+
 local terra text_sync_min_w(self: &Layer, other_axis_synced: bool)
 	var min_cw: num
-	if not other_axis_synced then --TODO: or self.nowrap
+	if not other_axis_synced or self.nowrap then
 		self:sync_text_shape()
 		min_cw = self.text.layout:min_w()
 	else
@@ -1752,7 +1761,7 @@ end
 
 local terra text_sync_min_h(self: &Layer, other_axis_synced: bool)
 	var min_ch: num
-	if other_axis_synced then --TODO: or self.nowrap
+	if other_axis_synced or self.nowrap then
 		min_ch = self.text.layout.spaced_h
 	else
 		--height-in-width-out parent layout with wrapping text not supported
@@ -2027,7 +2036,6 @@ local function gen_funcs(X, Y, W, H)
 	local ALIGN_ITEMS_Y = 'align_items_'..Y
 	local ITEM_ALIGN_X = 'item_align_'..X
 	local ITEM_ALIGN_Y = 'item_align_'..Y
-	local ALIGN_X = 'align_'..X --TODO: unused
 	local ALIGN_Y = 'align_'..Y
 
 	local items_max_x = X == 'x' and items_max_x or items_max_y
@@ -2216,7 +2224,7 @@ local function gen_funcs(X, Y, W, H)
 					elseif align == ALIGN_CENTER then
 						y = line_y + (line_h - item_h) / 2
 						h = item_h
-					elseif not isnan(line_baseline) then -- <-- TODO
+					elseif not isnan(line_baseline) then
 						y = line_baseline - layer.baseline
 					end
 				end
@@ -2224,15 +2232,9 @@ local function gen_funcs(X, Y, W, H)
 					y = snapx(y, snap_y)
 				else
 					y, h = snapxw(y, h, layer.[SNAP_Y])
-					--TODO: layer:end_value(H, h)
+					layer.[H] = h
 				end
-				--TODO: if not layer.moving then
-					--layer:end_value(Y, y)
-				--else
-					--layer.[Y] = y
-				--end
 				layer.[Y] = y
-				layer.[H] = h
 			end
 		end
 	end
@@ -2331,7 +2333,7 @@ local terra flex_sync_min_h(self: &Layer, other_axis_synced: bool)
 
 	var min_ch = iif(self.flex.flow == FLEX_FLOW_X,
 		self:flex_min_ch_x(other_axis_synced, align_baseline),
-		self:flex_min_cw_y(other_axis_synced, align_baseline))
+		self:flex_min_cw_y(other_axis_synced, false))
 
 	min_ch = max(min_ch, self.min_ch)
 	var min_h = min_ch + self.ph

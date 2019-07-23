@@ -101,6 +101,7 @@ function win:repaint()
 		layout.clip_y = 100
 		layout.clip_w = w - 200
 		layout.clip_h = h - 200
+		layout:layout()
 		layout:paint(cr)
 	end
 end

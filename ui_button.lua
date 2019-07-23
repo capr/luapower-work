@@ -14,7 +14,6 @@ button.layout = 'textbox'
 button.min_ch = 20
 button.align_x = 'start'
 button.align_y = 'center'
-button.text_align_x = 'center'
 button.padding_left = 8
 button.padding_right = 8
 button.padding_top = 2
@@ -75,6 +74,10 @@ ui:style('button :focused', {
 	shadow_color = '#666',
 })
 
+button:init_priority{
+	text=-2, key=-1, --because text can contain a key
+}
+
 --button style profiles
 
 button.profile = false
@@ -120,21 +123,28 @@ function button:press()
 end
 
 function button:override_set_text(inherited, s)
-	s = s or ''
-	s = s:gsub('&&', '\0') --TODO: hack
-	local pos, key = s:match'()&(.)'
-	s = s:gsub('&', ''):gsub('%z', '&')
-	if key then
-		self._key_from_text = key:upper()
-		self.underline_pos = pos
-		self.underline_text = key
+	if s == '' or not s then s = false end
+	if not s then
+		s = false
+		self.underline_pos = false
+		self.underline_text = false
+	else
+		s = s:gsub('&&', '\0') --TODO: hack
+		local pos, key = s:match'()&(.)'
+		s = s:gsub('&', ''):gsub('%z', '&')
+		if key then
+			self.key = key:upper()
+			self.underline_pos = pos
+			self.underline_text = key
+		end
 	end
-	inherited(self, s)
+	if not inherited(self, s) then return end
 end
 
-button:stored_property('key', function(self, key)
+button:stored_property'key'
+function button:after_set_key(key)
 	self.underline_pos = false
-end)
+end
 
 function button:mousedown()
 	if self.active_by_key then return end
@@ -189,19 +199,20 @@ end
 
 --default & cancel properties/tags
 
-button:stored_property('default', function(self, default)
+button:stored_property'default'
+function button:after_set_default(default)
 	self:settag(':default', default)
-end)
+end
 
-button:stored_property('cancel', function(self, cancel)
+button:stored_property'cancel'
+function button:after_set_cancel(cancel)
 	self:settag(':cancel', cancel)
-end)
+end
 
 function button:after_set_window(win)
 	if not win then return end
 	win:on({'keydown', self}, function(win, key)
-		local self_key = self.key or self._key_from_text
-		if self_key and self.ui:key(self_key) then
+		if self.key and self.ui:key(self.key) then
 			return self:activate_by_key(key)
 		elseif self.default and key == 'enter' then
 			return self:activate_by_key(key)
@@ -248,13 +259,14 @@ checkbox.align_y = 'center'
 --checked property
 
 checkbox.checked = false
-checkbox:stored_property('checked', function(self, checked)
+checkbox:stored_property'checked'
+function checkbox:after_set_checked(checked)
 	self.button.text = self.checked
 		and self.button.text_checked
 		or self.button.text_unchecked
 	self:settag(':checked', checked)
 	self:fire(checked and 'was_checked' or 'was_unchecked')
-end)
+end
 function checkbox:override_set_checked(inherited, checked)
 	if self:canset_checked(checked) then
 		return inherited(self, checked)
@@ -301,13 +313,14 @@ end
 
 checkbox.align = 'left'
 
-checkbox:stored_property('align', function(self, align)
+checkbox:stored_property'align'
+function checkbox:after_set_align(align)
 	if align == 'right' then
 		self.button:to_front()
 	else
 		self.button:to_back()
 	end
-end)
+end
 
 --check button
 
@@ -372,9 +385,14 @@ local clabel = ui.layer:subclass'checkbox_label'
 checkbox.label_class = clabel
 
 clabel.layout = 'textbox'
-clabel.line_spacing = .8
+clabel.line_spacing = .6
 
-function clabel:hit_test(mx, my, reason) end --cbutton does it for us
+function clabel:override_hit_test(inherited, mx, my, reason)
+	local widget, area = inherited(self, mx, my, reason)
+	if widget then
+		return self.checkbox.button, area
+	end
+end
 
 function clabel:after_sync_styles()
 	local align = self.checkbox.align
@@ -495,8 +513,6 @@ function rblist:get_checked_button()
 	return self.radios[self.value]
 end
 
-rblist.get_value = false
-rblist:stored_property'value'
 function rblist:set_value(val)
 	local rb = self.radios[val]
 	if rb then
@@ -666,6 +682,7 @@ function choicebutton:create_button(index, value)
 		index = index,
 		text = type(value) == 'table' and value.text or value,
 		choicebutton_value = type(value) == 'table' and value.value or value,
+		align_x = 'stretch',
 	}, self.button, type(value) == 'table' and value.button or nil)
 
 	function btn:after_sync()
@@ -704,13 +721,11 @@ end
 
 if not ... then require('ui_demo')(function(ui, win)
 
-	ui:inherit()
-
 	win.view.grid_wrap = 10
+	win.view.grid_flow = 'y'
 	win.view.item_align_x = 'left'
 	win.view.grid_min_lines = 2
 
-	--[[
 	local b1 = ui:button{
 		id = 'OK',
 		parent = win,
@@ -744,7 +759,6 @@ if not ... then require('ui_demo')(function(ui, win)
 
 	function b1:pressed() print'b1 pressed' end
 	function b2:pressed() print'b2 pressed' end
-	]]
 
 	local cb1 = ui:checkbox{
 		id = 'CB1',
@@ -755,7 +769,6 @@ if not ... then require('ui_demo')(function(ui, win)
 		--enabled = false,
 	}
 
-	--[[
 	local cb2 = ui:checkbox{
 		id = 'CB2',
 		parent = win,
@@ -808,7 +821,5 @@ if not ... then require('ui_demo')(function(ui, win)
 			b.id = 'CHOICE'..i
 		end
 	end
-
-	]]
 
 end) end
