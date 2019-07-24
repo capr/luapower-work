@@ -37,7 +37,10 @@ local llib = ll.layerlib(load_font, unload_font)
 local font1_id = llib:font()
 local font2_id = llib:font()
 local e = llib:layer(nil)
-local e1, e2 = e:child(0), e:child(1)
+local e1 = e:child(0)
+local e2 = e:child(1)
+local e3 = e:child(2)
+--local e4 = e:child(3)
 
 e.clip_content = ll.CLIP_PADDING
 --e.clip_content = ll.CLIP_NONE
@@ -126,7 +129,7 @@ e1:set_shadow_inset   (2, false)
 do local e = e2
 e:set_text_utf8('It\'s just text but it\'s alive!', -1)
 e:set_text_font_id  (0, -1, font2_id)
-e:set_text_font_size(0, -1, 100)
+e:set_text_font_size(0, -1, 50)
 e:set_text_color    (0, -1, 0x333333ff)
 e.text_align_y = ll.ALIGN_CENTER
 e.text_align_x = ll.ALIGN_CENTER
@@ -145,6 +148,9 @@ e:set_shadow_color   (1, 0x888888ff)
 e:set_shadow_content (1, true)
 e:set_shadow_inset   (1, false)
 end
+
+--e3.border_width = 1
+--e4.border_width = 1
 
 function win:repaint()
 
