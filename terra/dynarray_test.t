@@ -86,6 +86,35 @@ local terra test_stack()
 end
 test_stack()
 
+local terra test_wrap()
+	var len = 10
+	var buf = alloc(int8, len); fill(buf, len)
+	buf[5] = 123
+	var a = arr(buf, len)
+	assert(a(5) == 123)
+	a:free()
+
+	var s = tostring('hello')
+	print(s.len, s.elements)
+	s:free()
+end
+test_wrap()
+
+local terra test_move()
+	var a = arr(int)
+	a.len = 4
+	for i,e in a do @e = i end
+	a:move(3, 0)
+	a:move(3, 0)
+	a:move(0, 3)
+	a:move(0, 3)
+	a:move(1, 2)
+	a:move(2, 1)
+	a:move(2, 2)
+	for i,e in a do assert(@e == i) end
+end
+test_move()
+
 --[[ --TODO: stringarr type
 local S = arr(int8)
 local terra test_arrayofstrings()
@@ -102,17 +131,3 @@ local terra test_arrayofstrings()
 end
 test_arrayofstrings()
 ]]
-
-local terra test_wrap()
-	var len = 10
-	var buf = alloc(int8, len); fill(buf, len)
-	buf[5] = 123
-	var a = arr(buf, len)
-	assert(a(5) == 123)
-	a:free()
-
-	var s = tostring('hello')
-	print(s.len, s.elements)
-	s:free()
-end
-test_wrap()

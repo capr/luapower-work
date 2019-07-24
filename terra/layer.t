@@ -513,7 +513,7 @@ struct Layer (gettersandsetters) {
 	hit_test_mask: enum;
 }
 
-terra Layer.methods.free :: {&Layer} -> {}
+terra Layer.methods.free :: {&Layer} -> {} --for free_elements() even if not used.
 terra Layer.methods.init_layout :: {&Layer} -> {}
 
 terra Layer:get_parent() return self._parent end
@@ -547,8 +547,6 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 	self:init_layout()
 end
 
-terra Layer.methods.free :: {&Layer} -> {}
-
 terra Layer:free()
 	for _,e in self.children do
 		(@e)._parent = nil
@@ -567,6 +565,10 @@ terra Lib:layer(parent: &Layer)
 		parent.children:add(layer)
 	end
 	return layer
+end
+
+terra Layer:layer()
+	return self.lib:layer(self)
 end
 
 terra Layer:remove()

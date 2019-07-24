@@ -7,80 +7,79 @@ local readfile = glue.readfile
 local add = table.insert
 local pfn = function(...) print(string.format(...)) end
 
-local font_idx = {} --{font_id->font_i}
-local font_ids = {} --{font_i->font_id}
-
-local font_paths = {
-	'media/fonts/OpenSans-Regular.ttf',
-	--'media/fonts/Amiri-Regular.ttf',
-	--'media/fonts/Amiri-Bold.ttf',
-	--'media/fonts/FSEX300.ttf',
-}
-
-local font_data = {} --{font_i->data}
+s = assert(readfile'media/fonts/OpenSans-Regular.ttf')
 
 local function load_font(font_id, file_data, file_size)
-	local font_i = assert(font_idx[font_id])
-	local font_path = assert(font_paths[font_i])
-	local s = assert(readfile(font_path))
-	font_data[font_i] = s --pin it
 	file_data[0] = ffi.cast('void*', s)
 	file_size[0] = #s
 end
 
 local function unload_font(font_id, file_data, file_size)
-	local font_i = assert(font_idx[font_id])
-	assert(font_data[font_i])
-	font_data[font_i] = nil --unpin it
+	--
 end
 
 local r = C.tr_renderer_new(load_font, unload_font)
 
-for font_i = 1, #font_paths do --go through all fonts
-	local font_id = r:font()
-	font_idx[font_id] = font_i
-	font_ids[font_i] = font_id
-end
+local layout = r:layout()
+--layout:set_text_utf8()
+layout:set_font_id   (0, -1, 0)
+layout:set_font_size (0, -1, 11)
 
---r.glyph_cache_max_size = 1024*1024
---r.glyph_run_cache_max_size = 1024*1024
+--[[
+set_maxlen=1,
+set_dir=1,
+set_align_w=1,
+set_align_h=1,
+set_align_x=1,
+set_align_y=1,
+set_clip_x=1,
+set_clip_y=1,
+set_clip_w=1,
+set_clip_h=1,
+set_clip_extents=1,
+set_x=1,
+set_y=1,
+set_font_id           =1,
+set_font_size         =1,
+set_features          =1,
+set_script            =1,
+set_lang              =1,
+set_paragraph_dir     =1,
+set_line_spacing      =1,
+set_hardline_spacing  =1,
+set_paragraph_spacing =1,
+set_nowrap            =1,
+set_color             =1,
+set_opacity           =1,
+set_operator          =1,
+]]
 
-local texts = {
-	--assert(glue.readfile'terra/tr_test/sample_arabic.txt'),
-	--'Hello World\n',
-	--numbers,
-	assert(readfile'terra/tr_test/lorem_ipsum.txt'),
-	--assert(readfile'terra/tr_test/sample_wikipedia1.txt'),
-	--assert(readfile'terra/tr_test/sample_names.txt'),
-}
+--[[
+get_visible=1,
+get_clipped=1,
 
-local function make_layouts()
-	local layouts = {}
-	for font_i = 1, #font_paths do --go through all fonts
+shape=1,
+wrap=1,
+align=1,
+clip=1,
+layout=1,
+paint=1,
 
-		local font_id = font_ids[font_i]
+--get_bidi=1,
+--get_base_dir=1,
+--get_line_count=1,
+--get_line=1,
+--get_max_ax=1,
+--get_h=1,
+--get_spaced_h=1,
+--get_baseline=1,
+--get_min_x=1,
+--get_first_visible_line=1,
+--get_last_visible_line=1,
 
-		for text_i = 1, #texts do --go through all sample texts
+]]
 
-			local layout = r:layout()
-			add(layouts, layout)
-
-			local text = texts[text_i]
-			layout:set_text_utf8(text, #text)
-
-			layout.align_y = C.TR_ALIGN_TOP
-
-			layout:set_font_id   (0, -1, font_id)
-			layout:set_font_size (0, -1, 11)
-			layout:set_color     (0, -1, 0xffffffff)
-		end
-	end
-	return layouts
-end
-
-local t0 = clock()
-local layouts = make_layouts()
-pfn('%.1fms for %d layouts', (clock() - t0) * 1000, #layouts)
+local c = layout:cursor()
 
 local app = nw:app()
 
@@ -92,27 +91,24 @@ function win:repaint()
 	local bmp = win:bitmap()
 	local cr = bmp:cairo()
 	local w, h = win:client_size()
-	for i,layout in ipairs(layouts) do
-		layout.align_w = w - 20
-		layout.align_h = h - 20
-		layout.x = 10
-		layout.y = 10
-		layout.clip_x = 100
-		layout.clip_y = 100
-		layout.clip_w = w - 200
-		layout.clip_h = h - 200
-		layout:layout()
-		layout:paint(cr)
-	end
+	layout.align_w = w - 20
+	layout.align_h = h - 20
+	layout.x = 10
+	layout.y = 10
+	layout.clip_x = 100
+	layout.clip_y = 100
+	layout.clip_w = w - 200
+	layout.clip_h = h - 200
+	layout:layout()
+	layout:clip()
+	layout:paint(cr)
+	c:paint(cr)
 end
 
 app:run()
 
-print('layouts: ', #layouts)
-for i,layout in ipairs(layouts) do
-	layout:release()
-end
-layouts = nil
+--layout:paint(cr)
+layout:release()
 
 pfn('Glyph cache size     : %7.2fmB', r.glyph_cache_size / 1024.0 / 1024.0)
 pfn('Glyph cache count    : %7d', r.glyph_cache_count)

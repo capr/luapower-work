@@ -112,22 +112,31 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 
 	addmethods(arr, function()
 
-		own_elements = own_elements and cancall(T, 'free')
+		local has_free = cancall(T, 'free')
+		own_elements = own_elements and has_free
 
 		if context_t ~= tuple() then
 			terra arr:init(context: context_t)
 				@self = [arr.empty]
 				self.context = context
 			end
-			terra arr:free_element(i: size_t)
-				optcall(self.elements[i], 'free', 1, self.context)
+			if has_free then
+				terra arr:free_element(i: size_t)
+					call(self.elements[i], 'free', 1, self.context)
+				end
+			else
+				arr.methods.free_element = noop
 			end
 		else
 			terra arr:init()
 				@self = [arr.empty]
 			end
-			terra arr:free_element(i: size_t)
-				optcall(self.elements[i], 'free')
+			if has_free then
+				terra arr:free_element(i: size_t)
+					call(self.elements[i], 'free')
+				end
+			else
+				arr.methods.free_element = noop
 			end
 		end
 
@@ -380,9 +389,9 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 					copy(self.elements + i0, self.elements + i0 + 1, move_n)
 					self.elements[i1] = e0
 				else --move in-between elements to the right
-					var e1 = self.elements[i1]
-					copy(self.elements + i0 + 1, self.elements + i0, move_n)
-					self.elements[i0] = e1
+					var e0 = self.elements[i0]
+					copy(self.elements + i1 + 1, self.elements + i1, move_n)
+					self.elements[i1] = e0
 				end
 			end
 		end

@@ -1,9 +1,21 @@
+--[[
 
---Freelist for Terra based on a dynamic array.
---Written by Cosmin Apreutesei. Public Domain.
+	Freelist for Terra based on a dynamic array.
+	Written by Cosmin Apreutesei. Public Domain.
 
---Element pointers are not stable between allocations, but their indices are,
---which is why alloc() also return the element id (i.e. index).
+	Element pointers are not stable between allocations, but their indices are,
+	which is why alloc() also return the element id (i.e. index).
+
+	local fl = arrayfreelist(T, [size_t], [context_t])
+
+	fl:init()
+	fl:free()
+
+	fl:alloc() -> e, id
+	fl:new(...) -> e, id
+	fl:release()
+
+]]
 
 setfenv(1, require'terra/low')
 
@@ -24,6 +36,15 @@ local arrayfreelist_type = memoize(function(T, size_t, context_t)
 	}
 
 	newcast(freelist, niltype, freelist.empty)
+
+	freelist.methods.new = macro(function(self, ...)
+		local args = {...}
+		return quote
+			var e, id = self:alloc()
+			e:init([args])
+			in e, id
+		end
+	end)
 
 	addmethods(freelist, function()
 		if context_t ~= tuple() then
