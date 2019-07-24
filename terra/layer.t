@@ -442,11 +442,13 @@ CLIP_NONE       = 0
 CLIP_PADDING    = 1
 CLIP_BACKGROUND = 2
 
+terra Layer.methods.free :: {&Layer} -> {}
+
 struct Layer (gettersandsetters) {
 
 	lib: &Lib;
 	_parent: &Layer;
-	children: arr{T = &Layer, own_elements = false};
+	children: arr{T = &Layer, own_elements = true};
 
 	x: num;
 	y: num;
@@ -513,10 +515,7 @@ struct Layer (gettersandsetters) {
 	hit_test_mask: enum;
 }
 
-terra Layer.methods.free :: {&Layer} -> {} --for free_elements() even if not used.
 terra Layer.methods.init_layout :: {&Layer} -> {}
-
-terra Layer:get_parent() return self._parent end
 
 terra Layer:init(lib: &Lib, parent: &Layer)
 	fill(self)
@@ -548,46 +547,64 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 end
 
 terra Layer:free()
-	for _,e in self.children do
-		(@e)._parent = nil
-	end
 	self.children:free()
 	self.border:free()
 	self.background:free()
 	self.shadows:free()
 	self.text:free()
 	self.grid:free()
+	dealloc(self)
 end
 
-terra Lib:layer(parent: &Layer)
-	var layer = new(Layer, self, parent)
-	if parent ~= nil then
-		parent.children:add(layer)
-	end
-	return layer
+terra Lib:layer()
+	return new(Layer, self, nil)
 end
 
-terra Layer:layer()
-	return self.lib:layer(self)
-end
+terra Layer:get_parent() return self._parent end
 
-terra Layer:remove()
-	if self.parent ~= nil then
-		self.parent.children:remove(self.parent.children:find(self))
-	end
-	self._parent = nil
+terra Layer:get_index()
+	return iif(self.parent ~= nil, self.parent.children:find(self), 0)
 end
 
 terra Layer:release()
-	self:remove()
-	release(self)
+	if self.parent ~= nil then
+		self.parent.children:remove(self.index)
+	else
+		self:free()
+	end
 end
 
---layer invalidation fw. decl.
+terra Layer:move(parent: &Layer, i: int)
+	if parent == self.parent then
+		if parent ~= nil then
+			i = parent.children:clamp(i)
+			parent.children:move(self.index, i)
+		end
+	else
+		if self.parent ~= nil then
+			self.parent.children:leak(self.index)
+		end
+		if parent ~= nil then
+			i = clamp(i, 0, parent.children.len)
+			parent.children:insert(i, self)
+			self._parent = parent
+		end
+	end
+end
 
-terra Layer.methods.size_changed :: {&Layer} -> {}
+terra Layer:set_parent(parent: &Layer)
+	self:move(parent, maxint)
+end
 
---layer hierarchy ------------------------------------------------------------
+terra Layer:set_index(i: int)
+	self:move(self.parent, i)
+end
+
+terra Layer:layer()
+	var e = self.lib:layer()
+	e.parent = self
+	return e
+end
 
 Layer.metamethods.__for = function(self, body)
 	return quote
@@ -598,38 +615,6 @@ Layer.metamethods.__for = function(self, body)
 	end
 end
 
-Layer.methods.child = macro(function(self, i)
-	return `self.children(i)
-end)
-
-terra Layer:get_index()
-	return iif(self.parent ~= nil, self.parent.children:find(self), 0)
-end
-
-terra Layer:move(parent: &Layer, i: int)
-	if parent == self.parent then
-		if parent ~= nil then
-			i = clamp(i, 0, parent.children.len-1)
-			parent.children:move(self.index, i)
-		end
-	else
-		self:remove()
-		if parent ~= nil then
-			i = clamp(i, 0, parent.children.len)
-			parent.children:insert(i, self)
-			self._parent = parent
-		end
-	end
-end
-
-terra Layer:set_index(i: int)
-	self:move(self.parent, i)
-end
-
-terra Layer:set_parent(parent: &Layer)
-	self:move(parent, maxint)
-end
-
 terra Layer:get_child_count()
 	return self.children.len
 end
@@ -637,7 +622,7 @@ end
 terra Layer:set_child_count(n: int)
 	var new_elements = self.children:setlen(n)
 	for _,e in new_elements do
-		@e = new(Layer, self.lib, self)
+		@e = self:layer()
 	end
 end
 
@@ -645,6 +630,8 @@ terra Layer:child(i: int)
 	self.child_count = max(self.child_count, i+1)
 	return self.children(i)
 end
+
+terra Layer.methods.size_changed :: {&Layer} -> {}
 
 --layer geometry -------------------------------------------------------------
 

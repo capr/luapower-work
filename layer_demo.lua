@@ -40,7 +40,7 @@ local e = llib:layer(nil)
 local e1 = e:child(0)
 local e2 = e:child(1)
 local e3 = e:child(2)
---local e4 = e:child(3)
+local e4 = e:child(3)
 
 e.clip_content = ll.CLIP_PADDING
 --e.clip_content = ll.CLIP_NONE
@@ -181,6 +181,8 @@ app:run()
 e:free()
 e1:free()
 e2:free()
+e3:free()
+e4:free()
 
 llib:dump_stats()
 llib:free()

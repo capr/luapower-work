@@ -51,9 +51,9 @@
 	a:insert(i,&t,n)                            insert buffer at i
 	a:insert(i,&v)                              insert arrayview at i
 	a:insert(i,&a)                              insert dynarray at i
-	a:remove() -> i                             free & remove top element
-	a:remove(i[,n]) -> n                        free & remove n elements starting at i
-	a:remove(&t) -> i                           free & remove element at address
+	a:remove|leak() -> i                        (free and) remove top element
+	a:remove|leak(i[,n]) -> n                   (free and) remove n elements starting at i
+	a:remove|leak(&t) -> i                      (free and) remove element at address
 
 	a:copy() -> &a                              copy to new array
 	a:move(i0,i1)                               move element to new position
@@ -122,7 +122,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			end
 			if has_free then
 				terra arr:free_element(i: size_t)
-					call(self.elements[i], 'free', 1, self.context)
+					call(@self:at(i), 'free', 1, self.context)
 				end
 			else
 				arr.methods.free_element = noop
@@ -133,7 +133,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			end
 			if has_free then
 				terra arr:free_element(i: size_t)
-					call(self.elements[i], 'free')
+					call(@self:at(i), 'free')
 				end
 			else
 				arr.methods.free_element = noop
@@ -339,6 +339,28 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			var i = self.len; self:insert(i, a); return i
 		end)
 
+		arr.methods.leak = overload'leak'
+		arr.methods.leak:adddefinition(terra(self: &arr, i: size_t, n: size_t)
+			assert(i >= 0)
+			if n <= 0 then return 0 end
+			var move_n = self.len - i - n --how many elements must be moved
+			if move_n > 0 then
+				copy(self:at(i), self:at(i + n), move_n)
+			end
+			var n = min(n, self.len - i)
+			self.view.len = self.len - n
+			return n
+		end)
+		arr.methods.leak:adddefinition(terra(self: &arr, i: size_t)
+			return self:leak(i, 1)
+		end)
+		arr.methods.leak:adddefinition(terra(self: &arr)
+			var i = self.len-1; self:leak(i, 1); return i
+		end)
+		arr.methods.leak:adddefinition(terra(self: &arr, e: &T)
+			var i = self.view:index(e); self:leak(i); return i
+		end)
+
 		arr.methods.remove = overload'remove'
 		arr.methods.remove:adddefinition(terra(self: &arr, i: size_t, n: size_t)
 			assert(i >= 0)
@@ -348,13 +370,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 					self:free_element(i)
 				end
 			end
-			var move_n = self.len - i - n --how many elements must be moved
-			if move_n > 0 then
-				copy(self.elements + i, self.elements + i + n, move_n)
-			end
-			var n = min(n, self.len - i)
-			self.view.len = self.len - n
-			return n
+			return self:leak(i, n)
 		end)
 		arr.methods.remove:adddefinition(terra(self: &arr, i: size_t)
 			return self:remove(i, 1)
@@ -450,6 +466,10 @@ local arr_type = function(T, size_t)
 	size_t = size_t or int
 	context_t = context_t or tuple()
 	cmp = cmp or getmethod(T, '__cmp')
+	if own_elements then
+		assert(cancall(T, 'free'),
+			'own_elements specified but T has no free method')
+	end
 	own_elements = own_elements ~= false
 	return arr_type(T, size_t, context_t, cmp, own_elements)
 end

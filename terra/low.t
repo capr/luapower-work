@@ -1243,7 +1243,9 @@ end)
 
 dealloc = macro(function(p, len, label)
 	label = label or ''
-	return quote p = realloc(p, 0, label) end
+	return p:islvalue()
+		and quote p = realloc(p, 0, label) end
+		or `realloc(p, 0, label)
 end)
 
 new = macro(function(T, ...)

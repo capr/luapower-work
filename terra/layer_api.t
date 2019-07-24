@@ -488,6 +488,7 @@ function build()
 		get_child_count=1,
 		set_child_count=1,
 		child=1,
+		layer=1,
 		move=1,
 
 		--size and position

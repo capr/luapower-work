@@ -1,6 +1,7 @@
 
 local layer = require'layer'
 local cairo = require'cairo'
+memtotal = layer.memtotal
 
 local fonts = {
 	assert(glue.readfile'media/fonts/OpenSans-Regular.ttf');
@@ -18,15 +19,33 @@ local function unload_font(font_id, file_data_buf, file_size_buf)
 	--nothing
 end
 
-lib = layer.layerlib(load_font, unload_font)
-opensans = lib:font()
-amiri    = lib:font()
-ionicons = lib:font()
-
-function test_hierarchy()
-	local e = lib:layer(nil)
-	local e1, e2 = e:child(0), e:child(1)
+local function newlib()
+	lib = layer.layerlib(load_font, unload_font)
+	opensans = lib:font()
+	amiri    = lib:font()
+	ionicons = lib:font()
 end
+newlib()
+
+
+function test_free_children()
+	local e1 = lib:layer()
+	e1:layer():layer():layer()
+	e1:layer():layer():layer()
+	e1:free()
+	lib:free()
+	assert(memtotal() == 0)
+	newlib()
+end
+
+test_free_children()
+
+function test_()
+
+end
+
+--layer.memreport()
+
 
 
 --[==[
