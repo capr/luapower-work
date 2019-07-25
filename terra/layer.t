@@ -589,6 +589,7 @@ terra Layer:move(parent: &Layer, i: int)
 			parent.children:insert(i, self)
 			self._parent = parent
 		end
+		self._parent = parent
 	end
 end
 
@@ -622,13 +623,13 @@ end
 terra Layer:set_child_count(n: int)
 	var new_elements = self.children:setlen(n)
 	for _,e in new_elements do
-		@e = self:layer()
+		@e = self.lib:layer()
+		(@e)._parent = self
 	end
 end
 
 terra Layer:child(i: int)
-	self.child_count = max(self.child_count, i+1)
-	return self.children(i)
+	return self.children(i, nil)
 end
 
 terra Layer.methods.size_changed :: {&Layer} -> {}

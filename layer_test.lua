@@ -2,6 +2,7 @@
 local layer = require'layer'
 local cairo = require'cairo'
 memtotal = layer.memtotal
+local maxint = 2^31-1
 
 local fonts = {
 	assert(glue.readfile'media/fonts/OpenSans-Regular.ttf');
@@ -38,11 +39,70 @@ function test_free_children()
 	newlib()
 end
 
-test_free_children()
+function test_set_parent()
+	local e1 = lib:layer()
+	local e2 = e1:layer()
+	assert(e2.parent == e1)
 
-function test_()
+	--remove parent
+	e2.parent = nil
+	assert(e2.parent == nil)
+	assert(e1.child_count == 0)
+	e2:free()
 
+	--move to parent
+	local e2 = lib:layer()
+	e2.parent = e1
+	assert(e2.parent == e1)
+	assert(e1.child_count == 1)
+	assert(e1:child(0) == e2)
+
+	--move to front, clamped
+	local e3 = e1:layer()
+	assert(e1:child(1) == e3)
+	e3:move(e1, -maxint)
+	assert(e1:child(0) == e3)
+	assert(e1:child(1) == e2)
+	assert(e1.child_count == 2)
+
+	--move to back, clamped
+	e3:move(e1, maxint)
+	assert(e1:child(0) == e2)
+	assert(e1:child(1) == e3)
+	assert(e1.child_count == 2)
+
+	--set index on root layer
+	e1.index = 1234 --no effect
+	assert(e1.index == 0)
+
+	--move by setting index
+	e2.index = 5
+	assert(e2.index == 1)
+	assert(e1.index == 0)
+
+	--remove children by setting child_count
+	e1.child_count = 0
+	assert(e1.child_count == 0)
+
+	--create children by setting child count
+	e1.child_count = 2
+	assert(e1.child_count == 2)
+	assert(e1:child(0).parent == e1)
+	assert(e1:child(1).parent == e1)
+
+	--out-of-range child is nil
+	assert(e1:child(-1) == nil)
+	assert(e1:child(2) == nil)
+	assert(e1.child_count == 2)
+
+	e1:free()
+	lib:free()
+	assert(memtotal() == 0)
+	newlib()
 end
+
+test_free_children()
+test_set_parent()
 
 --layer.memreport()
 
