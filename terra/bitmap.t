@@ -144,7 +144,7 @@ terra Bitmap:paint(dst: &Bitmap, dstx: int, dsty: int)
 	--try to copy the bitmap whole
 	if src.format == dst.format and src.stride == dst.stride then
 		assert(dst.size == src.size)
-		if src.pixels ~ dst.pixels then
+		if src.pixels ~= dst.pixels then
 			copy(dst.pixels, src.pixels, src.size)
 		end
 		return

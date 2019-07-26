@@ -2516,6 +2516,8 @@ terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)
 end
 
 terra BoolBitmap:clear()
+	self.rows = 0
+	self.cols = 0
 	self.bits.len = 0
 end
 
