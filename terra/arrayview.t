@@ -26,7 +26,8 @@
 	v:range(i,j) -> start,len                   v:range(5, 5) -> 5, 0
 	v:sub(i,j) -> v                             create a sub-view
 	v:copy(&t) -> &t                            copy to buffer
-	v:copy(&v) -> &v                            copy to view
+	v:copy(v) -> v                              copy to view
+	v:fill(t)                                   set all elements to value
 
 	v1 == v2                                    equality test
 	v:__cmp(&v) -> -1,0,1                       comparison function
@@ -105,7 +106,7 @@ local function view_type(T, size_t, cmp)
 		end
 	end
 
-	local struct backwards_iter { view: &view; }
+	local struct backwards_iter { view: view; }
 	backwards_iter.metamethods.__for = function(self, body)
 		return quote
 			var self = self --workaround for terra issue #368
@@ -156,7 +157,7 @@ local function view_type(T, size_t, cmp)
 
 		--iteration
 
-		terra view:backwards() return backwards_iter {self} end
+		terra view:backwards() return backwards_iter {@self} end
 
 		--sub-views
 
@@ -186,10 +187,16 @@ local function view_type(T, size_t, cmp)
 			copy(dst, self.elements, self.len)
 			return dst
 		end)
-		view.methods.copy:adddefinition(terra(self: &view, dst: &view)
+		view.methods.copy:adddefinition(terra(self: &view, dst: view)
 			copy(dst.elements, self.elements, min(dst.len, self.len))
 			return dst
 		end)
+
+		terra view:fill(v: T)
+			for i,e in self do
+				@e = v
+			end
+		end
 
 		--comparing views for inequality
 

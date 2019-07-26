@@ -143,8 +143,8 @@ terra Bitmap:paint(dst: &Bitmap, dstx: int, dsty: int)
 
 	--try to copy the bitmap whole
 	if src.format == dst.format and src.stride == dst.stride then
-		if src.pixels ~= dst.pixels then
-			assert(dst.size >= src.size)
+		assert(dst.size == src.size)
+		if src.pixels ~ dst.pixels then
 			copy(dst.pixels, src.pixels, src.size)
 		end
 		return
@@ -169,6 +169,10 @@ terra Bitmap:copy()
 		self:paint(&dst, 0, 0)
 	end
 	return dst
+end
+
+terra Bitmap:resize(w: int, h: int, stride: int)
+
 end
 
 BITMAP_COPY = 0

@@ -163,7 +163,7 @@ terra Span:free()
 end
 
 terra Span:copy()
-	var s = [Span.empty]
+	var s = @self
 	s.features = self.features:copy()
 	return s
 end

@@ -2474,16 +2474,16 @@ terra BoolBitmap:get(row: int, col: int)
 end
 
 terra BoolBitmap:widen(min_rows: int, min_cols: int)
-	var rows = nextpow2(self.rows)
-	var cols = nextpow2(self.cols)
+	var rows = max(min_rows, self.rows)
+	var cols = max(min_cols, self.cols)
 	if rows > self.rows or cols > self.cols then
-		self.bits.len = rows * cols
+		self.bits:setlen(rows * cols, false)
 		if cols > self.cols then --move the rows down to widen them
 			for row = self.rows-1, -1, -1 do
-				copy(
-					self.bits:at(row * cols),
-					self.bits:at(row * self.cols),
-					self.cols)
+				var dst = self.bits:sub(row * cols, (row + 1) * cols)
+				var src = self.bits:sub(row * self.cols, (row + 1) * self.cols)
+				src:copy(dst)
+				self.bits:sub(row * cols + self.cols, (row + 1) * cols):fill(false)
 			end
 		end
 		self.rows = rows
@@ -2494,7 +2494,6 @@ end
 terra BoolBitmap:mark(row1: int, col1: int, row_span: int, col_span: int, val: bool)
 	var row2 = row1 + row_span
 	var col2 = col1 + col_span
-	print(row1, col1, row_span, col_span, val)
 	self:widen(row2-1, col2-1)
 	for row = row1, row2 do
 		for col = col1, col2 do
@@ -2508,7 +2507,6 @@ terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)
 	var col2 = col1 + col_span
 	for row = row1, row2 do
 		for col = col1, col2 do
-			print(row, col, self:get(row, col), '', self.bits.len, self.rows, self.cols)
 			if self:get(row, col) then
 				return true
 			end

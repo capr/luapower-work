@@ -40,7 +40,7 @@
 	a:push|add() -> &t                          a:insert(self.len)
 	a:push|add(t) -> i                          a:insert(self.len, t)
 	a:push|add(&t,n) -> i                       a:insert(self.len, &t, n)
-	a:push|add(&v) -> i                         a:insert(self.len, &v)
+	a:push|add(v) -> i                          a:insert(self.len, &v)
 	a:push|add(&a) -> i                         a:insert(self.len, &a)
 	a:pop() -> t                                remove top value and return a copy
 
@@ -49,7 +49,7 @@
 	a:insert(i) -> &t                           make room at i and return address
 	a:insert(i,t)                               insert element at i
 	a:insert(i,&t,n)                            insert buffer at i
-	a:insert(i,&v)                              insert arrayview at i
+	a:insert(i,v)                               insert arrayview at i
 	a:insert(i,&a)                              insert dynarray at i
 	a:remove|leak() -> i                        (free and) remove top element
 	a:remove|leak(i[,n]) -> n                   (free and) remove n elements starting at i
@@ -228,7 +228,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			if i >= self.len then --fill the gap
 				var j = self.len
 				self.len = i+1
-				for j = j, i do
+				for j = j, self.len do
 					self.elements[j] = empty_val
 				end
 				var e = &self.elements[i]
@@ -320,7 +320,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			self:insertn(i, n)
 			copy(self.elements + i, p, n)
 		end)
-		arr.methods.insert:adddefinition(terra(self: &arr, i: size_t, v: &view)
+		arr.methods.insert:adddefinition(terra(self: &arr, i: size_t, v: view)
 			self:insertn(i, v.len)
 			v:copy(self.elements + i)
 		end)
@@ -332,7 +332,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		arr.methods.add:adddefinition(terra(self: &arr, p: &T, n: size_t)
 			var i = self.len; self:insert(i, p, n); return i
 		end)
-		arr.methods.add:adddefinition(terra(self: &arr, v: &view)
+		arr.methods.add:adddefinition(terra(self: &arr, v: view)
 			var i = self.len; self:insert(i, v); return i
 		end)
 		arr.methods.add:adddefinition(terra(self: &arr, a: &arr)
@@ -386,12 +386,12 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		arr.methods.copy:adddefinition(terra(self: &arr, dst: &T)
 			return self.view:copy(dst)
 		end)
-		arr.methods.copy:adddefinition(terra(self: &arr, dst: &view)
+		arr.methods.copy:adddefinition(terra(self: &arr, dst: view)
 			return self.view:copy(dst)
 		end)
 		arr.methods.copy:adddefinition(terra(self: &arr)
 			var a = arr(nil)
-			a:add(&self.view)
+			a:add(self.view)
 			return a
 		end)
 
