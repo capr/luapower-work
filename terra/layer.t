@@ -450,10 +450,10 @@ struct Layer (gettersandsetters) {
 	_parent: &Layer;
 	children: arr{T = &Layer, own_elements = true};
 
-	x: num;
-	y: num;
-	w: num;
-	h: num;
+	_x: num;
+	_y: num;
+	_w: num;
+	_h: num;
 
 	visible      : bool;
 	operator     : enum;
@@ -477,6 +477,16 @@ struct Layer (gettersandsetters) {
 	--layouting -------------------
 
 	layout_solver: &LayoutSolver;
+
+	final_x: num;
+	final_y: num;
+	final_w: num;
+	final_h: num;
+
+	--setting this flag makes layouting set final_x,y,w,h instead of x,y,w,h
+	--which allows the client to animate x,y,w,h towards final_x,y,w,h after
+	--layouting and before redrawing.
+	in_transition: bool;
 
 	--flex & grid layout
 	align_items_x: enum;  --ALIGN_*
@@ -635,6 +645,33 @@ end
 terra Layer.methods.size_changed :: {&Layer} -> {}
 
 --layer geometry -------------------------------------------------------------
+
+terra Layer:get_x() return self._x end
+terra Layer:get_y() return self._y end
+terra Layer:get_w() return self._w end
+terra Layer:get_h() return self._h end
+
+terra Layer:set_x(x: num) if self.in_transition then self.final_x = x else self._x = x end end
+terra Layer:set_y(y: num) if self.in_transition then self.final_y = y else self._y = y end end
+
+terra Layer:set_w(w: num)
+	w = max(w, 0)
+	if self.in_transition then
+		self.final_w = w
+	elseif self.w ~= w then
+		self._w = w
+		self:size_changed()
+	end
+end
+terra Layer:set_h(h: num)
+	h = max(h, 0)
+	if self.in_transition then
+		self.final_h = h
+	elseif self.h ~= h then
+		self._h = h
+		self:size_changed()
+	end
+end
 
 terra Layer:get_px() return self.padding_left end
 terra Layer:get_py() return self.padding_top end
@@ -2437,10 +2474,8 @@ terra BoolBitmap:get(row: int, col: int)
 end
 
 terra BoolBitmap:widen(min_rows: int, min_cols: int)
-	var rows = max(1, self.rows)
-	var cols = max(1, self.cols)
-	while rows < min_rows do rows = rows * 2 end
-	while cols < min_cols do cols = cols * 2 end
+	var rows = nextpow2(self.rows)
+	var cols = nextpow2(self.cols)
 	if rows > self.rows or cols > self.cols then
 		self.bits.len = rows * cols
 		if cols > self.cols then --move the rows down to widen them
@@ -2459,6 +2494,7 @@ end
 terra BoolBitmap:mark(row1: int, col1: int, row_span: int, col_span: int, val: bool)
 	var row2 = row1 + row_span
 	var col2 = col1 + col_span
+	print(row1, col1, row_span, col_span, val)
 	self:widen(row2-1, col2-1)
 	for row = row1, row2 do
 		for col = col1, col2 do
@@ -2467,11 +2503,12 @@ terra BoolBitmap:mark(row1: int, col1: int, row_span: int, col_span: int, val: b
 	end
 end
 
-terra BoolBitmap:check(row1: int, col1: int, row_span: int, col_span: int)
+terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)
 	var row2 = row1 + row_span
 	var col2 = col1 + col_span
 	for row = row1, row2 do
 		for col = col1, col2 do
+			print(row, col, self:get(row, col), '', self.bits.len, self.rows, self.cols)
 			if self:get(row, col) then
 				return true
 			end
@@ -2481,7 +2518,7 @@ terra BoolBitmap:check(row1: int, col1: int, row_span: int, col_span: int)
 end
 
 terra BoolBitmap:clear()
-	self:mark(1, 1, self.rows, self.cols, false)
+	self.bits.len = 0
 end
 
 --grid layout ----------------------------------------------------------------
@@ -2527,7 +2564,6 @@ terra Layer:sync_layout_grid_autopos()
 	var flip_rows = (flow and GRID_FLOW_B) ~= 0
 
 	var occupied = &self.lib.grid_occupied
-	occupied:clear()
 
 	var grid_wrap = max(1, self.grid.wrap)
 	var min_lines = max(1, self.grid.min_lines)
@@ -2631,7 +2667,7 @@ terra Layer:sync_layout_grid_autopos()
 						row = 1
 						col = col + 1
 					end
-					if occupied:check(row, col, row_span, col_span) then
+					if occupied:hasmarks(row, col, row_span, col_span) then
 						--advance cursor by one cell.
 						if col_first then
 							col = col + 1
@@ -2685,7 +2721,7 @@ terra Layer:sync_layout_grid_autopos()
 		end
 	end
 
-	occupied:free()
+	occupied:clear()
 
 	self.grid._flip_rows = flip_rows
 	self.grid._flip_cols = flip_cols

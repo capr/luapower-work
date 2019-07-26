@@ -803,7 +803,7 @@ nan    = 0/0
 maxint = int:max()
 minint = int:min()
 
---find the smallest n for which x <= 2^n.
+--find the next power-of-two number that is >= x.
 nextpow2 = macro(function(x)
 	local T = x:gettype()
 	if T:isintegral() then

@@ -45,6 +45,10 @@ end
 test_print()
 
 local terra test_nextpow2()
+	assert(nextpow2(0) == 0)
+	assert(nextpow2(1) == 1)
+	assert(nextpow2(2) == 2)
+	assert(nextpow2(5) == 8)
 	assert(nextpow2([uint64]([int32:max()]/2+2)) - [int32:max()] == 1)
 	assert(nextpow2([uint64]([int64:max()]/2+2)) - [int64:max()] == 1)
 end

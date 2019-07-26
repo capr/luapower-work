@@ -11,27 +11,13 @@ terra Lib:release()
 	release(self)
 end
 
-terra Layer:get_x() return self.x end
-terra Layer:get_y() return self.y end
-terra Layer:get_w() return self.w end
-terra Layer:get_h() return self.h end
+terra Layer:get_in_transition() return self.in_transition end
+terra Layer:set_in_transition(v: bool) self.in_transition = v end
 
-terra Layer:set_x(v: num) self.x = v end
-terra Layer:set_y(v: num) self.y = v end
-terra Layer:set_w(v: num)
-	v = max(v, 0)
-	if self.w ~= v then
-		self.w = v
-		self:size_changed()
-	end
-end
-terra Layer:set_h(v: num)
-	v = max(v, 0)
-	if self.h ~= v then
-		self.h = v
-		self:size_changed()
-	end
-end
+terra Layer:get_final_x() return self.final_x end
+terra Layer:get_final_y() return self.final_y end
+terra Layer:get_final_w() return self.final_w end
+terra Layer:get_final_h() return self.final_h end
 
 terra Layer:get_padding_left  () return self.padding_left   end
 terra Layer:get_padding_right () return self.padding_right  end
@@ -630,6 +616,9 @@ function build()
 		get_border_dash_offset=1,
 		set_border_dash_offset=1,
 
+		get_border_offset=1,
+		set_border_offset=1,
+
 		set_border_line_to=1,
 
 		--backgrounds
@@ -806,6 +795,14 @@ function build()
 		--
 
 		--layouts
+
+		get_in_transition=1,
+		set_in_transition=1,
+
+		get_final_x=1,
+		get_final_y=1,
+		get_final_w=1,
+		get_final_h=1,
 
 		set_layout_type=1,
 		get_layout_type=1,
