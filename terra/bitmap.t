@@ -171,10 +171,6 @@ terra Bitmap:copy()
 	return dst
 end
 
-terra Bitmap:resize(w: int, h: int, stride: int)
-
-end
-
 BITMAP_COPY = 0
 BITMAP_OVER = 1
 
