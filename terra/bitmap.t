@@ -151,6 +151,7 @@ terra Bitmap:paint(dst: &Bitmap, dstx: int, dsty: int)
 	end
 
 	--check that dest. pixels would not be written ahead of source pixels
+	--TODO: not sure this is the correct check!
 	assert(src.pixels ~= dst.pixels or dst.stride <= src.stride)
 
 	--copy the bitmap row-by-row

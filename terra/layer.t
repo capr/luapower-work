@@ -392,8 +392,8 @@ struct GridLayoutCol {
 	inlayout: bool;
 }
 
-terra GridLayoutCol:setxw(x: num, w: num, moving: bool)
-	self.x, self.w = snapxw(x, w, self.snap_x)
+terra GridLayoutCol:setxw(x: num, w: num, allow_snap: bool)
+	self.x, self.w = x, w
 end
 
 struct GridLayout {
@@ -699,7 +699,7 @@ terra Layer:snapyh(y: num, h: num) return snapxw(y, h, self.snap_y) end
 
 terra Layer:rel_matrix() --box matrix relative to parent's content space
 	var m: matrix; m:init()
-	m:translate(self:snapx(self.x), self:snapy(self.y))
+	m:translate(self.x, self.y)
 	self.transform:apply(&m)
 	return m
 end
@@ -1828,16 +1828,16 @@ local text_layout = constant(`LayoutSolver {
 
 --stuff common to flex & grid layouts ----------------------------------------
 
-terra Layer:setxw(x: num, w: num, moving: bool)
-	self.x, self.w = self:snapxw(x, w)
+terra Layer:setxw(x: num, w: num, allow_snap: bool)
+	self.x, self.w = snapxw(x, w, allow_snap and self.snap_x)
 end
 
-terra Layer:setyh(y: num, h: num, moving: bool)
-	self.y, self.h = self:snapyh(y, h)
+terra Layer:setyh(y: num, h: num, allow_snap: bool)
+	self.y, self.h = snapxw(y, h, allow_snap and self.snap_y)
 end
 
 terra Layer:get_inlayout()
-	return self.visible --TODO: and (not self.dragging or self.moving)
+	return self.visible
 end
 
 local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
@@ -1870,8 +1870,7 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 	--stretch a line of items on the main axis.
 	local terra stretch_items_main_axis(
 		self: &items_T, i: int, j: int, total_w: num, item_align_x: enum,
-		moving: bool
-		--, set_item_x, set_moving_item_x
+		allow_snap: bool
 	)
 		--compute the fraction representing the total width.
 		var total_fr: num = 0.0
@@ -1898,28 +1897,9 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 			end
 		end
 
-		--compute the stretched width of the moving layer to make room for it.
-		--[[
-		var moving_layer, moving_x, moving_w, moving_sw
-		if moving then
-			var layer = self:[GET_ITEM](j)
-			assert(layer.moving)
-			var align = layer.[ALIGN_X] or item_align_x
-			var sw, w = stretched_item_widths(
-				layer, total_w, total_fr, total_overflow_w, total_free_w, align
-			)
-
-			moving_layer = layer
-			moving_x = layer[X]
-			moving_w = w
-			moving_sw = sw
-			j = j-1
-		end
-		]]
-
 		--distribute the overflow to children which have free space to
-		--take it. each child shrinks to take in a part of the overflow
-		--proportional to its percent of free space.
+		--take it. each child shrinks to take in the percent of the overflow
+		--equal to the child's percent of free space.
 		var sx: num = 0.0 --stretched x-coord
 		for i = i, j do
 			var item = self:[GET_ITEM](i)
@@ -1939,18 +1919,7 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 					x = sx + (sw - w) / 2
 				end
 
-				--[[
-				if moving_x and moving_x < x + w / 2 then
-					set_moving_item_x(moving_layer, i, x, moving_w)
-
-					--reserve space for the moving layer.
-					sx = sx + moving_sw
-					x = x + moving_sw
-					moving_x = false
-				end
-				]]
-
-				item:[SETXW](x, w, moving)
+				item:[SETXW](x, w, allow_snap)
 				sx = sx + sw
 			end
 		end
@@ -1959,10 +1928,11 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 	return stretch_items_main_axis
 end
 
---start offset and inter-item spacing for aligning items on the main-axis.
-local terra align_metrics(align: enum, container_w: num, items_w: num, item_count: int)
-	var x: num = 0
-	var spacing: num = 0
+--get first-item-spacing and inter-item-spacing for distributing main-axis
+--free space between items and aligning the items.
+local terra align_spacings(align: enum, container_w: num, items_w: num, item_count: int)
+	var x: num = 0.0
+	var spacing: num = 0.0
 	if align == ALIGN_END or align == ALIGN_RIGHT then
 		x = container_w - items_w
 	elseif align == ALIGN_CENTER then
@@ -1979,50 +1949,17 @@ local terra align_metrics(align: enum, container_w: num, items_w: num, item_coun
 	return x, spacing
 end
 
---align a line of items on the main axis.
-local function align_items_main_axis_func(items_T, GET_ITEM, T, X, W)
-	local _MIN_W = '_min_'..W
+--distribute free space between items on the main axis.
+local function align_items_main_axis_func(items_T, GET_ITEM, T, X, W, _MIN_W)
+	local _MIN_W = _MIN_W or '_min_'..W
 	local SETXW = 'set'..X..W
-	return terra(
-		self: &items_T, i: int, j: int,
-		sx: num, spacing: num,
-		moving: bool
-		--set_item_x, set_moving_item_x
-	)
-		--compute the spaced width of the moving layer to make room for it.
-		--[[
-		var moving_layer, moving_x, moving_w, moving_sw
-		if moving then
-			var layer = items[j]
-			assert(layer.moving)
-			var w = layer[_MIN_W]
-
-			moving_layer = layer
-			moving_x = layer[X]
-			moving_w = w
-			moving_sw = w + spacing
-			j = j-1
-		end
-		]]
-
+	return terra(self: &items_T, i: int, j: int, sx: num, spacing: num, allow_snap: bool)
 		for i = i, j do
 			var item = self:[GET_ITEM](i)
 			if item.inlayout then
 				var x, w = sx, item.[_MIN_W]
 				var sw = w + spacing
-
-				--[[
-				if moving_x and moving_x < x + w / 2 then
-					set_moving_item_x(moving_layer, i, x, moving_w)
-
-					--reserve space for the moving layer.
-					sx = sx + moving_sw
-					x = x + moving_sw
-					moving_x = false
-				end
-				]]
-
-				item:[SETXW](x, w, moving)
+				item:[SETXW](x, w, allow_snap)
 				sx = sx + sw
 			end
 		end
@@ -2175,41 +2112,20 @@ local function gen_funcs(X, Y, W, H)
 		return lines_h
 	end
 
-	local terra set_item_x(layer: &Layer, x: num, w: num, moving: bool)
-		x, w = snapxw(x, w, layer.[SNAP_X])
-		--TODO
-		--var set = moving and layer.transition or layer.end_value
-		--set(layer, X, x)
-		--set(layer, W, w)
-	end
-
-	local terra set_moving_item_x(layer: &Layer, i: int, x: num, w: num)
-		--layer[X] = x
-		--layer[W] = w
-	end
-
-	--stretch and align a line of items on the main axis.
-	local terra stretch_items_x(self: &Layer, i: int, j: int, moving: bool)
-		stretch_items_main_axis_x(
-			self, i, j, self.[CW], self.[ITEM_ALIGN_X], moving)
-			--TODO: set_item_x, set_moving_item_x)
-	end
-
 	--align a line of items on the main axis.
-	local terra align_items_x(self: &Layer, i: int, j: int, align: enum, moving: bool)
+	local terra align_items_x(self: &Layer, i: int, j: int, align: enum)
 		if align == ALIGN_STRETCH then
-			stretch_items_x(self, i, j, moving)
+			stretch_items_main_axis_x(
+				self, i, j, self.[CW], self.[ITEM_ALIGN_X], true)
 		else
 			var sx: num, spacing: num
 			if align == ALIGN_START or align == ALIGN_LEFT then
 				sx, spacing = 0, 0
 			else
 				var items_w, item_count = items_sum_x(self, i, j)
-				sx, spacing = align_metrics(align, self.[CW], items_w, item_count)
+				sx, spacing = align_spacings(align, self.[CW], items_w, item_count)
 			end
-			align_items_main_axis_x(
-				self, i, j, sx, spacing, moving)
-				--TODO: set_item_x, set_moving_item_x)
+			align_items_main_axis_x(self, i, j, sx, spacing, true)
 		end
 	end
 
@@ -2218,9 +2134,8 @@ local function gen_funcs(X, Y, W, H)
 		self: &Layer, other_axis_synced: bool, align_baseline: bool
 	)
 		var align = self.[ALIGN_ITEMS_X]
-		var moving = false --TODO: self.moving_layer and true or false
 		for i, j in linewrap{self} do
-			align_items_x(self, i, j, align, moving)
+			align_items_x(self, i, j, align)
 		end
 		return true
 	end
@@ -2229,12 +2144,11 @@ local function gen_funcs(X, Y, W, H)
 	local terra align_items_y(self: &Layer, i: int, j: int,
 		line_y: num, line_h: num, line_baseline: num
 	)
-		var snap_y = self.[SNAP_Y]
 		var align = self.[ITEM_ALIGN_Y]
 		for i = i, j do
 			var layer = self.children(i)
 			if layer.visible then
-				var align = layer.[ALIGN_Y] or align
+				var align = iif(layer.[ALIGN_Y] ~= 0, layer.[ALIGN_Y], align)
 				var y: num
 				var h: num
 				if align == ALIGN_STRETCH then
@@ -2256,7 +2170,7 @@ local function gen_funcs(X, Y, W, H)
 					end
 				end
 				if not isnan(line_baseline) then
-					y = snapx(y, snap_y)
+					y = snapx(y, layer.[SNAP_Y])
 				else
 					y, h = snapxw(y, h, layer.[SNAP_Y])
 					layer.[H] = h
@@ -2298,9 +2212,9 @@ local function gen_funcs(X, Y, W, H)
 				var line_h, _ = items_min_h(self, i, j, align_baseline)
 				lines_h = lines_h + line_h
 				line_count = line_count + 1
+				print(line_count)
 			end
-			lines_y, line_spacing =
-				align_metrics(align, self.[CH], lines_h, line_count)
+			lines_y, line_spacing = align_spacings(align, self.[CH], lines_h, line_count)
 		end
 		var y = lines_y
 		for i, j in linewrap{self} do
@@ -2352,7 +2266,7 @@ local terra flex_sync_min_h(self: &Layer, other_axis_synced: bool)
 			--their baseline. we can do this here because we already know
 			--we won't stretch them beyond their min_h in this case.
 			if align_baseline then
-				layer.h = snapx(item_h, self.snap_y)
+				layer.h = snapx(item_h, layer.snap_y)
 				layer:sync_layout_y(other_axis_synced)
 			end
 		end
@@ -2732,7 +2646,8 @@ end
 --layouting algorithm
 
 local stretch_cols_main_axis = stretch_items_main_axis_func(arr(GridLayoutCol), 'at', GridLayoutCol, 'x', 'w')
-local align_cols_main_axis = align_items_main_axis_func(arr(GridLayoutCol), 'at', GridLayoutCol, 'x', 'w')
+local align_cols_main_axis   = align_items_main_axis_func(arr(GridLayoutCol), 'at', GridLayoutCol, 'x', 'w')
+local realign_cols_main_axis = align_items_main_axis_func(arr(GridLayoutCol), 'at', GridLayoutCol, 'x', 'w', 'w')
 
 local function gen_funcs(X, Y, W, H, COL)
 
@@ -2740,7 +2655,7 @@ local function gen_funcs(X, Y, W, H, COL)
 	local PW = 'p'..W
 	local MIN_CW = 'min_'..CW
 	local _MIN_W = '_min_'..W
-	local SNAP_X = 'snap_'..X
+	local SETXW = 'set'..X..W
 	local COL_FRS = COL..'_frs'
 	local COL_GAP = COL..'_gap'
 	local ALIGN_ITEMS_X = 'align_items_'..X
@@ -2765,7 +2680,6 @@ local function gen_funcs(X, Y, W, H, COL)
 			end
 		end
 
-		var gap_w = self.grid.[COL_GAP]
 		var max_col = self.grid.[_MAX_COL]
 		var frs = &self.grid.[COL_FRS] --{fr1, ...}
 
@@ -2793,38 +2707,19 @@ local function gen_funcs(X, Y, W, H, COL)
 				x = 0,
 				w = 0,
 				align_x = 0,
-				snap_x = self.[SNAP_X],
 			})
 		end
 
-		--compute the minimum widths for each column.
+		--compute the minimum width of each column.
 		for layer in self do
 			if layer.inlayout then
 				var col1 = layer.[_COL]
 				var col2 = col1 + layer.[_COL_SPAN] - 1
 				var span_min_w = layer.[_MIN_W]
 
-				var gap_col1: num
-				if col2 == 1 and col2 == max_col then
-					gap_col1 = 0
-				elseif (col2 == 1 or col2 == max_col) then
-					gap_col1 = gap_w * .5
-				else
-					gap_col1 = gap_w
-				end
-
-				var gap_col2: num
-				if col2 == 1 and col2 == max_col then
-					gap_col2 = 0
-				elseif (col2 == 1 or col2 == max_col) then
-					gap_col2 = gap_w * .5
-				else
-					gap_col2 = gap_w
-				end
-
 				if col1 == col2 then
 					var item = cols:at(col1-1)
-					var col_min_w = span_min_w + gap_col1 + gap_col2
+					var col_min_w = span_min_w
 					item._min_w = max(item._min_w, col_min_w)
 				else --merged columns: unmerge
 					var span_fr: num = 0.0
@@ -2833,17 +2728,16 @@ local function gen_funcs(X, Y, W, H, COL)
 					end
 					for col = col1, col2 do
 						var item = cols:at(col-1)
-						var col_min_w =
-							frs(col-1, 1) / span_fr * span_min_w
-							+ iif(col == col1, gap_col1, 0.0)
-							+ iif(col == col2, gap_col2, 0.0)
+						var col_min_w = frs(col-1, 1) / span_fr * span_min_w
 						item._min_w = max(item._min_w, col_min_w)
 					end
 				end
 			end
 		end
 
-		var min_cw: num = 0.0
+		var gap_w = self.grid.[COL_GAP]
+		var min_cw = (max_col - 1) * gap_w
+
 		for _,item in cols do
 			min_cw = min_cw + item._min_w
 		end
@@ -2854,19 +2748,6 @@ local function gen_funcs(X, Y, W, H, COL)
 
 		return min_w
 	end
-
-	--[[
-	local terra set_item_x(layer, x, w, moving)
-		x, w = snapxw(x, w, layer[SNAP_X])
-		var set = moving and layer.transition or layer.end_value
-		set(layer, X, x)
-		set(layer, W, w)
-	end
-
-	local terra set_moving_item_x(layer, i, x, w)
-		--moving NYI
-	end
-	]]
 
 	local terra sum_min_w(cols: &arr(GridLayoutCol))
 		var w: num = 0.0
@@ -2880,21 +2761,21 @@ local function gen_funcs(X, Y, W, H, COL)
 
 		var cols = &self.grid.[_COLS]
 		var gap_w = self.grid.[COL_GAP]
-		var container_w = self.[CW]
+		var max_col = self.grid.[_MAX_COL]
+		var cw = self.[CW]
 		var align_items_x = self.[ALIGN_ITEMS_X]
 		var item_align_x = self.[ITEM_ALIGN_X]
-		var snap_x = self.[SNAP_X]
 
 		var ALIGN_START, ALIGN_END = ALIGN_START, ALIGN_END
 		if self.grid.[_FLIP_COLS] then
 			ALIGN_START, ALIGN_END = ALIGN_END, ALIGN_START
 		end
 
+		var nogap_cw = cw - (max_col - 1) * gap_w
+		var has_gap = cw ~= nogap_cw
+
 		if align_items_x == ALIGN_STRETCH then
-			stretch_cols_main_axis(
-				cols, 0, cols.len, container_w, ALIGN_STRETCH, false)
-				--set_item_x, set_moving_item_x,
-				--X, W, ALIGN_END, ALIGN_RIGHT)
+			stretch_cols_main_axis(cols, 0, cols.len, nogap_cw, ALIGN_STRETCH, not has_gap)
 		else
 			var sx: num, spacing: num
 			if align_items_x == ALIGN_START or align_items_x == ALIGN_LEFT then
@@ -2902,10 +2783,14 @@ local function gen_funcs(X, Y, W, H, COL)
 			else
 				var items_w = sum_min_w(cols)
 				var items_count = cols.len
-				sx, spacing = align_metrics(align_items_x, self.[CW], items_w, items_count)
+				sx, spacing = align_spacings(align_items_x, nogap_cw, items_w, items_count)
 			end
-			align_cols_main_axis(cols, 0, cols.len, sx, spacing, false)
-				--TODO: set_item_x, set_moving_item_x
+			align_cols_main_axis(cols, 0, cols.len, sx, spacing, not has_gap)
+		end
+
+		if has_gap then
+			var sx, spacing = align_spacings(ALIGN_SPACE_BETWEEN, cw, nogap_cw, cols.len)
+			realign_cols_main_axis(cols, 0, cols.len, sx, spacing, true)
 		end
 
 		var x: num = 0.0
@@ -2918,11 +2803,6 @@ local function gen_funcs(X, Y, W, H, COL)
 				var col_item2 = cols:at(col2-1)
 				var x1 = col_item1.x
 				var x2 = col_item2.x + col_item2.w
-
-				var gap1 = iif(col1 ~= 1,        gap_w * 0.5, 0.0)
-				var gap2 = iif(col2 ~= cols.len, gap_w * 0.5, 0.0)
-				x1 = x1 + gap1
-				x2 = x2 - gap2
 
 				var align = iif(layer.[ALIGN_X] ~= 0, layer.[ALIGN_X], item_align_x)
 				var x: num, w: num
@@ -2937,7 +2817,7 @@ local function gen_funcs(X, Y, W, H, COL)
 					w = layer.[_MIN_W]
 					x = x1 + (x2 - x1 - w) / 2
 				end
-				layer.[X], layer.[W] = snapxw(x, w, snap_x)
+				layer:[SETXW](x, w, true)
 			end
 		end
 

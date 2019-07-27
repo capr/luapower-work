@@ -6,6 +6,7 @@ local nw = require'nw'
 local layer = require'layer'
 local glue = require'glue'
 local cairo = require'cairo'
+local random = math.random
 local print = print
 local assert = assert
 
@@ -38,6 +39,7 @@ local lorem_ipsum = glue.readfile('lorem_ipsum.txt'):sub(1, 1000)
 --assert(memtotal() == 0)
 
 local lib = layerlib(load_font, unload_font)
+
 local opensans = lib:font()
 local amiri    = lib:font()
 
@@ -161,20 +163,43 @@ local function layers_with_everything()
 	return e
 end
 
-local function flexbox_layout()
+local function flexbox_baseline_wrapped()
 	local e = lib:layer()
 
 	e.layout_type = LAYOUT_FLEXBOX
-	e.border_color = 0x000000ff
 	e.border_width = 1
+	e.flex_wrap = true
+	e.item_align_y = ALIGN_BASELINE
+	--e.item_align_y = ALIGN_CENTER
+	e.align_items_y = ALIGN_CENTER
+	e.align_items_x = ALIGN_CENTER
+
+	local texts = {
+		"Lorem ipsum",
+		"dolor sit amet",
+		"You only killed the bride’s father, you know.",
+		"I didn’t mean to.",
+		"Didn’t mean to?",
+		"You put your sword right through his head.",
+		"Oh dear… is he all right?",
+	}
 
 	e.child_count = 10
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
-		e.border_color = 0x000000ff
 		e.border_width = 1
+		e.padding = 10
+		e.min_cw = random(40, 100)
+		e.min_ch = random(0, 100)
+		e.text_align_x = ALIGN_CENTER
+		e.layout_type = LAYOUT_TEXTBOX
+		e:set_text_utf8(texts[random(#texts)], -1)
+		e:set_text_font_id  (0, -1, opensans)
+		e:set_text_font_size(0, -1, 14)
+		if i == 1 then
+			--e.align_y = ALIGN_BOTTOM
+		end
 	end
-
 
 	return e
 end
@@ -186,31 +211,35 @@ local function grid_layout()
 	e.border_color = 0x000000ff
 	e.border_width = 1
 
-	e.child_count = 10
+	e.child_count = 1000
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
+		e.min_cw = 0
+		e.min_ch = 0
 		e.border_color = 0x000000ff
 		e.border_width = 2
 		e.border_offset = 0
+		--e.snap_x = true
+		--e.snap_y = true
 	end
-	--e.grid_row_gap = 10
-	--e.grid_col_gap = 10
-	e.grid_wrap = 4
+	e.grid_row_gap = 10
+	e.grid_col_gap = 10
+	e.grid_wrap = 51
 
 	return e
 end
 
 --local e = layers_with_everything()
---local e = flexbox_layout()
-local e = grid_layout()
+local e = flexbox_baseline_wrapped()
+--local e = grid_layout()
 
 function win:repaint()
 
 	local cr = self:bitmap():cairo()
 
 	cr:identity_matrix()
-	cr:rgba(1, 1, 1, 1)
-	--cr:rgba(0, 0, 0, 1)
+	--cr:rgba(1, 1, 1, 1)
+	cr:rgba(0, 0, 0, 1)
 	cr:paint()
 
 	local w, h = self:client_size()
