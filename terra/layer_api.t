@@ -308,19 +308,28 @@ terra Layer:set_text_align_y(v: enum) self.text.layout.align_y = v end
 
 --text spans
 
+local prefixed = {
+	color   =1,
+	opacity =1,
+	operator=1,
+}
+
 for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
-	Layer.methods['get_text_'..FIELD] = terra(self: &Layer, i: int, j: int, v: &T)
+	local PFIELD = prefixed[FIELD] and 'text_'..FIELD or FIELD
+	Layer.methods['get_'..PFIELD] = terra(self: &Layer, i: int, j: int, v: &T)
 		return self.text.layout:['get_'..FIELD](i, j, v)
 	end
-	Layer.methods['set_text_'..FIELD] = terra(self: &Layer, i: int, j: int, v: T)
+	Layer.methods['set_'..PFIELD] = terra(self: &Layer, i: int, j: int, v: T)
 		self.text.layout:['set_'..FIELD](i, j, v)
 	end
+	--[[ TODO: not used:
 	Layer.methods['get_text_span_'..FIELD] = terra(self: &Layer, span_i: int)
 		return self.text.layout:['get_span_'..FIELD](span_i)
 	end
 	Layer.methods['set_text_span_'..FIELD] = terra(self: &Layer, span_i: int, v: T)
 		self.text.layout:['set_span_'..FIELD](span_i, v)
 	end
+	]]
 end
 
 --text measuring and hit-testing
@@ -722,33 +731,33 @@ function build()
 		set_text_align_x=1,
 		set_text_align_y=1,
 
-		get_text_font_id           =1,
-		get_text_font_size         =1,
-		get_text_features          =1,
-		get_text_script            =1,
-		get_text_lang              =1,
-		get_text_paragraph_dir     =1,
-		get_text_line_spacing      =1,
-		get_text_hardline_spacing  =1,
-		get_text_paragraph_spacing =1,
-		get_text_nowrap            =1,
-		get_text_color             =1,
-		get_text_opacity           =1,
-		get_text_operator          =1,
+		get_font_id           =1,
+		get_font_size         =1,
+		get_features          =1,
+		get_script            =1,
+		get_lang              =1,
+		get_paragraph_dir     =1,
+		get_line_spacing      =1,
+		get_hardline_spacing  =1,
+		get_paragraph_spacing =1,
+		get_nowrap            =1,
+		get_text_color        =1,
+		get_text_opacity      =1,
+		get_text_operator     =1,
 
-		set_text_font_id           =1,
-		set_text_font_size         =1,
-		set_text_features          =1,
-		set_text_script            =1,
-		set_text_lang              =1,
-		set_text_paragraph_dir     =1,
-		set_text_line_spacing      =1,
-		set_text_hardline_spacing  =1,
-		set_text_paragraph_spacing =1,
-		set_text_nowrap            =1,
-		set_text_color             =1,
-		set_text_opacity           =1,
-		set_text_operator          =1,
+		set_font_id           =1,
+		set_font_size         =1,
+		set_features          =1,
+		set_script            =1,
+		set_lang              =1,
+		set_paragraph_dir     =1,
+		set_line_spacing      =1,
+		set_hardline_spacing  =1,
+		set_paragraph_spacing =1,
+		set_nowrap            =1,
+		set_text_color        =1,
+		set_text_opacity      =1,
+		set_text_operator     =1,
 
 		--[[
 		get_text_span_font_id           =1,

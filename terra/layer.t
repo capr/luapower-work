@@ -29,7 +29,7 @@ require'terra/memcheck'
 require'terra/cairo'
 require'terra/tr_paint_cairo'
 tr = require'terra/tr_api'
-require'terra/bitmap'
+bitmap = require'terra/bitmap'
 require'terra/boxblur'
 require'terra/utf8'
 require'terra/box2d'
@@ -104,6 +104,7 @@ DEFAULT_SHADOW_COLOR = DEFAULT_SHADOW_COLOR or `color {0x000000ff}
 --bool bitmap ----------------------------------------------------------------
 
 struct BoolBitmap {
+	bitmap: Bitmap;
 	rows: int;
 	cols: int;
 	bits: arr(bool);
@@ -111,9 +112,11 @@ struct BoolBitmap {
 
 terra BoolBitmap:init()
 	fill(self)
+	self.bitmap:init(bitmap.FORMAT_G8)
 end
 
 terra BoolBitmap:free()
+	self.bitmap:free()
 	self.bits:free()
 end
 
@@ -303,7 +306,7 @@ terra Shadow:init(layer: &Layer)
 	self.layer = layer
 	self.color = DEFAULT_SHADOW_COLOR
 	self.blur_passes = 3
-	self.blur:init(BITMAP_G8)
+	self.blur:init(bitmap.FORMAT_G8)
 end
 
 terra Shadow:invalidate()
@@ -392,7 +395,7 @@ struct GridLayoutCol {
 	inlayout: bool;
 }
 
-terra GridLayoutCol:setxw(x: num, w: num, allow_snap: bool)
+terra GridLayoutCol:setxw(x: num, w: num)
 	self.x, self.w = x, w
 end
 
@@ -1828,12 +1831,12 @@ local text_layout = constant(`LayoutSolver {
 
 --stuff common to flex & grid layouts ----------------------------------------
 
-terra Layer:setxw(x: num, w: num, allow_snap: bool)
-	self.x, self.w = snapxw(x, w, allow_snap and self.snap_x)
+terra Layer:setxw(x: num, w: num)
+	self.x, self.w = snapxw(x, w, self.snap_x)
 end
 
-terra Layer:setyh(y: num, h: num, allow_snap: bool)
-	self.y, self.h = snapxw(y, h, allow_snap and self.snap_y)
+terra Layer:setyh(y: num, h: num)
+	self.y, self.h = snapxw(y, h, self.snap_y)
 end
 
 terra Layer:get_inlayout()
@@ -1869,9 +1872,7 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 
 	--stretch a line of items on the main axis.
 	local terra stretch_items_main_axis(
-		self: &items_T, i: int, j: int, total_w: num, item_align_x: enum,
-		allow_snap: bool
-	)
+		self: &items_T, i: int, j: int, total_w: num, item_align_x: enum)
 		--compute the fraction representing the total width.
 		var total_fr: num = 0.0
 		for i = i, j do
@@ -1919,7 +1920,7 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 					x = sx + (sw - w) / 2
 				end
 
-				item:[SETXW](x, w, allow_snap)
+				item:[SETXW](x, w)
 				sx = sx + sw
 			end
 		end
@@ -1953,13 +1954,13 @@ end
 local function align_items_main_axis_func(items_T, GET_ITEM, T, X, W, _MIN_W)
 	local _MIN_W = _MIN_W or '_min_'..W
 	local SETXW = 'set'..X..W
-	return terra(self: &items_T, i: int, j: int, sx: num, spacing: num, allow_snap: bool)
+	return terra(self: &items_T, i: int, j: int, sx: num, spacing: num)
 		for i = i, j do
 			var item = self:[GET_ITEM](i)
 			if item.inlayout then
 				var x, w = sx, item.[_MIN_W]
 				var sw = w + spacing
-				item:[SETXW](x, w, allow_snap)
+				item:[SETXW](x, w)
 				sx = sx + sw
 			end
 		end
@@ -2086,9 +2087,7 @@ local function gen_funcs(X, Y, W, H)
 		end
 	end
 
-	Layer.methods['flex_min_cw_'..X] = terra(
-		self: &Layer, other_axis_synced: bool, align_baseline: bool
-	)
+	Layer.methods['flex_min_cw_'..X] = terra(self: &Layer, other_axis_synced: bool)
 		if self.flex.wrap then
 			return items_max_x(self, 0, self.children.len)._0
 		else
@@ -2115,8 +2114,7 @@ local function gen_funcs(X, Y, W, H)
 	--align a line of items on the main axis.
 	local terra align_items_x(self: &Layer, i: int, j: int, align: enum)
 		if align == ALIGN_STRETCH then
-			stretch_items_main_axis_x(
-				self, i, j, self.[CW], self.[ITEM_ALIGN_X], true)
+			stretch_items_main_axis_x(self, i, j, self.[CW], self.[ITEM_ALIGN_X])
 		else
 			var sx: num, spacing: num
 			if align == ALIGN_START or align == ALIGN_LEFT then
@@ -2125,14 +2123,12 @@ local function gen_funcs(X, Y, W, H)
 				var items_w, item_count = items_sum_x(self, i, j)
 				sx, spacing = align_spacings(align, self.[CW], items_w, item_count)
 			end
-			align_items_main_axis_x(self, i, j, sx, spacing, true)
+			align_items_main_axis_x(self, i, j, sx, spacing)
 		end
 	end
 
 	--stretch or align a flex's items on the main-axis.
-	Layer.methods['flex_sync_x_'..X] = terra(
-		self: &Layer, other_axis_synced: bool, align_baseline: bool
-	)
+	Layer.methods['flex_sync_x_'..X] = terra(self: &Layer, other_axis_synced: bool)
 		var align = self.[ALIGN_ITEMS_X]
 		for i, j in linewrap{self} do
 			align_items_x(self, i, j, align)
@@ -2166,7 +2162,7 @@ local function gen_funcs(X, Y, W, H)
 						y = line_y + (line_h - item_h) / 2
 						h = item_h
 					elseif not isnan(line_baseline) then
-						y = line_baseline - layer.baseline
+						y = line_y + line_baseline - layer.baseline
 					end
 				end
 				if not isnan(line_baseline) then
@@ -2192,7 +2188,7 @@ local function gen_funcs(X, Y, W, H)
 
 		var lines_y: num
 		var line_spacing: num
-		var line_h: num = nan
+		var line_h: num
 		var align = self.[ALIGN_ITEMS_Y]
 		if align == ALIGN_STRETCH then
 			var lines_h = self.[CH]
@@ -2200,11 +2196,13 @@ local function gen_funcs(X, Y, W, H)
 			for _1,_2 in linewrap{self} do
 				line_count = line_count + 1
 			end
-			line_h = lines_h / line_count
 			lines_y = 0
 			line_spacing = 0
+			line_h = lines_h / line_count
 		elseif align == ALIGN_TOP or align == ALIGN_START then
-			lines_y, line_spacing = 0, 0
+			lines_y = 0
+			line_spacing = 0
+			line_h = nan
 		else
 			var lines_h: num = 0.0
 			var line_count: int = 0
@@ -2212,15 +2210,16 @@ local function gen_funcs(X, Y, W, H)
 				var line_h, _ = items_min_h(self, i, j, align_baseline)
 				lines_h = lines_h + line_h
 				line_count = line_count + 1
-				print(line_count)
 			end
 			lines_y, line_spacing = align_spacings(align, self.[CH], lines_h, line_count)
+			line_h = nan
 		end
 		var y = lines_y
+		var no_line_h = isnan(line_h)
 		for i, j in linewrap{self} do
 			var line_h = line_h
 			var line_baseline: num = nan
-			if isnan(line_h) then
+			if no_line_h then
 				line_h, line_baseline = items_min_h(self, i, j, align_baseline)
 			end
 			align_items_y(self, i, j, y, line_h, line_baseline)
@@ -2244,7 +2243,7 @@ local terra flex_sync_min_w(self: &Layer, other_axis_synced: bool)
 	end
 
 	var min_cw = iif(self.flex.flow == FLEX_FLOW_X,
-			self:flex_min_cw_x(other_axis_synced, false),
+			self:flex_min_cw_x(other_axis_synced),
 			self:flex_min_ch_y(other_axis_synced, false))
 
 	min_cw = max(min_cw, self.min_cw)
@@ -2261,12 +2260,12 @@ local terra flex_sync_min_h(self: &Layer, other_axis_synced: bool)
 	--sync all children first (bottom-up sync).
 	for layer in self do
 		if layer.visible then
-			var item_h = layer:sync_min_h(other_axis_synced) --recurse
+			var min_h = layer:sync_min_h(other_axis_synced) --recurse
 			--for baseline align also layout the children because we need
 			--their baseline. we can do this here because we already know
 			--we won't stretch them beyond their min_h in this case.
 			if align_baseline then
-				layer.h = snapx(item_h, layer.snap_y)
+				layer.h = snapx(min_h, layer.snap_y)
 				layer:sync_layout_y(other_axis_synced)
 			end
 		end
@@ -2274,7 +2273,7 @@ local terra flex_sync_min_h(self: &Layer, other_axis_synced: bool)
 
 	var min_ch = iif(self.flex.flow == FLEX_FLOW_X,
 		self:flex_min_ch_x(other_axis_synced, align_baseline),
-		self:flex_min_cw_y(other_axis_synced, false))
+		self:flex_min_cw_y(other_axis_synced))
 
 	min_ch = max(min_ch, self.min_ch)
 	var min_h = min_ch + self.ph
@@ -2285,7 +2284,7 @@ end
 local terra flex_sync_x(self: &Layer, other_axis_synced: bool)
 
 	var synced = iif(self.flex.flow == FLEX_FLOW_X,
-			self:flex_sync_x_x(other_axis_synced, false),
+			self:flex_sync_x_x(other_axis_synced),
 			self:flex_sync_y_y(other_axis_synced, false))
 
 	if synced then
@@ -2307,7 +2306,7 @@ local terra flex_sync_y(self: &Layer, other_axis_synced: bool)
 	end
 
 	var synced = self.flex.flow == FLEX_FLOW_Y
-		and self:flex_sync_x_y(other_axis_synced, false)
+		and self:flex_sync_x_y(other_axis_synced)
 		 or self:flex_sync_y_x(other_axis_synced, false)
 
 	if synced then
@@ -2376,28 +2375,40 @@ end
 --bitmap-of-bools object -----------------------------------------------------
 
 terra BoolBitmap:bitindex(row: int, col: int)
+	if row > self.rows then return -1 end
+	if col > self.cols then return -1 end
 	return (row - 1) * self.cols + col - 1
 end
 
 terra BoolBitmap:set(row: int, col: int, val: bool)
-	self.bits:set(self:bitindex(row, col), val, false)
+	var p = self.bitmap:pixel_addr(col-1, row-1)
+	if p ~= nil then
+		@p = int8(val)
+	end
+	--self.bits:set(self:bitindex(row, col), val)
 end
 
 terra BoolBitmap:get(row: int, col: int)
-	return self.bits(self:bitindex(row, col), false)
+	var p = self.bitmap:pixel_addr(col-1, row-1)
+	return iif(p ~= nil, bool(@p), false)
+	--return self.bits(self:bitindex(row, col), false)
 end
 
-terra BoolBitmap:widen(min_rows: int, min_cols: int)
+terra BoolBitmap:grow(min_rows: int, min_cols: int)
 	var rows = max(min_rows, self.rows)
 	var cols = max(min_cols, self.cols)
+	self.bitmap:resize(cols, rows, -1, -1)
 	if rows > self.rows or cols > self.cols then
 		self.bits:setlen(rows * cols, false)
 		if cols > self.cols then --move the rows down to widen them
 			for row = self.rows-1, -1, -1 do
-				var dst = self.bits:sub(row * cols, (row + 1) * cols)
+				var dst = self.bits:sub(row *      cols, (row + 1) *      cols)
 				var src = self.bits:sub(row * self.cols, (row + 1) * self.cols)
+				assert(dst.elements >= src.elements)
 				src:copy(dst)
-				self.bits:sub(row * cols + self.cols, (row + 1) * cols):fill(false)
+				--pad the rest of the row with `false`.
+				var pad = self.bits:sub(row * cols + self.cols, (row + 1) * cols)
+				pad:fill(false)
 			end
 		end
 		self.rows = rows
@@ -2408,7 +2419,7 @@ end
 terra BoolBitmap:mark(row1: int, col1: int, row_span: int, col_span: int, val: bool)
 	var row2 = row1 + row_span
 	var col2 = col1 + col_span
-	self:widen(row2-1, col2-1)
+	self:grow(row2-1, col2-1)
 	for row = row1, row2 do
 		for col = col1, col2 do
 			self:set(row, col, val)
@@ -2430,6 +2441,7 @@ terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)
 end
 
 terra BoolBitmap:clear()
+	self.bitmap:realloc(0, 0, bitmap.FORMAT_G8, 0, 0)
 	self.rows = 0
 	self.cols = 0
 	self.bits.len = 0
@@ -2562,7 +2574,7 @@ terra Layer:sync_layout_grid_autopos()
 		end
 	end
 
-	--auto-wrap layers with missing explicit indices over non-occupied cells.
+	--auto-wrap layers without explicit indices over non-occupied cells.
 	--grow grid bounds on the cross-axis if needed but not on the main axis.
 	--these types of spans are never clipped to the grid bounds.
 	if missing_indices then
@@ -2775,7 +2787,7 @@ local function gen_funcs(X, Y, W, H, COL)
 		var has_gap = cw ~= nogap_cw
 
 		if align_items_x == ALIGN_STRETCH then
-			stretch_cols_main_axis(cols, 0, cols.len, nogap_cw, ALIGN_STRETCH, not has_gap)
+			stretch_cols_main_axis(cols, 0, cols.len, nogap_cw, ALIGN_STRETCH)
 		else
 			var sx: num, spacing: num
 			if align_items_x == ALIGN_START or align_items_x == ALIGN_LEFT then
@@ -2785,12 +2797,12 @@ local function gen_funcs(X, Y, W, H, COL)
 				var items_count = cols.len
 				sx, spacing = align_spacings(align_items_x, nogap_cw, items_w, items_count)
 			end
-			align_cols_main_axis(cols, 0, cols.len, sx, spacing, not has_gap)
+			align_cols_main_axis(cols, 0, cols.len, sx, spacing)
 		end
 
 		if has_gap then
 			var sx, spacing = align_spacings(ALIGN_SPACE_BETWEEN, cw, nogap_cw, cols.len)
-			realign_cols_main_axis(cols, 0, cols.len, sx, spacing, true)
+			realign_cols_main_axis(cols, 0, cols.len, sx, spacing)
 		end
 
 		var x: num = 0.0
@@ -2817,7 +2829,7 @@ local function gen_funcs(X, Y, W, H, COL)
 					w = layer.[_MIN_W]
 					x = x1 + (x2 - x1 - w) / 2
 				end
-				layer:[SETXW](x, w, true)
+				layer:[SETXW](x, w)
 			end
 		end
 

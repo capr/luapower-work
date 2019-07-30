@@ -1229,6 +1229,8 @@ alloc = macro(function(T, len, oldp, label)
 		else
 			assert(len >= 0)
 			C_free(oldp)
+			--nil'ing the pointer as a poorman's use-after-free protection.
+			--don't use this as API.
 			p = nil
 		end
 		in p

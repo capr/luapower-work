@@ -306,7 +306,7 @@ terra Layout:init(r: &Renderer)
 	self.r = r
 	self._maxlen   =  maxint
 	self._dir      =  DIR_AUTO
-	self._align_x  =  ALIGN_AUTO
+	self._align_x  =  ALIGN_CENTER
 	self._align_y  =  ALIGN_CENTER
 	self._clip_x   = -inf
 	self._clip_y   = -inf

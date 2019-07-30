@@ -400,15 +400,15 @@ s.apply_alpha = terra(self: &cairo_surface_t, alpha: double)
 end
 
 --bitmap utils
-require'terra/bitmap'
+local bitmap = require'terra/bitmap'
 terra C.cairo_bitmap_format(fmt: cairo_format_t)
 	return [enum](iif(fmt == CAIRO_FORMAT_A8,
-		BITMAP_G8, iif(fmt == CAIRO_FORMAT_ARGB32,
-			BITMAP_ARGB32, BITMAP_INVALID)))
+		bitmap.FORMAT_G8, iif(fmt == CAIRO_FORMAT_ARGB32,
+			bitmap.FORMAT_ARGB32, bitmap.FORMAT_INVALID)))
 end
 terra C.cairo_format_for_bitmap_format(fmt: enum)
-	return [cairo_format_t](iif(fmt == BITMAP_G8,
-		CAIRO_FORMAT_A8, iif(fmt == BITMAP_ARGB32,
+	return [cairo_format_t](iif(fmt == bitmap.FORMAT_G8,
+		CAIRO_FORMAT_A8, iif(fmt == bitmap.FORMAT_ARGB32,
 			CAIRO_FORMAT_ARGB32, CAIRO_FORMAT_INVALID)))
 end
 
@@ -422,12 +422,12 @@ s.copy = terra(self: &cairo_surface_t)
 	copy(b.pixels, [&uint8](self:data()), self:stride() * self:height())
 	return b
 end
-terra C.cairo_image_surface_create_for_bitmap(b: &Bitmap)
+terra C.cairo_image_surface_create_for_bitmap(b: &bitmap.Bitmap)
 	var fmt = cairo_format_for_bitmap_format(b.format)
 	return cairo_image_surface_create_for_data(b.pixels, fmt, b.w, b.h, b.stride)
 end
 s.asbitmap = terra(self: &cairo_surface_t)
-	var b: Bitmap
+	var b: bitmap.Bitmap
 	b.format = bitmap.valid_format(cairo_bitmap_format(self:format()))
 	b.w = self:width()
 	b.h = self:height()
