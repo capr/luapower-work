@@ -118,17 +118,17 @@ terra Bitmap:realloc(w: int, h: int, format: enum, stride: int, capacity: int)
 		self.pixels = nil
 		self.pixels = realloc(self.pixels, capacity)
 		if self.pixels ~= nil then
-			self.w = w
-			self.h = h
 			self.capacity = capacity
-			self.stride = stride
-			self.format = format
-			return true
 		else
 			self:init(format)
 			return false
 		end
 	end
+	self.w = w
+	self.h = h
+	self.stride = stride
+	self.format = format
+	return true
 end
 
 --create a bitmap representing a rectangular region of another bitmap.
@@ -338,8 +338,7 @@ end
 terra Bitmap:copy()
 	var dst: Bitmap
 	dst:init(self.format)
-	dst:realloc(self.w, self.h, self.format, 0, 0)
-	if dst.pixels ~= nil then
+	if dst:realloc(self.w, self.h, self.format, 0, 0) then
 		self:blend(&dst, 0, 0, BLEND_SOURCE)
 	end
 	return dst
@@ -360,26 +359,29 @@ terra Bitmap:clear()
 end
 
 --resize the bitmap while preserving its pixel values.
+--failure to realloc results in an empty bitmap.
 terra Bitmap:resize(w: int, h: int, stride: int, capacity: int64)
 	var format = self.format
 	var stride, capacity = self:_realloc_args(w, h, format, stride, capacity)
-	self.pixels = realloc(self.pixels, capacity)
-	if self.pixels ~= nil then
-		self.capacity = capacity
-		if stride ~= self.stride then --re-stride the rows.
-			var blend_func = self:blend_func(format, format, BLEND_SOURCE)
-			var dst = @self
-			dst.stride = stride
-			assert(self:row_by_row(&dst, blend_func))
-			self.stride = stride
+	if capacity ~= self.capacity then
+		self.pixels = realloc(self.pixels, capacity)
+		if self.pixels ~= nil then
+			self.capacity = capacity
+		else
+			self:init(format)
+			return false
 		end
-		self.w = w
-		self.h = h
-		return true
-	else
-		self:init(format)
-		return false
 	end
+	if stride ~= self.stride then --re-stride the rows.
+		var blend_func = self:blend_func(format, format, BLEND_SOURCE)
+		var dst = @self
+		dst.stride = stride
+		assert(self:row_by_row(&dst, blend_func))
+		self.stride = stride
+	end
+	self.w = w
+	self.h = h
+	return true
 end
 
 terra Bitmap:pixel_addr(x: int, y: int)

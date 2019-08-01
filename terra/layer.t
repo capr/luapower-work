@@ -2412,7 +2412,7 @@ terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)
 end
 
 terra BoolBitmap:clear()
-	self.bitmap:realloc(0, 0, bitmap.FORMAT_G8, -1, -1)
+	self.bitmap:resize(0, 0, -1, -1)
 end
 
 --grid layout ----------------------------------------------------------------
