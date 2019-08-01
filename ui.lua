@@ -2493,7 +2493,7 @@ function ui:after_init()
 end
 
 function layer:before_init_fields()
-	self.l = self.ui.layerlib:layer(nil)
+	self.l = self.ui.layerlib:layer()
 	self.ui.layers[addr(self.l)] = self
 end
 
@@ -2984,8 +2984,8 @@ local function after_set_text_prop(self)
 	local slant = self.italic and 'italic' or self.font_slant
 	local font_size = self.font_size or font_size
 	if font and font_size then
-		self.l:set_text_font_id(0, -1, font.id)
-		self.l:set_text_font_size(0, -1, font_size)
+		self.l:set_font_id(0, -1, font.id)
+		self.l:set_font_size(0, -1, font_size)
 	end
 end
 
@@ -3002,7 +3002,7 @@ layer:stored_properties({
 
 function layer:after_set_text(s)
 	s = s or ''
-	--self.l:set_text_utf8(s, #s)
+	self.l:set_text_utf8(s, #s)
 	self:fire'text_changed'
 end
 
@@ -3021,12 +3021,12 @@ for k in pairs{
 	paragraph_spacing=1,
 	text_operator=1,
 } do
-	local getter = 'get_text_'..k
-	local setter = 'set_text_'..k
-	layer['get_'..k] = function(self)
+	local getter = 'get_'..k
+	local setter = 'set_'..k
+	layer[getter] = function(self)
 		return self.l[getter](self.l, 0, -1)
 	end
-	layer['set_'..k] = function(self, v)
+	layer[setter] = function(self, v)
 		self.l[setter](self.l, 0, -1, v)
 	end
 end
