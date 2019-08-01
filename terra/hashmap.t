@@ -217,7 +217,7 @@ local map_type = memoize(function(
 
 		terra map.methods.clear(h: &map)
 			if h.flags == nil then return end
-			fill(h.flags, 0xaa, fsize(h.n_buckets))
+			fill(h.flags, fsize(h.n_buckets), 0xaa)
 			h.count = 0
 			h.n_occupied = 0
 		end
@@ -269,7 +269,7 @@ local map_type = memoize(function(
 				if new_flags == nil then
 					return false
 				end
-				fill(new_flags, 0xaa, fsize(new_n_buckets))
+				fill(new_flags, fsize(new_n_buckets), 0xaa)
 				if h.n_buckets < new_n_buckets then -- expand
 					var new_keys = realloc(h.keys, new_n_buckets)
 					if new_keys == nil then

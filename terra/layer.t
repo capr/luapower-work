@@ -76,9 +76,9 @@ ALIGN_BOTTOM        = tr.ALIGN_BOTTOM  --needs to be same as ALIGN_RIGHT!
 ALIGN_STRETCH       = tr.ALIGN_MAX + 1
 ALIGN_START         = tr.ALIGN_MAX + 2 --left for LTR text, right for RTL
 ALIGN_END           = tr.ALIGN_MAX + 3 --right for LTR text, left for RTL
-ALIGN_SPACE_EVENLY  = tr.ALIGN_MAX + 4
-ALIGN_SPACE_AROUND  = tr.ALIGN_MAX + 5
-ALIGN_SPACE_BETWEEN = tr.ALIGN_MAX + 6
+ALIGN_SPACE_EVENLY  = tr.ALIGN_MAX + 4 --only for align_items_*
+ALIGN_SPACE_AROUND  = tr.ALIGN_MAX + 5 --only for align_items_*
+ALIGN_SPACE_BETWEEN = tr.ALIGN_MAX + 6 --only for align_items_*
 ALIGN_BASELINE      = tr.ALIGN_MAX + 7 --only for item_align_y
 
 local function map_enum(C, src_prefix, dst_prefix)
@@ -2387,9 +2387,9 @@ terra BoolBitmap:grow(min_rows: int, min_cols: int)
 	var rows = max(min_rows, rows0)
 	var cols = max(min_cols, cols0)
 	if rows > rows0 or cols > cols0 then
-		self.bitmap:resize(cols, rows, -1, -1)
+		assert(self.bitmap:resize(cols, rows, -1, -1))
 		self.bitmap:sub(cols0, 0, cols - cols0, rows):clear()
-		self.bitmap:sub(0, cols0, cols0, rows - rows0):clear()
+		self.bitmap:sub(0, rows0, cols0, rows - rows0):clear()
 	end
 end
 
@@ -2412,7 +2412,7 @@ terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)
 end
 
 terra BoolBitmap:clear()
-	self.bitmap:resize(0, 0, -1, -1)
+	assert(self.bitmap:resize(0, 0, -1, -1))
 end
 
 --grid layout ----------------------------------------------------------------
@@ -2595,6 +2595,8 @@ terra Layer:sync_layout_grid_autopos()
 		end
 	end
 
+	occupied:clear()
+
 	--reverse the order of rows and/or columns depending on grid_flow.
 	if flip_rows or flip_cols then
 		for layer in self do
@@ -2614,8 +2616,6 @@ terra Layer:sync_layout_grid_autopos()
 			end
 		end
 	end
-
-	occupied:clear()
 
 	self.grid._flip_rows = flip_rows
 	self.grid._flip_cols = flip_cols

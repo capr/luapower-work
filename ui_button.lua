@@ -385,7 +385,7 @@ local clabel = ui.layer:subclass'checkbox_label'
 checkbox.label_class = clabel
 
 clabel.layout = 'textbox'
-clabel.line_spacing = .6
+clabel.line_spacing = .8
 
 function clabel:override_hit_test(inherited, mx, my, reason)
 	local widget, area = inherited(self, mx, my, reason)
@@ -721,13 +721,14 @@ end
 
 if not ... then require('ui_demo')(function(ui, win)
 
+	ui:inherit()
+
 	win.view.grid_wrap = 10
 	win.view.grid_flow = 'y'
 	win.view.item_align_x = 'left'
 	win.view.grid_min_lines = 2
 
 	local b1 = ui:button{
-		id = 'OK',
 		parent = win,
 		min_cw = 120,
 		text = '&OK',
@@ -737,7 +738,6 @@ if not ... then require('ui_demo')(function(ui, win)
 	local btn = button:subclass'btn'
 
 	local b2 = btn(ui, {
-		id = 'Disabled',
 		parent = win,
 		text = 'Disabled',
 		enabled = false,
@@ -745,7 +745,6 @@ if not ... then require('ui_demo')(function(ui, win)
 	})
 
 	local b3 = btn(ui, {
-		id = 'Cancel',
 		parent = win,
 		text = '&Cancel',
 		cancel = true,
@@ -761,7 +760,6 @@ if not ... then require('ui_demo')(function(ui, win)
 	function b2:pressed() print'b2 pressed' end
 
 	local cb1 = ui:checkbox{
-		id = 'CB1',
 		parent = win,
 		min_cw = 200,
 		label =  {text = 'Check me.\nI\'m multiline.'},
@@ -770,15 +768,14 @@ if not ... then require('ui_demo')(function(ui, win)
 	}
 
 	local cb2 = ui:checkbox{
-		id = 'CB2',
 		parent = win,
 		label =  {text = 'Check me too', nowrap = true},
 		align = 'right',
 		--enabled = false,
 	}
 
+	--[[
 	local rb1 = ui:radio{
-		id = 'RB1',
 		parent = win,
 		label =  {text = 'Radio me', nowrap = true},
 		checked = true,
@@ -787,7 +784,6 @@ if not ... then require('ui_demo')(function(ui, win)
 	}
 
 	local rb2 = ui:radio{
-		id = 'RB2',
 		parent = win,
 		label =  {text = 'Radio me too', nowrap = true},
 		radio_group = 1,
@@ -806,7 +802,6 @@ if not ... then require('ui_demo')(function(ui, win)
 	}
 
 	local cb1 = ui:choicebutton{
-		id = 'CHOICE',
 		parent = win,
 		min_cw = 400,
 		option_list = {
@@ -816,10 +811,6 @@ if not ... then require('ui_demo')(function(ui, win)
 		},
 		value = 'val3',
 	}
-	for i,b in ipairs(cb1) do
-		if b.isbutton then
-			b.id = 'CHOICE'..i
-		end
-	end
+	]]
 
 end) end

@@ -182,7 +182,11 @@ Bitmap.methods._row_by_row_reverse = terra(src: &Bitmap, dst: &Bitmap, func: row
 end
 
 Bitmap.methods.row_by_row = terra(src: &Bitmap, dst: &Bitmap, func: row_by_row_func)
-	if src.pixels >= dst.pixels and src.stride >= dst.stride then
+	if src.pixels == dst.pixels
+		or (src.pixels + src.size <= dst.pixels)
+		or (dst.pixels + dst.size <= src.pixels)
+		or (src.pixels >= dst.pixels and src.stride >= dst.stride)
+	then
 		--forward row-by-row copy possible without overwriting the destination.
 		src:_row_by_row_forward(dst, func)
 		return true
@@ -346,10 +350,10 @@ end
 
 terra Bitmap:fill(val: uint8)
 	if self.rowsize == self.stride then
-		fill(self.pixels, val, self.size)
+		fill(self.pixels, self.size, val)
 	else
 		for _,pixels in self:rows() do
-			fill(pixels, val, self.rowsize)
+			fill(pixels, self.rowsize, val)
 		end
 	end
 end

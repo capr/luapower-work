@@ -1275,10 +1275,7 @@ end)
 
 local C_memset = C.memset; C.memset = nil
 
-fill = macro(function(p, val, len)
-	if len == nil then --fill(p, len)
-		val, len = nil, val
-	end
+fill = macro(function(p, len, val)
 	val = val or 0
 	len = len or 1
 	local T = p:getpointertype()

@@ -6,18 +6,14 @@ local nw = require'nw'
 local layer = require'layer'
 local glue = require'glue'
 local cairo = require'cairo'
-local random = math.random
+local time = require'time'
 local print = print
 local assert = assert
+local math = math
 
 setfenv(1, setmetatable({}, {__index = layer}))
 
-local app = nw:app()
-
-local win = app:window{
-	title = 'Hello!',
-	w = 1800, h = 700,
-}
+--lib object & fonts ---------------------------------------------------------
 
 local fonts = {
 	assert(glue.readfile'media/fonts/OpenSans-Regular.ttf');
@@ -34,21 +30,56 @@ local function unload_font(font_id, file_data_buf, file_size_buf)
 	--nothing
 end
 
-local lorem_ipsum = glue.readfile('lorem_ipsum.txt'):sub(1, 1000)
+local lorem_ipsum = 'You only Oh dear… '..glue.readfile('lorem_ipsum.txt'):sub(1, 1000)
 
---assert(memtotal() == 0)
+assert(memtotal() == 0)
 
 local lib = layerlib(load_font, unload_font)
 
 local opensans = lib:font()
 local amiri    = lib:font()
 
+--test harness ---------------------------------------------------------------
+
 local test = {}
-local e
+local e --top layer
+
+local function random_choice(list)
+	return list[math.random(#list)]
+end
+
+local test_index = 1
+local randomseed = 0
+local zoom = 1
+local density = 6
+local tests
+function switch_test(i)
+	tests = tests or glue.keys(test, true)
+
+	i = i or test_index
+	local k = tests[i]
+	if not k then return end
+	print(i, k)
+	if e then e:free(); e = nil end
+	math.randomseed(randomseed)
+	e = lib:layer()
+	test[k]()
+	test_index = i
+end
+
+--window ---------------------------------------------------------------------
+
+local app = nw:app()
+
+local win = app:window{
+	title = 'Hello!',
+	w = 1800, h = 900,
+}
+
+--tests ----------------------------------------------------------------------
 
 function test.layers_with_everything()
-	e = lib:layer()
-	e.child_count = 4
+	e.child_count = density
 	local e1 = e:child(0)
 	local e2 = e:child(1)
 	local e3 = e:child(2)
@@ -165,15 +196,40 @@ function test.layers_with_everything()
 	--e4.border_width = 1
 end
 
-function test.flexbox_baseline_wrapped(item_align_y, align_items_y)
-	e = lib:layer()
-
+function test.flexbox_baseline_wrapped(item_align_y, align_items_y, align_items_x)
 	e.layout_type = LAYOUT_FLEXBOX
 	e.border_width = 1
 	e.flex_wrap = true
-	e.item_align_y = item_align_y or ALIGN_BASELINE
-	e.align_items_y = align_items_y or ALIGN_STRETCH
-	e.align_items_x = ALIGN_CENTER
+	e.item_align_y = item_align_y or random_choice{
+		ALIGN_BASELINE,
+		--ALIGN_BOTTOM,
+		--ALIGN_CENTER,
+		--ALIGN_TOP,
+		--ALIGN_START,
+		--ALIGN_END,
+	}
+	e.align_items_y = align_items_y or random_choice{
+		--ALIGN_TOP,
+		--ALIGN_BOTTOM,
+		--ALIGN_START,
+		--ALIGN_END,
+		ALIGN_CENTER,
+		--ALIGN_SPACE_AROUND,
+		--ALIGN_SPACE_BETWEEN,
+		--ALIGN_SPACE_EVENLY,
+		--ALIGN_STRETCH,
+	}
+	e.align_items_x = align_items_x or random_choice{
+		--ALIGN_TOP,
+		--ALIGN_BOTTOM,
+		--ALIGN_START,
+		--ALIGN_END,
+		--ALIGN_CENTER,
+		--ALIGN_SPACE_AROUND,
+		--ALIGN_SPACE_BETWEEN,
+		ALIGN_SPACE_EVENLY,
+		ALIGN_STRETCH,
+	}
 
 	local texts = {
 		"Lorem ipsum",
@@ -185,35 +241,32 @@ function test.flexbox_baseline_wrapped(item_align_y, align_items_y)
 		"Oh dear… is he all right?",
 	}
 
-	e.child_count = 10
+	e.child_count = density
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
 		e.border_width = 1
 		e.padding = 10
-		e.min_cw = random(40, 100)
-		e.min_ch = random(0, 100)
+		e.min_cw = math.random(40, 100)
+		e.min_ch = math.random(0, 100)
 		e.text_align_x = ALIGN_CENTER
 		e.text_align_y = ALIGN_BOTTOM
 		e.layout_type = LAYOUT_TEXTBOX
-		e:set_text_utf8(texts[random(#texts)], -1)
+		e:set_text_utf8(texts[math.random(#texts)], -1)
 		e:set_font_id   (0, -1, opensans)
 		e:set_font_size (0, -1, 14)
 		if i == 1 then
 			--e.align_y = ALIGN_BOTTOM
 		end
 	end
-
-	return e
 end
 
 function test.grid_autopos(flow)
-	e = lib:layer()
 
 	e.layout_type = LAYOUT_GRID
 	e.border_color = 0x000000ff
 	e.border_width = 1
 
-	e.child_count = 5
+	e.child_count = density
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
 		e.min_cw = 0
@@ -229,13 +282,14 @@ function test.grid_autopos(flow)
 	end
 	e.grid_row_gap = 10
 	e.grid_col_gap = 10
-	e.grid_wrap = 3
-	e.grid_flow = flow or 0
+	e.grid_wrap = math.sqrt(density) - 1
+	e.grid_flow = flow or
+		  random_choice{0, GRID_FLOW_Y}
+		+ random_choice{0, GRID_FLOW_B}
+		+ random_choice{0, GRID_FLOW_R}
 end
 
---test.layers_with_everything()
---test.flexbox_baseline_wrapped(ALIGN_BASELINE, ALIGN_STRETCH)
-test.grid_autopos(GRID_FLOW_Y + GRID_FLOW_B + GRID_FLOW_R)
+switch_test()
 
 function win:repaint()
 
@@ -248,7 +302,7 @@ function win:repaint()
 
 	local w, h = self:client_size()
 	cr:translate(50, 50)
-	e:sync_top(w - 100, h - 100)
+	e:sync_top(zoom * w - 100, zoom * h - 100)
 	--print'synced'
 	e:draw(cr)
 
@@ -256,10 +310,25 @@ function win:repaint()
 	--e:clear_text_runs()
 end
 
-function win:keyup(key)
+function win:keypress(key)
 	if key == 'esc' then
 		self:close()
+	elseif key == 'left' or key == 'right' then
+		switch_test(test_index + (key == 'left' and -1 or 1))
+	elseif key == 'enter' then
+		randomseed = time.clock()
+		switch_test()
+	elseif key == 'up' or key == 'down' then
+		zoom = glue.clamp(zoom + 0.1 * (key == 'up' and -1 or 1), 0.1, 2)
+		switch_test()
+	elseif key == 'pageup' or key == 'pagedown' then
+		local d = app:key'shift'
+			and density + (key =='pageup' and -1 or 1)
+			or density * (key == 'pageup' and .5 or 2)
+		density = glue.clamp(d, 1, 1000)
+		switch_test()
 	end
+	self:invalidate()
 end
 
 app:run()
