@@ -2394,14 +2394,8 @@ terra BoolBitmap:grow(min_rows: int, min_cols: int)
 end
 
 terra BoolBitmap:mark(row1: int, col1: int, row_span: int, col_span: int, val: bool)
-	var row2 = row1 + row_span
-	var col2 = col1 + col_span
-	self:grow(row2-1, col2-1)
-	for row = row1, row2 do
-		for col = col1, col2 do
-			self:set(row, col, val)
-		end
-	end
+	self:grow(row1+row_span-1, col1+col_span-1)
+	self.bitmap:sub(col1-1, row1-1, col_span, row_span):fill(uint8(val))
 end
 
 terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)

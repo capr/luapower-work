@@ -345,14 +345,18 @@ terra Bitmap:copy()
 	return dst
 end
 
-terra Bitmap:clear()
+terra Bitmap:fill(val: uint8)
 	if self.rowsize == self.stride then
-		fill(self.pixels, self.size)
+		fill(self.pixels, val, self.size)
 	else
 		for _,pixels in self:rows() do
-			fill(pixels, self.rowsize)
+			fill(pixels, val, self.rowsize)
 		end
 	end
+end
+
+terra Bitmap:clear()
+	self:fill(0)
 end
 
 --resize the bitmap while preserving its pixel values.
