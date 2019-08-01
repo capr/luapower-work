@@ -2458,6 +2458,7 @@ terra Layer:sync_layout_grid_autopos()
 	var flip_rows = (flow and GRID_FLOW_B) ~= 0
 
 	var occupied = &self.lib.grid_occupied
+	occupied:clear()
 
 	var grid_wrap = max(1, self.grid.wrap)
 	var min_lines = max(1, self.grid.min_lines)
@@ -2614,8 +2615,6 @@ terra Layer:sync_layout_grid_autopos()
 			end
 		end
 	end
-
-	occupied:clear()
 
 	self.grid._flip_rows = flip_rows
 	self.grid._flip_cols = flip_cols
