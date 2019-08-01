@@ -43,8 +43,11 @@ local lib = layerlib(load_font, unload_font)
 local opensans = lib:font()
 local amiri    = lib:font()
 
-local function layers_with_everything()
-	local e = lib:layer()
+local test = {}
+local e
+
+function test.layers_with_everything()
+	e = lib:layer()
 	e.child_count = 4
 	local e1 = e:child(0)
 	local e2 = e:child(1)
@@ -119,9 +122,9 @@ local function layers_with_everything()
 	--llib.glyph_run_cache_size = 0
 
 	e1:set_text_utf8(lorem_ipsum, -1)
-	e1:set_text_font_id  (0, -1, opensans)
-	e1:set_text_font_size(0, -1, 14)
-	e1:set_text_color    (0, -1, 0xffffffff)
+	e1:set_font_id    (0, -1, opensans)
+	e1:set_font_size  (0, -1, 14)
+	e1:set_text_color (0, -1, 0xffffffff)
 	e1.text_align_y = ALIGN_TOP
 	e1.text_align_x = ALIGN_CENTER
 
@@ -137,9 +140,9 @@ local function layers_with_everything()
 
 	do local e = e2
 	e:set_text_utf8('It\'s just text but it\'s alive!', -1)
-	e:set_text_font_id  (0, -1, amiri)
-	e:set_text_font_size(0, -1, 50)
-	e:set_text_color    (0, -1, 0x333333ff)
+	e:set_font_id    (0, -1, amiri)
+	e:set_font_size  (0, -1, 50)
+	e:set_text_color (0, -1, 0x333333ff)
 	e.text_align_y = ALIGN_CENTER
 	e.text_align_x = ALIGN_CENTER
 
@@ -160,18 +163,16 @@ local function layers_with_everything()
 
 	--e3.border_width = 1
 	--e4.border_width = 1
-	return e
 end
 
-local function flexbox_baseline_wrapped()
-	local e = lib:layer()
+function test.flexbox_baseline_wrapped(item_align_y, align_items_y)
+	e = lib:layer()
 
 	e.layout_type = LAYOUT_FLEXBOX
 	e.border_width = 1
 	e.flex_wrap = true
-	e.item_align_y = ALIGN_BASELINE
-	--e.item_align_y = ALIGN_CENTER
-	e.align_items_y = ALIGN_CENTER
+	e.item_align_y = item_align_y or ALIGN_BASELINE
+	e.align_items_y = align_items_y or ALIGN_STRETCH
 	e.align_items_x = ALIGN_CENTER
 
 	local texts = {
@@ -192,10 +193,11 @@ local function flexbox_baseline_wrapped()
 		e.min_cw = random(40, 100)
 		e.min_ch = random(0, 100)
 		e.text_align_x = ALIGN_CENTER
+		e.text_align_y = ALIGN_BOTTOM
 		e.layout_type = LAYOUT_TEXTBOX
 		e:set_text_utf8(texts[random(#texts)], -1)
-		e:set_text_font_id  (0, -1, opensans)
-		e:set_text_font_size(0, -1, 14)
+		e:set_font_id   (0, -1, opensans)
+		e:set_font_size (0, -1, 14)
 		if i == 1 then
 			--e.align_y = ALIGN_BOTTOM
 		end
@@ -204,8 +206,8 @@ local function flexbox_baseline_wrapped()
 	return e
 end
 
-local function grid_layout()
-	local e = lib:layer()
+function test.grid_autopos()
+	e = lib:layer()
 
 	e.layout_type = LAYOUT_GRID
 	e.border_color = 0x000000ff
@@ -216,22 +218,24 @@ local function grid_layout()
 		local e = e:child(i)
 		e.min_cw = 0
 		e.min_ch = 0
-		e.border_color = 0x000000ff
 		e.border_width = 2
 		e.border_offset = 0
-		--e.snap_x = true
-		--e.snap_y = true
+		e.snap_x = false
+		e.snap_y = true
+		e.clip_content = CLIP_BACKGROUND
+		e:set_text_utf8(''..i+1, -1)
+		e:set_font_id   (0, -1, opensans)
+		e:set_font_size (0, -1, 10)
 	end
 	e.grid_row_gap = 10
 	e.grid_col_gap = 10
-	e.grid_wrap = 51
-
-	return e
+	e.grid_wrap = 21
+	e.grid_flow = GRID_FLOW_Y + GRID_FLOW_B + GRID_FLOW_R
 end
 
---local e = layers_with_everything()
-local e = flexbox_baseline_wrapped()
---local e = grid_layout()
+--test.layers_with_everything()
+--test.flexbox_baseline_wrapped(ALIGN_BASELINE, ALIGN_STRETCH)
+test.grid_autopos()
 
 function win:repaint()
 
