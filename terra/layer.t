@@ -105,19 +105,14 @@ DEFAULT_SHADOW_COLOR = DEFAULT_SHADOW_COLOR or `color {0x000000ff}
 
 struct BoolBitmap {
 	bitmap: Bitmap;
-	rows: int;
-	cols: int;
-	bits: arr(bool);
 }
 
 terra BoolBitmap:init()
-	fill(self)
 	self.bitmap:init(bitmap.FORMAT_G8)
 end
 
 terra BoolBitmap:free()
 	self.bitmap:free()
-	self.bits:free()
 end
 
 --transform ------------------------------------------------------------------
@@ -2374,45 +2369,27 @@ end
 
 --bitmap-of-bools object -----------------------------------------------------
 
-terra BoolBitmap:bitindex(row: int, col: int)
-	if row > self.rows then return -1 end
-	if col > self.cols then return -1 end
-	return (row - 1) * self.cols + col - 1
-end
-
 terra BoolBitmap:set(row: int, col: int, val: bool)
 	var p = self.bitmap:pixel_addr(col-1, row-1)
 	if p ~= nil then
-		@p = int8(val)
+		@p = uint8(val)
 	end
-	--self.bits:set(self:bitindex(row, col), val)
 end
 
 terra BoolBitmap:get(row: int, col: int)
 	var p = self.bitmap:pixel_addr(col-1, row-1)
 	return iif(p ~= nil, bool(@p), false)
-	--return self.bits(self:bitindex(row, col), false)
 end
 
 terra BoolBitmap:grow(min_rows: int, min_cols: int)
-	var rows = max(min_rows, self.rows)
-	var cols = max(min_cols, self.cols)
-	self.bitmap:resize(cols, rows, -1, -1)
-	if rows > self.rows or cols > self.cols then
-		self.bits:setlen(rows * cols, false)
-		if cols > self.cols then --move the rows down to widen them
-			for row = self.rows-1, -1, -1 do
-				var dst = self.bits:sub(row *      cols, (row + 1) *      cols)
-				var src = self.bits:sub(row * self.cols, (row + 1) * self.cols)
-				assert(dst.elements >= src.elements)
-				src:copy(dst)
-				--pad the rest of the row with `false`.
-				var pad = self.bits:sub(row * cols + self.cols, (row + 1) * cols)
-				pad:fill(false)
-			end
-		end
-		self.rows = rows
-		self.cols = cols
+	var rows0 = self.bitmap.h
+	var cols0 = self.bitmap.w
+	var rows = max(min_rows, rows0)
+	var cols = max(min_cols, cols0)
+	if rows > rows0 or cols > cols0 then
+		self.bitmap:resize(cols, rows, -1, -1)
+		self.bitmap:sub(cols0, 0, cols - cols0, rows):clear()
+		self.bitmap:sub(0, cols0, cols0, rows - rows0):clear()
 	end
 end
 
@@ -2441,10 +2418,7 @@ terra BoolBitmap:hasmarks(row1: int, col1: int, row_span: int, col_span: int)
 end
 
 terra BoolBitmap:clear()
-	self.bitmap:realloc(0, 0, bitmap.FORMAT_G8, 0, 0)
-	self.rows = 0
-	self.cols = 0
-	self.bits.len = 0
+	self.bitmap:realloc(0, 0, bitmap.FORMAT_G8, -1, -1)
 end
 
 --grid layout ----------------------------------------------------------------

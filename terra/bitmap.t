@@ -65,6 +65,10 @@ terra Bitmap:get_size()
 	return self.h * self.stride
 end
 
+terra Bitmap:get_empty()
+	return self.w == 0 or self.h == 0
+end
+
 terra Bitmap:min_aligned_stride(w: int)
 	return min_aligned_stride(w, self.format)
 end
@@ -127,10 +131,6 @@ terra Bitmap:realloc(w: int, h: int, format: enum, stride: int, capacity: int)
 	end
 end
 
-terra Bitmap:clear()
-	fill(self.pixels, self.size)
-end
-
 --create a bitmap representing a rectangular region of another bitmap.
 --no pixels are copied: the bitmap references the same data buffer as the original.
 terra Bitmap:sub(x: int, y: int, w: int, h: int)
@@ -159,18 +159,23 @@ end
 local row_by_row_func = {&uint8, &uint8, int} -> {}
 
 Bitmap.methods._row_by_row_forward = terra(src: &Bitmap, dst: &Bitmap, func: row_by_row_func)
-	var dj = 0
+	if src.stride == 0 then return end
 	var w = min(src.w, dst.w)
-	for sj = 0, src.h * src.stride, src.stride do
+	var h = min(src.h, dst.h)
+	var dj = 0
+	for sj = 0, h * src.stride, src.stride do
 		func(dst.pixels + dj, src.pixels + sj, w)
 		dj = dj + dst.stride
 	end
 end
 
 Bitmap.methods._row_by_row_reverse = terra(src: &Bitmap, dst: &Bitmap, func: row_by_row_func)
-	var dj = (dst.h - 1) * dst.stride
+	if src.stride == 0 then return end
 	var w = min(src.w, dst.w)
-	for sj = (src.h - 1) * src.stride, -1, src.stride do
+	var h = min(src.h, dst.h)
+	var dj = (h - 1) * dst.stride
+	for sj = (h - 1) * src.stride, -1, -src.stride do
+		print(dj, sj)
 		func(dst.pixels + dj, src.pixels + sj, w)
 		dj = dj - dst.stride
 	end
@@ -195,8 +200,10 @@ local struct row_iter{bitmap: &Bitmap}
 row_iter.metamethods.__for = function(self, body)
 	return quote
 		var self = self.bitmap
-		for i = 0, self.h * self.stride, self.stride do
-			[ body(i, `self.pixels + i) ]
+		if self.stride ~= 0 then
+			for i = 0, self.h * self.stride, self.stride do
+				[ body(i, `self.pixels + i) ]
+			end
 		end
 	end
 end
@@ -208,8 +215,10 @@ local struct row_backwards_iter{bitmap: &Bitmap}
 row_backwards_iter.metamethods.__for = function(self, body)
 	return quote
 		var self = self.bitmap
-		for i = (self.h-1) * self.stride, -1, self.stride do
-			[ body(i, `self.pixels + i) ]
+		if self.stride ~= 0 then
+			for i = (self.h-1) * self.stride, -1, self.stride do
+				[ body(i, `self.pixels + i) ]
+			end
 		end
 	end
 end
@@ -336,6 +345,16 @@ terra Bitmap:copy()
 	return dst
 end
 
+terra Bitmap:clear()
+	if self.rowsize == self.stride then
+		fill(self.pixels, self.size)
+	else
+		for _,pixels in self:rows() do
+			fill(pixels, self.rowsize)
+		end
+	end
+end
+
 --resize the bitmap while preserving its pixel values.
 terra Bitmap:resize(w: int, h: int, stride: int, capacity: int64)
 	var format = self.format
@@ -345,7 +364,10 @@ terra Bitmap:resize(w: int, h: int, stride: int, capacity: int64)
 		self.capacity = capacity
 		if stride ~= self.stride then --re-stride the rows.
 			var blend_func = self:blend_func(format, format, BLEND_SOURCE)
-			self:row_by_row(self, blend_func)
+			var dst = @self
+			dst.stride = stride
+			assert(self:row_by_row(&dst, blend_func))
+			self.stride = stride
 		end
 		self.w = w
 		self.h = h

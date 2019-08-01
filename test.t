@@ -1,15 +1,7 @@
-#!./luajit
-
-terralib.printraw(terralib.systemincludes)
-
-terralib.includec'stdio.h'
-
+setfenv(1, require'terra/low')
 terra f()
-    terralib.traceback(nil)
-    --printf("%d", 5)
+	for i=0,-1,-0 do
+		print(i)
+	end
 end
-terra g()
-    f()
-end
-g()
-
+f()

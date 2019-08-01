@@ -206,14 +206,14 @@ function test.flexbox_baseline_wrapped(item_align_y, align_items_y)
 	return e
 end
 
-function test.grid_autopos()
+function test.grid_autopos(flow)
 	e = lib:layer()
 
 	e.layout_type = LAYOUT_GRID
 	e.border_color = 0x000000ff
 	e.border_width = 1
 
-	e.child_count = 1000
+	e.child_count = 5
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
 		e.min_cw = 0
@@ -229,13 +229,13 @@ function test.grid_autopos()
 	end
 	e.grid_row_gap = 10
 	e.grid_col_gap = 10
-	e.grid_wrap = 21
-	e.grid_flow = GRID_FLOW_Y + GRID_FLOW_B + GRID_FLOW_R
+	e.grid_wrap = 3
+	e.grid_flow = flow or 0
 end
 
 --test.layers_with_everything()
 --test.flexbox_baseline_wrapped(ALIGN_BASELINE, ALIGN_STRETCH)
-test.grid_autopos()
+test.grid_autopos(GRID_FLOW_Y + GRID_FLOW_B + GRID_FLOW_R)
 
 function win:repaint()
 
