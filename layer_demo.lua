@@ -10,6 +10,8 @@ local time = require'time'
 local print = print
 local assert = assert
 local math = math
+local tostring = tostring
+local pairs = pairs
 
 setfenv(1, setmetatable({}, {__index = layer}))
 
@@ -39,43 +41,7 @@ local lib = layerlib(load_font, unload_font)
 local opensans = lib:font()
 local amiri    = lib:font()
 
---test harness ---------------------------------------------------------------
-
-local test = {}
-local e --top layer
-
-local test_index = 1
-local selections = {}
-local zoom = 1
-local density = 6
-local tests
-function do_test()
-	tests = tests or glue.keys(test, true)
-
-	test_index = glue.clamp(test_index, 1, #tests)
-	density = glue.clamp(density, 1, 1000)
-
-	local k = tests[test_index]
-	if not k then return end
-	print(test_index, k)
-	if e then e:free(); e = nil end
-	e = lib:layer()
-	test[k]()
-end
-
-local function choose(sel_id, list)
-	local x = selections[sel_id] or 1
-	local x = glue.clamp(x, 1, #list)
-	selections[sel_id] = x
-	return list[x]
-end
-
-local function lerp(sel_id, i, j)
-	local x = selections[sel_id] or 1
-	local x = glue.clamp(x, 1, j-i+1)
-	selections[sel_id] = x
-	return glue.lerp(x, 1, j-i+1, i, j)
-end
+--lib.subpixel_x_resolution = 1/2
 
 --window ---------------------------------------------------------------------
 
@@ -86,10 +52,46 @@ local win = app:window{
 	w = 1800, h = 900,
 }
 
+--test harness ---------------------------------------------------------------
+
+local test = {}
+local e --top layer
+
+local test_index = 1
+local params = {}
+local tests
+function do_test()
+	tests = tests or glue.keys(test, true)
+
+	test_index = glue.clamp(test_index, 1, #tests)
+
+	local k = tests[test_index]
+	if not k then return end
+	if e then e:free(); e = nil end
+	e = lib:layer()
+	test[k]()
+end
+
+local function choose(key, list, default)
+	key = tostring(key)
+	local x = params[key] or default or 1
+	local x = glue.clamp(x, 1, #list)
+	params[key] = x
+	return list[x]
+end
+
+local function slide(key, i, j, default)
+	key = tostring(key)
+	local x = params[key] or default or 1
+	local x = glue.clamp(x, 1, j-i+1)
+	params[key] = x
+	return glue.lerp(x, 1, j-i+1, i, j)
+end
+
 --tests ----------------------------------------------------------------------
 
 function test.layers_with_everything()
-	e.child_count = density
+	e.child_count = slide(1, 1, 5, 3)
 	local e1 = e:child(0)
 	local e2 = e:child(1)
 	local e3 = e:child(2)
@@ -209,7 +211,7 @@ end
 function test.flexbox_baseline_wrapped()
 	e.layout_type = LAYOUT_FLEXBOX
 	e.border_width = 1
-	e.flex_wrap = true
+	e.flex_wrap = choose('w', {true, false})
 	e.item_align_x = choose(1, {
 		ALIGN_AUTO,
 		--ALIGN_LEFT,
@@ -217,6 +219,7 @@ function test.flexbox_baseline_wrapped()
 		ALIGN_START,
 		ALIGN_END,
 		ALIGN_CENTER,
+		ALIGN_STRETCH,
 	})
 	e.item_align_y = choose(2, {
 		ALIGN_BASELINE,
@@ -225,6 +228,7 @@ function test.flexbox_baseline_wrapped()
 		--ALIGN_START,
 		--ALIGN_END,
 		ALIGN_CENTER,
+		ALIGN_STRETCH,
 	})
 	e.align_items_y = choose(3, {
 		ALIGN_TOP,
@@ -259,15 +263,14 @@ function test.flexbox_baseline_wrapped()
 		"Oh dear… is he all right?",
 	}
 
-	e.child_count = density
-	math.randomseed(lerp(5, 1, 10))
+	e.child_count = slide(0, 1, 1000, 20)
+	math.randomseed(slide(5, 1, 10))
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
 		e.border_width = 1
 		e.padding = 10
-		e.min_cw = math.random(lerp(6, 100, 500))
-		print(e.min_cw)
-		e.min_ch = math.random(lerp(7, 0, 200))
+		e.min_cw = 100 + math.random(slide(6, 0, 500))
+		e.min_ch = math.random(slide(7, 0, 200))
 		e.text_align_x = ALIGN_CENTER
 		e.text_align_y = ALIGN_BOTTOM
 		e.layout_type = LAYOUT_TEXTBOX
@@ -286,7 +289,7 @@ function test.grid_autopos(flow)
 	e.border_color = 0x000000ff
 	e.border_width = 1
 
-	e.child_count = density
+	e.child_count = slide(1, 1, 1000, 21)
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
 		e.min_cw = 0
@@ -302,11 +305,11 @@ function test.grid_autopos(flow)
 	end
 	e.grid_row_gap = 10
 	e.grid_col_gap = 10
-	e.grid_wrap = math.sqrt(density) - 1
+	e.grid_wrap = slide(2, 1, 100, math.sqrt(e.child_count) - 1)
 	e.grid_flow = flow or
-		  choose(1, {0, GRID_FLOW_Y})
-		+ choose(2, {0, GRID_FLOW_B})
-		+ choose(3, {0, GRID_FLOW_R})
+		  choose(3, {0, GRID_FLOW_Y})
+		+ choose(4, {0, GRID_FLOW_B})
+		+ choose(5, {0, GRID_FLOW_R})
 end
 
 do_test()
@@ -322,8 +325,9 @@ function win:repaint()
 
 	local w, h = self:client_size()
 	cr:translate(50, 50)
+	local zoom = slide('z', 1, 10, 5)
+	if zoom < 5 then zoom = 1/zoom else zoom = zoom - 4 end
 	e:sync_top(zoom * w - 100, zoom * h - 100)
-	--print'synced'
 	e:draw(cr)
 
 	--e1:set_text_utf8('', -1)
@@ -335,27 +339,24 @@ function win:keypress(key)
 		self:close()
 	elseif key == 'pageup' or key == 'pagedown' then
 		test_index = test_index + (key == 'pageup' and -1 or 1)
-		selections = {}
-	elseif key == 'up' or key == 'down' then
-		if app:key'shift' then
-			zoom = glue.clamp(zoom + 0.1 * (key == 'up' and -1 or 1), 0.1, 2)
-		else
-			local sel_id = 1
-			for i = 1, 9 do
-				if app:key(''..i) then
-					sel_id = i
-					break
-				end
+		params = {}
+		do_test()
+		self:invalidate()
+	elseif key == 'up' or key == 'down' or key == 'left' or key == 'right' then
+		local param_key
+		for k in pairs(params) do
+			if app:key(k) then
+				param_key = k
+				break
 			end
-			selections[sel_id] = (selections[sel_id] or 1) + (key == 'up' and -1 or 1)
 		end
-	elseif key == 'left' or key == 'right' then
-		density = app:key'shift'
-			and density * (key == 'left' and .5 or 2)
-			 or density + (key == 'left' and -1 or 1)
+		if param_key then
+			params[param_key] = params[param_key]
+				+ ((key == 'up' or key == 'left') and -1 or 1)
+			do_test()
+			self:invalidate()
+		end
 	end
-	do_test()
-	self:invalidate()
 end
 
 app:run()

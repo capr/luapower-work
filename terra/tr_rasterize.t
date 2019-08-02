@@ -8,7 +8,6 @@ setfenv(1, require'terra/tr_types')
 require'terra/tr_font'
 
 terra Font:load_glyph(font_size: num, glyph_index: uint)
-	self:setsize(font_size)
 	if FT_Load_Glyph(self.ft_face, glyph_index, self.ft_load_flags) ~= 0 then
 		return nil
 	end
@@ -119,6 +118,8 @@ glyph_surfaces.metamethods.__for = function(self, body)
 	return quote
 		var self = self --workaround for terra issue #368
 		var gr = self.gr
+		var font = self.r.fonts:at(gr.font_id)
+		font:setsize(gr.font_size)
 		for i = self.i, self.j do
 			var g = gr.glyphs:at(i)
 			var glyph, sx, sy = self.r:rasterize_glyph(

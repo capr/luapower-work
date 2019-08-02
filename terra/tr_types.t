@@ -9,6 +9,7 @@ setfenv(1, require'terra/tr_module')
 
 assert(color, 'require the graphics adapter first, eg. terra/tr_paint_cairo')
 
+low = require'terra/low'
 require'terra/phf'
 require'terra/fixedfreelist'
 require'terra/lrucache'
@@ -27,7 +28,7 @@ linklibrary'freetype'
 linklibrary'xxhash'
 
 --replace the default hash function with faster xxhash.
-bithash = macro(function(size_t, k, h, len)
+low.bithash = macro(function(size_t, k, h, len)
 	local size_t = size_t:astype()
 	local T = k:getpointertype()
 	local len = len or 1
@@ -408,8 +409,8 @@ fixpointfields(Glyph)
 Glyph.empty = `Glyph {
 	font_id = -1;
 	font_size_16_6 = 0;
-	subpixel_offset_x_8_6 = 0;
 	glyph_index = 0;
+	subpixel_offset_x_8_6 = 0;
 	image = [GlyphImage.empty];
 }
 

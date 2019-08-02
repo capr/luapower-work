@@ -83,7 +83,7 @@ local fsize = macro(function(m) return `iif(m < 16, 1, m >> 4) end)
 local UPPER = 0.77
 
 local realloc = macro(function(p, len)
-	return `_M.realloc(p, len, 'khash')
+	return `_M.realloc(p, len, 'hashmap')
 end)
 
 local map_type = memoize(function(

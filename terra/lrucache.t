@@ -71,6 +71,7 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal)
 	cache.key_t = key_t
 	cache.val_t = val_t
 	cache.size_t = size_t
+	cache.pair_t = pair
 
 	addmethods(cache, function()
 

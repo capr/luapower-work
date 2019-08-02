@@ -77,8 +77,6 @@ terra Font:unref()
 end
 
 terra Font:setsize(size: num)
-	if self.size == size then return end
-	self.size = size
 
 	--find the size index closest to input size.
 	var size_index: int
@@ -104,6 +102,7 @@ terra Font:setsize(size: num)
 		assert(FT_Set_Pixel_Sizes(self.ft_face, fixed_size, 0) == 0)
 	end
 
+	self.size = size
 	var m = self.ft_face.size.metrics
 	self.ascent  = [num](m.ascender ) * self.scale / 64.f
 	self.descent = [num](m.descender) * self.scale / 64.f

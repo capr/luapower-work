@@ -489,8 +489,8 @@ struct Layer (gettersandsetters) {
 	--flex & grid layout
 	align_items_x: enum;  --ALIGN_*
 	align_items_y: enum;  --ALIGN_*
- 	item_align_x: enum;   --ALIGN_*
-	item_align_y: enum;   --ALIGN_*
+ 	item_align_x: enum;   --ALIGN_* when parent's align_items_x == ALIGN_STRETCH
+	item_align_y: enum;   --ALIGN_* when parent's align_items_y == ALIGN_STRETCH
 	flex: FlexLayout;
 	grid: GridLayout;
 
