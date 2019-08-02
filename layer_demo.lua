@@ -32,7 +32,7 @@ local function unload_font(font_id, file_data_buf, file_size_buf)
 	--nothing
 end
 
-local lorem_ipsum = 'You only Oh dear… '..glue.readfile('lorem_ipsum.txt'):sub(1, 1000)
+local lorem_ipsum = glue.readfile('lorem_ipsum.txt'):sub(1, 1000)
 
 assert(memtotal() == 0)
 
@@ -67,8 +67,7 @@ function do_test()
 
 	local k = tests[test_index]
 	if not k then return end
-	if e then e:free(); e = nil end
-	e = lib:layer()
+	if not e then e = lib:layer() end
 	test[k]()
 end
 
@@ -82,20 +81,16 @@ end
 
 local function slide(key, i, j, default)
 	key = tostring(key)
-	local x = params[key] or default or 1
-	local x = glue.clamp(x, 1, j-i+1)
+	local x = params[key] or default or i
+	local x = glue.clamp(x, i, j)
 	params[key] = x
-	return glue.lerp(x, 1, j-i+1, i, j)
+	return x
 end
 
 --tests ----------------------------------------------------------------------
 
 function test.layers_with_everything()
-	e.child_count = slide(1, 1, 5, 3)
-	local e1 = e:child(0)
-	local e2 = e:child(1)
-	local e3 = e:child(2)
-	local e4 = e:child(3)
+	e.child_count = slide(1, 0, 5, 3)
 
 	e.clip_content = CLIP_PADDING
 	--e.clip_content = CLIP_NONE
@@ -145,74 +140,77 @@ function test.layers_with_everything()
 	e.layout_type = LAYOUT_FLEXBOX
 	--e.flex_flow = FLEX_FLOW_Y
 
-	e1.layout_type = LAYOUT_TEXTBOX
-	e1.clip_content = CLIP_BACKGROUND
-	e2.clip_content = CLIP_PADDING
+	local e1 = e:child(0)
+	if e1 ~= nil then
+		local e = e1
+		e.layout_type = LAYOUT_TEXTBOX
+		e.clip_content = CLIP_BACKGROUND
+		e.border_width = 10; e1.padding = 20
+		e.border_color = 0xffff00ff
+		e.min_cw = 10; e1.min_ch = 10
 
-	e2.layout_type = LAYOUT_TEXTBOX
-	e2.background_type = BACKGROUND_COLOR
-	e2.background_color = 0x33333366
+		e:set_text_utf8(lorem_ipsum, -1)
+		e:set_font_id    (0, -1, opensans)
+		e:set_font_size  (0, -1, 14)
+		e:set_text_color (0, -1, 0xffffffff)
+		e.text_align_y = ALIGN_TOP
+		e.text_align_x = ALIGN_CENTER
 
-	e1.border_width = 10; e1.padding = 20
-	e2.border_width = 10; e2.padding = 20
-	e1.border_color = 0xffff00ff
-	e2.border_color = 0x00ff00ff
-	e1.min_cw = 10; e1.min_ch = 10
-	e2.min_cw = 10; e2.min_ch = 10
-
-	--llib.subpixel_x_resolution = 1/2
-	--llib.glyph_cache_size = 0
-	--llib.glyph_run_cache_size = 0
-
-	e1:set_text_utf8(lorem_ipsum, -1)
-	e1:set_font_id    (0, -1, opensans)
-	e1:set_font_size  (0, -1, 14)
-	e1:set_text_color (0, -1, 0xffffffff)
-	e1.text_align_y = ALIGN_TOP
-	e1.text_align_x = ALIGN_CENTER
-
-	e1:set_shadow_x       (2, 1)
-	e1:set_shadow_y       (2, 1)
-	e1:set_shadow_blur    (2, 1)
-	e1:set_shadow_color   (2, 0x000000ff)
-	e1:set_shadow_content (2, true)
-	e1:set_shadow_inset   (2, false)
-
-	--e1.visible = false
-	--e2.visible = false
-
-	do local e = e2
-	e:set_text_utf8('It\'s just text but it\'s alive!', -1)
-	e:set_font_id    (0, -1, amiri)
-	e:set_font_size  (0, -1, 50)
-	e:set_text_color (0, -1, 0x333333ff)
-	e.text_align_y = ALIGN_CENTER
-	e.text_align_x = ALIGN_CENTER
-
-	e:set_shadow_x       (0, 0)
-	e:set_shadow_y       (0, 1)
-	e:set_shadow_blur    (0, 2)
-	e:set_shadow_color   (0, 0x000000ff)
-	e:set_shadow_content (0, true)
-	e:set_shadow_inset   (0, true)
-
-	e:set_shadow_x       (1, 0)
-	e:set_shadow_y       (1, 1)
-	e:set_shadow_blur    (1, 1)
-	e:set_shadow_color   (1, 0x888888ff)
-	e:set_shadow_content (1, true)
-	e:set_shadow_inset   (1, false)
+		e:set_shadow_x       (2, 1)
+		e:set_shadow_y       (2, 1)
+		e:set_shadow_blur    (2, 1)
+		e:set_shadow_color   (2, 0x000000ff)
+		e:set_shadow_content (2, true)
+		e:set_shadow_inset   (2, false)
 	end
 
-	--e3.border_width = 1
-	--e4.border_width = 1
+	local e2 = e:child(1)
+	if e2 ~= nil then
+		local e = e2
+		e.clip_content = CLIP_PADDING
+		e.layout_type = LAYOUT_TEXTBOX
+		e.background_type = BACKGROUND_COLOR
+		e.background_color = 0x33333366
+
+		e.border_width = 10; e2.padding = 20
+		e.border_color = 0x00ff00ff
+		e.min_cw = 10; e2.min_ch = 10
+
+		e:set_text_utf8('It\'s just text but it\'s alive!', -1)
+		e:set_font_id    (0, -1, amiri)
+		e:set_font_size  (0, -1, 50)
+		e:set_text_color (0, -1, 0x333333ff)
+		e.text_align_y = ALIGN_CENTER
+		e.text_align_x = ALIGN_CENTER
+
+		e:set_shadow_x       (0, 0)
+		e:set_shadow_y       (0, 1)
+		e:set_shadow_blur    (0, 2)
+		e:set_shadow_color   (0, 0x000000ff)
+		e:set_shadow_content (0, true)
+		e:set_shadow_inset   (0, true)
+
+		e:set_shadow_x       (1, 0)
+		e:set_shadow_y       (1, 1)
+		e:set_shadow_blur    (1, 1)
+		e:set_shadow_color   (1, 0x888888ff)
+		e:set_shadow_content (1, true)
+		e:set_shadow_inset   (1, false)
+	end
+
+	for i=3,e.child_count do
+		local e = e:child(i-1)
+		if e then
+			e.border_width = 1
+		end
+	end
 end
 
 function test.flexbox_baseline_wrapped()
 	e.layout_type = LAYOUT_FLEXBOX
 	e.border_width = 1
 	e.flex_wrap = choose('w', {true, false})
-	e.item_align_x = choose(1, {
+	e.item_align_x = choose(2, {
 		ALIGN_AUTO,
 		--ALIGN_LEFT,
 		--ALIGN_RIGHT,
@@ -221,7 +219,7 @@ function test.flexbox_baseline_wrapped()
 		ALIGN_CENTER,
 		ALIGN_STRETCH,
 	})
-	e.item_align_y = choose(2, {
+	e.item_align_y = choose(3, {
 		ALIGN_BASELINE,
 		ALIGN_TOP,
 		ALIGN_BOTTOM,
@@ -230,7 +228,7 @@ function test.flexbox_baseline_wrapped()
 		ALIGN_CENTER,
 		ALIGN_STRETCH,
 	})
-	e.align_items_y = choose(3, {
+	e.align_items_y = choose(4, {
 		ALIGN_TOP,
 		ALIGN_BOTTOM,
 		--ALIGN_START,
@@ -241,7 +239,7 @@ function test.flexbox_baseline_wrapped()
 		ALIGN_SPACE_EVENLY,
 		ALIGN_STRETCH,
 	})
-	e.align_items_x = choose(4, {
+	e.align_items_x = choose(5, {
 		ALIGN_TOP,
 		ALIGN_BOTTOM,
 		--ALIGN_START,
@@ -263,8 +261,9 @@ function test.flexbox_baseline_wrapped()
 		"Oh dear… is he all right?",
 	}
 
-	e.child_count = slide(0, 1, 1000, 20)
-	math.randomseed(slide(5, 1, 10))
+	math.randomseed(slide(0, 1, 10))
+
+	e.child_count = slide(1, 0, 1000, 20)
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
 		e.border_width = 1
@@ -325,13 +324,12 @@ function win:repaint()
 
 	local w, h = self:client_size()
 	cr:translate(50, 50)
+
 	local zoom = slide('z', 1, 10, 5)
 	if zoom < 5 then zoom = 1/zoom else zoom = zoom - 4 end
+
 	e:sync_top(zoom * w - 100, zoom * h - 100)
 	e:draw(cr)
-
-	--e1:set_text_utf8('', -1)
-	--e:clear_text_runs()
 end
 
 function win:keypress(key)
@@ -340,6 +338,8 @@ function win:keypress(key)
 	elseif key == 'pageup' or key == 'pagedown' then
 		test_index = test_index + (key == 'pageup' and -1 or 1)
 		params = {}
+		e:free()
+		e = nil
 		do_test()
 		self:invalidate()
 	elseif key == 'up' or key == 'down' or key == 'left' or key == 'right' then

@@ -1627,9 +1627,8 @@ terra Layer:sync_min_h(b: bool)    return self.layout_solver.sync_min_h(self, b)
 terra Layer:sync_layout_x(b: bool) return self.layout_solver.sync_x(self, b) end
 terra Layer:sync_layout_y(b: bool) return self.layout_solver.sync_y(self, b) end
 terra Layer:sync_top(w: num, h: num)
-	if self.layout_solver.sync_top(self, w, h) then
-		self:sync_layout()
-	end
+	self.layout_solver.sync_top(self, w, h)
+	self:sync_layout()
 end
 
 --layout utils ---------------------------------------------------------------
