@@ -44,27 +44,37 @@ local amiri    = lib:font()
 local test = {}
 local e --top layer
 
-local function random_choice(list)
-	return list[math.random(#list)]
-end
-
 local test_index = 1
-local randomseed = 0
+local selections = {}
 local zoom = 1
 local density = 6
 local tests
-function switch_test(i)
+function do_test()
 	tests = tests or glue.keys(test, true)
 
-	i = i or test_index
-	local k = tests[i]
+	test_index = glue.clamp(test_index, 1, #tests)
+	density = glue.clamp(density, 1, 1000)
+
+	local k = tests[test_index]
 	if not k then return end
-	print(i, k)
+	print(test_index, k)
 	if e then e:free(); e = nil end
-	math.randomseed(randomseed)
 	e = lib:layer()
 	test[k]()
-	test_index = i
+end
+
+local function choose(sel_id, list)
+	local x = selections[sel_id] or 1
+	local x = glue.clamp(x, 1, #list)
+	selections[sel_id] = x
+	return list[x]
+end
+
+local function lerp(sel_id, i, j)
+	local x = selections[sel_id] or 1
+	local x = glue.clamp(x, 1, j-i+1)
+	selections[sel_id] = x
+	return glue.lerp(x, 1, j-i+1, i, j)
 end
 
 --window ---------------------------------------------------------------------
@@ -196,40 +206,48 @@ function test.layers_with_everything()
 	--e4.border_width = 1
 end
 
-function test.flexbox_baseline_wrapped(item_align_y, align_items_y, align_items_x)
+function test.flexbox_baseline_wrapped()
 	e.layout_type = LAYOUT_FLEXBOX
 	e.border_width = 1
 	e.flex_wrap = true
-	e.item_align_y = item_align_y or random_choice{
+	e.item_align_x = choose(1, {
+		ALIGN_AUTO,
+		--ALIGN_LEFT,
+		--ALIGN_RIGHT,
+		ALIGN_START,
+		ALIGN_END,
+		ALIGN_CENTER,
+	})
+	e.item_align_y = choose(2, {
 		ALIGN_BASELINE,
-		--ALIGN_BOTTOM,
-		--ALIGN_CENTER,
-		--ALIGN_TOP,
-		--ALIGN_START,
-		--ALIGN_END,
-	}
-	e.align_items_y = align_items_y or random_choice{
-		--ALIGN_TOP,
-		--ALIGN_BOTTOM,
+		ALIGN_TOP,
+		ALIGN_BOTTOM,
 		--ALIGN_START,
 		--ALIGN_END,
 		ALIGN_CENTER,
-		--ALIGN_SPACE_AROUND,
-		--ALIGN_SPACE_BETWEEN,
-		--ALIGN_SPACE_EVENLY,
-		--ALIGN_STRETCH,
-	}
-	e.align_items_x = align_items_x or random_choice{
-		--ALIGN_TOP,
-		--ALIGN_BOTTOM,
+	})
+	e.align_items_y = choose(3, {
+		ALIGN_TOP,
+		ALIGN_BOTTOM,
 		--ALIGN_START,
 		--ALIGN_END,
-		--ALIGN_CENTER,
-		--ALIGN_SPACE_AROUND,
-		--ALIGN_SPACE_BETWEEN,
+		ALIGN_CENTER,
+		ALIGN_SPACE_AROUND,
+		ALIGN_SPACE_BETWEEN,
 		ALIGN_SPACE_EVENLY,
 		ALIGN_STRETCH,
-	}
+	})
+	e.align_items_x = choose(4, {
+		ALIGN_TOP,
+		ALIGN_BOTTOM,
+		--ALIGN_START,
+		--ALIGN_END,
+		ALIGN_CENTER,
+		ALIGN_SPACE_AROUND,
+		ALIGN_SPACE_BETWEEN,
+		ALIGN_SPACE_EVENLY,
+		ALIGN_STRETCH,
+	})
 
 	local texts = {
 		"Lorem ipsum",
@@ -242,12 +260,14 @@ function test.flexbox_baseline_wrapped(item_align_y, align_items_y, align_items_
 	}
 
 	e.child_count = density
+	math.randomseed(lerp(5, 1, 10))
 	for i = 0, e.child_count-1 do
 		local e = e:child(i)
 		e.border_width = 1
 		e.padding = 10
-		e.min_cw = math.random(40, 100)
-		e.min_ch = math.random(0, 100)
+		e.min_cw = math.random(lerp(6, 100, 500))
+		print(e.min_cw)
+		e.min_ch = math.random(lerp(7, 0, 200))
 		e.text_align_x = ALIGN_CENTER
 		e.text_align_y = ALIGN_BOTTOM
 		e.layout_type = LAYOUT_TEXTBOX
@@ -284,12 +304,12 @@ function test.grid_autopos(flow)
 	e.grid_col_gap = 10
 	e.grid_wrap = math.sqrt(density) - 1
 	e.grid_flow = flow or
-		  random_choice{0, GRID_FLOW_Y}
-		+ random_choice{0, GRID_FLOW_B}
-		+ random_choice{0, GRID_FLOW_R}
+		  choose(1, {0, GRID_FLOW_Y})
+		+ choose(2, {0, GRID_FLOW_B})
+		+ choose(3, {0, GRID_FLOW_R})
 end
 
-switch_test()
+do_test()
 
 function win:repaint()
 
@@ -313,21 +333,28 @@ end
 function win:keypress(key)
 	if key == 'esc' then
 		self:close()
-	elseif key == 'left' or key == 'right' then
-		switch_test(test_index + (key == 'left' and -1 or 1))
-	elseif key == 'enter' then
-		randomseed = time.clock()
-		switch_test()
-	elseif key == 'up' or key == 'down' then
-		zoom = glue.clamp(zoom + 0.1 * (key == 'up' and -1 or 1), 0.1, 2)
-		switch_test()
 	elseif key == 'pageup' or key == 'pagedown' then
-		local d = app:key'shift'
-			and density + (key =='pageup' and -1 or 1)
-			or density * (key == 'pageup' and .5 or 2)
-		density = glue.clamp(d, 1, 1000)
-		switch_test()
+		test_index = test_index + (key == 'pageup' and -1 or 1)
+		selections = {}
+	elseif key == 'up' or key == 'down' then
+		if app:key'shift' then
+			zoom = glue.clamp(zoom + 0.1 * (key == 'up' and -1 or 1), 0.1, 2)
+		else
+			local sel_id = 1
+			for i = 1, 9 do
+				if app:key(''..i) then
+					sel_id = i
+					break
+				end
+			end
+			selections[sel_id] = (selections[sel_id] or 1) + (key == 'up' and -1 or 1)
+		end
+	elseif key == 'left' or key == 'right' then
+		density = app:key'shift'
+			and density * (key == 'left' and .5 or 2)
+			 or density + (key == 'left' and -1 or 1)
 	end
+	do_test()
 	self:invalidate()
 end
 
