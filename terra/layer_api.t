@@ -70,8 +70,6 @@ terra Layer:set_scale_cy    (v: num) self.transform.scale_cy    = v end
 
 do end --borders
 
-terra Layer:border_shape_changed() end --TODO
-
 terra Layer:get_border_width_left   () return self.border.width_left   end
 terra Layer:get_border_width_right  () return self.border.width_right  end
 terra Layer:get_border_width_top    () return self.border.width_top    end
@@ -135,7 +133,7 @@ terra Layer:get_border_dash_offset() return self.border.dash_offset end
 terra Layer:set_border_dash_offset(v: int) self.border.dash_offset = v end
 
 terra Layer:get_border_offset() return self.border.offset end
-terra Layer:set_border_offset(v: int) self.border.offset = v; self:border_shape_changed() end
+terra Layer:set_border_offset(v: num) self.border.offset = v; self:border_shape_changed() end
 
 terra Layer:set_border_line_to(line_to: BorderLineToFunc)
 	self.border.line_to = line_to; self:border_shape_changed()
@@ -207,13 +205,29 @@ terra Layer:set_background_color_stop_offset(i: int, offset: num)
 	self:background_changed()
 end
 
-terra Layer:get_background_image()
-	return &self.background.pattern.bitmap
+terra Layer:set_background_image(w: int, h: int, format: int, stride: int, pixels: &uint8)
+	self.background.pattern:set_bitmap(w, h, format, stride, pixels)
+	self:background_changed()
 end
 
-terra Layer:set_background_image(v: &Bitmap)
-	self.background.pattern.bitmap = @v
-	self:background_changed()
+terra Layer:get_background_image_w() return self.background.pattern.bitmap.w end
+terra Layer:get_background_image_h() return self.background.pattern.bitmap.h end
+terra Layer:get_background_image_stride() return self.background.pattern.bitmap.stride end
+terra Layer:get_background_image_pixels()
+	var s = self.background.pattern.bitmap_surface
+	if s ~= nil then s:flush() end
+	return self.background.pattern.bitmap.pixels
+end
+terra Layer:get_background_image_format()
+	return int(self.background.pattern.bitmap.format)
+end
+terra Layer:background_image_invalidate()
+	var s = self.background.pattern.bitmap_surface
+	if s ~= nil then s:mark_dirty() end
+end
+terra Layer:background_image_invalidate_rect(x: int, y: int, w: int, h: int)
+	var s = self.background.pattern.bitmap_surface
+	if s ~= nil then s:mark_dirty_rectangle(x, y, w, h) end
 end
 
 terra Layer:get_background_x      () return self.background.pattern.x end
@@ -263,20 +277,18 @@ end
 terra Layer:get_shadow_x       (i: int) return self:shadow(i).offset_x end
 terra Layer:get_shadow_y       (i: int) return self:shadow(i).offset_y end
 terra Layer:get_shadow_color   (i: int) return self:shadow(i).color end
-terra Layer:get_shadow_blur    (i: int) return self:shadow(i).blur_radius end
-terra Layer:get_shadow_passes  (i: int) return self:shadow(i).blur_passes end
+terra Layer:get_shadow_blur    (i: int) return int(self:shadow(i).blur_radius) end
+terra Layer:get_shadow_passes  (i: int) return int(self:shadow(i).blur_passes) end
 terra Layer:get_shadow_inset   (i: int) return self:shadow(i).inset end
 terra Layer:get_shadow_content (i: int) return self:shadow(i).content end
-
-terra Layer:shadow_shape_changed() end --TODO
 
 terra Layer:set_shadow_x       (i: int, v: num)    self:new_shadow(i).offset_x    = v end
 terra Layer:set_shadow_y       (i: int, v: num)    self:new_shadow(i).offset_y    = v end
 terra Layer:set_shadow_color   (i: int, v: uint32) self:new_shadow(i).color.uint  = v end
-terra Layer:set_shadow_blur    (i: int, v: uint8)  self:new_shadow(i).blur_radius = v; self:shadow_shape_changed() end
-terra Layer:set_shadow_passes  (i: int, v: uint8)  self:new_shadow(i).blur_passes = v; self:shadow_shape_changed() end
-terra Layer:set_shadow_inset   (i: int, v: bool)   self:new_shadow(i).inset       = v; self:shadow_shape_changed() end
-terra Layer:set_shadow_content (i: int, v: bool)   self:new_shadow(i).content     = v; self:shadow_shape_changed() end
+terra Layer:set_shadow_blur    (i: int, v: int)    self:new_shadow(i).blur_radius = v end
+terra Layer:set_shadow_passes  (i: int, v: int)    self:new_shadow(i).blur_passes = v end
+terra Layer:set_shadow_inset   (i: int, v: bool)   self:new_shadow(i).inset       = v end
+terra Layer:set_shadow_content (i: int, v: bool)   self:new_shadow(i).content     = v end
 
 do end --text
 
@@ -438,6 +450,7 @@ function build()
 	end
 
 	layerlib:getenums(_M)
+	layerlib:getenums(bitmap, '^FORMAT_', 'BITMAP_')
 
 	layerlib(layerlib_new, 'layerlib')
 
@@ -662,8 +675,14 @@ function build()
 		get_background_color_stop_offset=1,
 		set_background_color_stop_offset=1,
 
-		get_background_image=1,
 		set_background_image=1,
+		get_background_image_w=1,
+		get_background_image_h=1,
+		get_background_image_stride=1,
+		get_background_image_pixels=1,
+		get_background_image_format=1,
+		background_image_invalidate=1,
+		background_image_invalidate_rect=1,
 
 		get_background_hittable    =1,
 		get_background_operator    =1,
@@ -760,33 +779,33 @@ function build()
 		set_text_operator     =1,
 
 		--[[
-		get_text_span_font_id           =1,
-		get_text_span_font_size         =1,
-		get_text_span_features          =1,
-		get_text_span_script            =1,
-		get_text_span_lang              =1,
-		get_text_span_paragraph_dir     =1,
-		get_text_span_line_spacing      =1,
-		get_text_span_hardline_spacing  =1,
-		get_text_span_paragraph_spacing =1,
-		get_text_span_nowrap            =1,
-		get_text_span_color             =1,
-		get_text_span_opacity           =1,
-		get_text_span_operator          =1,
+		get_span_font_id           =1,
+		get_span_font_size         =1,
+		get_span_features          =1,
+		get_span_script            =1,
+		get_span_lang              =1,
+		get_span_paragraph_dir     =1,
+		get_span_line_spacing      =1,
+		get_span_hardline_spacing  =1,
+		get_span_paragraph_spacing =1,
+		get_span_nowrap            =1,
+		get_span_text_color        =1,
+		get_span_text_opacity      =1,
+		get_span_text_operator     =1,
 
-		set_text_span_font_id           =1,
-		set_text_span_font_size         =1,
-		set_text_span_features          =1,
-		set_text_span_script            =1,
-		set_text_span_lang              =1,
-		set_text_span_paragraph_dir     =1,
-		set_text_span_line_spacing      =1,
-		set_text_span_hardline_spacing  =1,
-		set_text_span_paragraph_spacing =1,
-		set_text_span_nowrap            =1,
-		set_text_span_color             =1,
-		set_text_span_opacity           =1,
-		set_text_span_operator          =1,
+		set_span_font_id           =1,
+		set_span_font_size         =1,
+		set_span_features          =1,
+		set_span_script            =1,
+		set_span_lang              =1,
+		set_span_paragraph_dir     =1,
+		set_span_line_spacing      =1,
+		set_span_hardline_spacing  =1,
+		set_span_paragraph_spacing =1,
+		set_span_nowrap            =1,
+		set_span_text_color        =1,
+		set_span_text_opacity      =1,
+		set_span_text_operator     =1,
 		]]
 
 		text_cursor_xs=1,

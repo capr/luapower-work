@@ -1,13 +1,21 @@
+--go @ luajit -joff -jv *
+jit.off(true, true)
 
+local bit = require'bit'
+local ffi = require'ffi'
+local nw = require'nw'
 local layer = require'layer'
+local glue = require'glue'
 local cairo = require'cairo'
-memtotal = layer.memtotal
-local maxint = 2^31-1
+local time = require'time'
+
+setfenv(1, setmetatable(glue.update({}, _G), {__index = layer}))
+
+--lib object & fonts ---------------------------------------------------------
 
 local fonts = {
 	assert(glue.readfile'media/fonts/OpenSans-Regular.ttf');
 	assert(glue.readfile'media/fonts/Amiri-Regular.ttf');
-	assert(glue.readfile'media/fonts/ionicons.ttf');
 }
 
 local function load_font(font_id, file_data_buf, file_size_buf)
@@ -20,501 +28,409 @@ local function unload_font(font_id, file_data_buf, file_size_buf)
 	--nothing
 end
 
-local function newlib()
-	lib = layer.layerlib(load_font, unload_font)
-	opensans = lib:font()
-	amiri    = lib:font()
-	ionicons = lib:font()
-end
-newlib()
+local lorem_ipsum = glue.readfile('lorem_ipsum.txt'):sub(1, 1000)
 
+assert(memtotal() == 0)
 
-function test_free_children()
-	local e1 = lib:layer()
-	e1:layer():layer():layer()
-	e1:layer():layer():layer()
-	e1:free()
-	lib:free()
-	assert(memtotal() == 0)
-	newlib()
-end
+local lib = layerlib(load_font, unload_font)
 
-function test_set_parent()
-	local e1 = lib:layer()
-	local e2 = e1:layer()
-	assert(e2.parent == e1)
+local opensans = lib:font()
+local amiri    = lib:font()
 
-	--remove parent
-	e2.parent = nil
-	assert(e2.parent == nil)
-	assert(e1.child_count == 0)
-	e2:free()
+--lib.subpixel_x_resolution = 1/2
 
-	--move to parent
-	local e2 = lib:layer()
-	e2.parent = e1
-	assert(e2.parent == e1)
-	assert(e1.child_count == 1)
-	assert(e1:child(0) == e2)
+--window ---------------------------------------------------------------------
 
-	--move to front, clamped
-	local e3 = e1:layer()
-	assert(e1:child(1) == e3)
-	e3:move(e1, -maxint)
-	assert(e1:child(0) == e3)
-	assert(e1:child(1) == e2)
-	assert(e1.child_count == 2)
+local app = nw:app()
 
-	--move to back, clamped
-	e3:move(e1, maxint)
-	assert(e1:child(0) == e2)
-	assert(e1:child(1) == e3)
-	assert(e1.child_count == 2)
+local win = app:window{
+	title = 'Hello!',
+	w = 1800, h = 900,
+}
 
-	--set index on root layer
-	e1.index = 1234 --no effect
-	assert(e1.index == 0)
+--test harness ---------------------------------------------------------------
 
-	--move by setting index
-	e2.index = 5
-	assert(e2.index == 1)
-	assert(e1.index == 0)
+local test_names = {}
+local test = setmetatable({}, {__newindex = function(self, k, v)
+	table.insert(test_names, k)
+	rawset(self, k, v)
+end})
+local e --top layer
 
-	--remove children by setting child_count
-	e1.child_count = 0
-	assert(e1.child_count == 0)
+local test_index = 1
+local params = {}
+function do_test()
+	test_index = glue.clamp(test_index, 1, #test_names)
 
-	--create children by setting child count
-	e1.child_count = 2
-	assert(e1.child_count == 2)
-	assert(e1:child(0).parent == e1)
-	assert(e1:child(1).parent == e1)
-
-	--out-of-range child is nil
-	assert(e1:child(-1) == nil)
-	assert(e1:child(2) == nil)
-	assert(e1.child_count == 2)
-
-	e1:free()
-	lib:free()
-	assert(memtotal() == 0)
-	newlib()
+	local k = test_names[test_index]
+	if not k then return end
+	if not e then e = lib:layer() end
+	test[k]()
 end
 
-test_free_children()
-test_set_parent()
-
---layer.memreport()
-
-
-
---[==[
-
-release:free()
-
-release='free',
-
---position in hierarchy
-
-get_parent=1,
-set_parent=1,
-
-get_index=1,
-set_index=1,
-
-get_child_count=1,
-set_child_count=1,
-child=1,
-move=1,
-
---size and position
-
-get_x=1,
-get_y=1,
-get_w=1,
-get_h=1,
-
-set_x=1,
-set_y=1,
-set_w=1,
-set_h=1,
-
-get_cw=1,
-get_ch=1,
-
-set_cw=1,
-set_ch=1,
-
-get_cx=1,
-get_cy=1,
-
-set_cx=1,
-set_cy=1,
-
-get_min_cw=1,
-get_min_ch=1,
-set_min_cw=1,
-set_min_ch=1,
-
-get_align_x=1,
-get_align_y=1,
-
-set_align_x=1,
-set_align_y=1,
-
-get_padding_left=1,
-get_padding_top=1,
-get_padding_right=1,
-get_padding_bottom=1,
-
-set_padding_left=1,
-set_padding_top=1,
-set_padding_right=1,
-set_padding_bottom=1,
-set_padding=1,
-
---transforms
-
-get_rotation=1,
-get_rotation_cx=1,
-get_rotation_cy=1,
-get_scale=1,
-get_scale_cx=1,
-get_scale_cy=1,
-
-set_rotation=1,
-set_rotation_cx=1,
-set_rotation_cy=1,
-set_scale=1,
-set_scale_cx=1,
-set_scale_cy=1,
-
---point conversions
-
-from_box_to_parent=1,
-from_parent_to_box=1,
-to_parent=1,  from_parent=1,
-to_window=1,  from_window=1,
-to_content=1, from_content=1,
-
---drawing
-
-get_visible=1,
-set_visible=1,
-
-get_operator=1,
-set_operator=1,
-
-get_clip_content=1,
-set_clip_content=1,
-
-get_snap_x=1,
-get_snap_y=1,
-
-set_snap_x=1,
-set_snap_y=1,
-
-get_opacity=1,
-set_opacity=1,
-
-get_hit_test_mask=1,
-set_hit_test_mask=1,
-
---borders
-
-get_border_width_left   =1,
-get_border_width_right  =1,
-get_border_width_top    =1,
-get_border_width_bottom =1,
-
-set_border_width_left   =1,
-set_border_width_right  =1,
-set_border_width_top    =1,
-set_border_width_bottom =1,
-set_border_width        =1,
-
-get_corner_radius_top_left     =1,
-get_corner_radius_top_right    =1,
-get_corner_radius_bottom_left  =1,
-get_corner_radius_bottom_right =1,
-get_corner_radius_kappa        =1,
-
-set_corner_radius_top_left     =1,
-set_corner_radius_top_right    =1,
-set_corner_radius_bottom_left  =1,
-set_corner_radius_bottom_right =1,
-set_corner_radius_kappa        =1,
-set_corner_radius              =1,
-
-get_border_color_left   =1,
-get_border_color_right  =1,
-get_border_color_top    =1,
-get_border_color_bottom =1,
-
-set_border_color_left   =1,
-set_border_color_right  =1,
-set_border_color_top    =1,
-set_border_color_bottom =1,
-set_border_color        =1,
-
-get_border_dash_count=1,
-set_border_dash_count=1,
-
-get_border_dash=1,
-set_border_dash=1,
-
-get_border_dash_offset=1,
-set_border_dash_offset=1,
-
-set_border_line_to=1,
-
---backgrounds
-
-get_background_type=1,
-set_background_type=1,
-
-get_background_color=1,
-set_background_color=1,
-
-get_background_color_set=1,
-set_background_color_set=1,
-
-get_background_x1=1,
-get_background_y1=1,
-get_background_x2=1,
-get_background_y2=1,
-get_background_r1 =1,
-get_background_r2 =1,
-
-set_background_x1=1,
-set_background_y1=1,
-set_background_x2=1,
-set_background_y2=1,
-set_background_r1 =1,
-set_background_r2 =1,
-
-get_background_color_stop_count=1,
-set_background_color_stop_count=1,
-get_background_color_stop_color=1,
-set_background_color_stop_color=1,
-get_background_color_stop_offset=1,
-set_background_color_stop_offset=1,
-
-get_background_image=1,
-set_background_image=1,
-
-get_background_hittable    =1,
-get_background_operator    =1,
-get_background_clip_border_offset=1,
-get_background_x           =1,
-get_background_y           =1,
-get_background_rotation    =1,
-get_background_rotation_cx =1,
-get_background_rotation_cy =1,
-get_background_scale       =1,
-get_background_scale_cx    =1,
-get_background_scale_cy    =1,
-get_background_extend      =1,
-
-set_background_hittable    =1,
-set_background_operator    =1,
-set_background_clip_border_offset=1,
-set_background_x           =1,
-set_background_y           =1,
-set_background_rotation    =1,
-set_background_rotation_cx =1,
-set_background_rotation_cy =1,
-set_background_scale       =1,
-set_background_scale_cx    =1,
-set_background_scale_cy    =1,
-set_background_extend      =1,
-
---shadows
-
-get_shadow_x       =1,
-get_shadow_y       =1,
-get_shadow_color   =1,
-get_shadow_blur    =1,
-get_shadow_passes  =1,
-get_shadow_inset   =1,
-get_shadow_content =1,
-
-set_shadow_x       =1,
-set_shadow_y       =1,
-set_shadow_color   =1,
-set_shadow_blur    =1,
-set_shadow_passes  =1,
-set_shadow_inset   =1,
-set_shadow_content =1,
-
---text
-
-get_text=1,
-get_text_len=1,
-set_text=1,
-
-set_text_utf8=1,
-get_text_utf8=1,
-get_text_utf8_len=1,
-
-get_text_maxlen=1,
-set_text_maxlen=1,
-
-get_text_dir=1,
-set_text_dir=1,
-
-get_text_align_x=1,
-get_text_align_y=1,
-
-set_text_align_x=1,
-set_text_align_y=1,
-
-get_text_font_id           =1,
-get_text_font_size         =1,
-get_text_features          =1,
-get_text_script            =1,
-get_text_lang              =1,
-get_text_paragraph_dir     =1,
-get_text_line_spacing      =1,
-get_text_hardline_spacing  =1,
-get_text_paragraph_spacing =1,
-get_text_nowrap            =1,
-get_text_color             =1,
-get_text_opacity           =1,
-get_text_operator          =1,
-
-set_text_font_id           =1,
-set_text_font_size         =1,
-set_text_features          =1,
-set_text_script            =1,
-set_text_lang              =1,
-set_text_paragraph_dir     =1,
-set_text_line_spacing      =1,
-set_text_hardline_spacing  =1,
-set_text_paragraph_spacing =1,
-set_text_nowrap            =1,
-set_text_color             =1,
-set_text_opacity           =1,
-set_text_operator          =1,
-
---[[
-get_text_span_font_id           =1,
-get_text_span_font_size         =1,
-get_text_span_features          =1,
-get_text_span_script            =1,
-get_text_span_lang              =1,
-get_text_span_paragraph_dir     =1,
-get_text_span_line_spacing      =1,
-get_text_span_hardline_spacing  =1,
-get_text_span_paragraph_spacing =1,
-get_text_span_nowrap            =1,
-get_text_span_color             =1,
-get_text_span_opacity           =1,
-get_text_span_operator          =1,
-
-set_text_span_font_id           =1,
-set_text_span_font_size         =1,
-set_text_span_features          =1,
-set_text_span_script            =1,
-set_text_span_lang              =1,
-set_text_span_paragraph_dir     =1,
-set_text_span_line_spacing      =1,
-set_text_span_hardline_spacing  =1,
-set_text_span_paragraph_spacing =1,
-set_text_span_nowrap            =1,
-set_text_span_color             =1,
-set_text_span_opacity           =1,
-set_text_span_operator          =1,
-]]
-
-text_cursor_xs=1,
-
-get_text_caret_width=1,
-get_text_caret_color=1,
-get_text_caret_insert_mode=1,
-get_text_selectable=1,
-
-set_text_caret_width=1,
-set_text_caret_color=1,
-set_text_caret_insert_mode=1,
-set_text_selectable=1,
-
---
-
---layouts
-
-set_layout_type=1,
-get_layout_type=1,
-
-get_align_items_x =1,
-get_align_items_y =1,
-get_item_align_x  =1,
-get_item_align_y  =1,
-
-set_align_items_x =1,
-set_align_items_y =1,
-set_item_align_x  =1,
-set_item_align_y  =1,
-
-get_flex_flow=1,
-set_flex_flow=1,
-
-get_flex_wrap=1,
-set_flex_wrap=1,
-
-get_fr=1,
-set_fr=1,
-
-get_break_before=1,
-get_break_after=1,
-
-set_break_before=1,
-set_break_after=1,
-
-get_grid_col_fr_count=1,
-get_grid_row_fr_count=1,
-
-set_grid_col_fr_count=1,
-set_grid_row_fr_count=1,
-
-get_grid_col_fr=1,
-get_grid_row_fr=1,
-
-set_grid_col_fr=1,
-set_grid_row_fr=1,
-
-get_grid_col_gap=1,
-get_grid_row_gap=1,
-
-set_grid_col_gap=1,
-set_grid_row_gap=1,
-
-get_grid_flow=1,
-set_grid_flow=1,
-
-get_grid_wrap=1,
-set_grid_wrap=1,
-
-get_grid_min_lines=1,
-set_grid_min_lines=1,
-
-get_grid_col=1,
-get_grid_row=1,
-
-set_grid_col=1,
-set_grid_row=1,
-
-get_grid_col_span=1,
-get_grid_row_span=1,
-
-set_grid_col_span=1,
-set_grid_row_span=1,
-
---drawing & sync
-
-sync_top=1,
-sync_layout_separate_axes=1, --for scrollbox
-draw=1,
-hit_test_c='hit_test',
-
-]==]
+local function choose(key, list, default)
+	key = tostring(key)
+	local x = params[key] or default or 1
+	local x = glue.clamp(x, 1, #list)
+	params[key] = x
+	return list[x]
+end
+
+local function slide(key, i, j, default)
+	key = tostring(key)
+	local x = params[key] or default or i
+	local x = glue.clamp(x, i, j)
+	params[key] = x
+	return x
+end
+
+--tests ----------------------------------------------------------------------
+
+function test.box_model()
+	e.border_width = slide(1, 0, 100)
+	e.border_offset = slide('o', -10, 10) / 10
+	e.background_clip_border_offset = slide('[', -10, 10) / 10
+	e.corner_radius = slide('r', 0, 1000) * 10
+	e.border_color = 0x33333388
+	e.background_color = 0xcccccc88
+
+	math.randomseed(0)
+	e.border_color_left   = math.random(0xffffffff)
+	e.border_color_top    = math.random(0xffffffff)
+	e.border_color_right  = math.random(0xffffffff)
+	e.border_color_bottom = math.random(0xffffffff)
+
+	e.padding = slide('p', 0, 100, 0)
+	e.clip_content = choose(6, {
+		CLIP_BACKGROUND,
+		CLIP_NONE,
+		CLIP_PADDING,
+	})
+	e.child_count = 1
+	e.layout_type = LAYOUT_FLEXBOX
+	e:child(0).background_color = 0xffff00ff
+end
+
+function test.background_types()
+	e.background_type = choose(1, {
+		BACKGROUND_COLOR,
+		BACKGROUND_LINEAR_GRADIENT,
+		BACKGROUND_RADIAL_GRADIENT,
+		BACKGROUND_IMAGE,
+	})
+	e.background_extend = choose(2, {
+		BACKGROUND_EXTEND_NONE,
+		BACKGROUND_EXTEND_PAD,
+		BACKGROUND_EXTEND_REFLECT,
+		BACKGROUND_EXTEND_REPEAT,
+	})
+
+	if e.background_type == BACKGROUND_COLOR then
+
+		e.background_color =
+			  slide(3, 0, 0xff, 0x88) * 0x1000000
+			+ slide(4, 0, 0xff, 0x88) *   0x10000
+			+ slide(5, 0, 0xff, 0x88) *     0x100
+			+ slide(6, 0, 0xff, 0xff)
+
+	elseif bit.band(e.background_type, BACKGROUND_GRADIENT) ~= 0 then
+
+		e.background_x1 = 100
+		e.background_y1 = 100
+		e.background_x2 = 200
+		e.background_y2 = 200
+		e.background_r1 = 100
+		e.background_r2 = 400
+		e:set_background_color_stop_offset(0, 0)
+		e:set_background_color_stop_offset(1, 1)
+		e:set_background_color_stop_color(0, 0xff0000ff)
+		e:set_background_color_stop_color(1, 0x0000ffff)
+
+	elseif e.background_type == BACKGROUND_IMAGE then
+
+		e:set_background_image(100, 100, BITMAP_FORMAT_ARGB32, 0, nil)
+		local p = e.background_image_pixels
+		ffi.fill(p, e.background_image_stride * (e.background_image_h - 1), 0x66)
+		e:background_image_invalidate()
+
+	end
+
+	e.background_x = 10 * slide('x', 0, 100)
+	e.background_y = 10 * slide('y', 0, 100)
+	e.background_rotation = slide('r', 0, 360)
+	e.background_scale = slide('s', 1, 100, 10) / 10
+	e.background_rotation_cx = slide('shift x', 0, 1000)
+	e.background_rotation_cy = slide('shift y', 0, 1000)
+	e.background_scale_cx    = slide('ctrl x', 0, 1000)
+	e.background_scale_cy    = slide('ctrl y', 0, 1000)
+end
+
+function test.layers_with_everything()
+	e.child_count = slide(1, 0, 5, 3)
+
+	e.clip_content = CLIP_PADDING
+	--e.clip_content = CLIP_NONE
+
+	e.padding_left   = 50
+	e.padding_top    = 50
+	e.padding_right  = 50
+	e.padding_bottom = 50
+
+	e.border_color_left   = 0xff00ffff
+	e.border_color_top    = 0xffff00ff
+	e.border_color_right  = 0x008800ff
+	e.border_color_bottom = 0x888888ff
+	e.corner_radius_bottom_left  = 20
+	e.corner_radius_bottom_right = 10
+	e.corner_radius_kappa = 1.2
+
+	e.padding = 20
+	e.border_width = 10
+	e.border_color = 0xff0000ff
+
+	e.background_type = BACKGROUND_COLOR
+	e.background_color = 0x00336699 --0x336699ff
+
+	e:set_shadow_x       (0, 6)
+	e:set_shadow_y       (0, 6)
+	e:set_shadow_blur    (0, 4)
+	e:set_shadow_color   (0, 0x000000ff)
+	e:set_shadow_content (0, false)
+	e:set_shadow_inset   (0, false)
+
+	e:set_shadow_x       (1, 4)
+	e:set_shadow_y       (1, 4)
+	e:set_shadow_blur    (1, 0)
+	e:set_shadow_color   (1, 0xffffffff)
+	e:set_shadow_content (1, false)
+	e:set_shadow_inset   (1, false)
+
+	e.layout_type = LAYOUT_FLEXBOX
+	--e.flex_flow = FLEX_FLOW_Y
+
+	local e1 = e:child(0)
+	if e1 ~= nil then
+		local e = e1
+		e.layout_type = LAYOUT_TEXTBOX
+		e.clip_content = CLIP_BACKGROUND
+		e.border_width = 10; e1.padding = 20
+		e.border_color = 0xffff00ff
+		e.min_cw = 10; e1.min_ch = 10
+
+		e:set_text_utf8(lorem_ipsum, -1)
+		e:set_font_id    (0, -1, opensans)
+		e:set_font_size  (0, -1, 14)
+		e:set_text_color (0, -1, 0xffffffff)
+		e.text_align_y = ALIGN_TOP
+		e.text_align_x = ALIGN_CENTER
+
+		e:set_shadow_x       (2, 1)
+		e:set_shadow_y       (2, 1)
+		e:set_shadow_blur    (2, 1)
+		e:set_shadow_color   (2, 0x000000ff)
+		e:set_shadow_content (2, true)
+		e:set_shadow_inset   (2, false)
+	end
+
+	local e2 = e:child(1)
+	if e2 ~= nil then
+		local e = e2
+		e.clip_content = CLIP_PADDING
+		e.layout_type = LAYOUT_TEXTBOX
+		e.background_type = BACKGROUND_COLOR
+		e.background_color = 0x33333366
+
+		e.border_width = 10; e2.padding = 20
+		e.border_color = 0x00ff00ff
+		e.min_cw = 10; e2.min_ch = 10
+
+		e:set_text_utf8('It\'s just text but it\'s alive!', -1)
+		e:set_font_id    (0, -1, amiri)
+		e:set_font_size  (0, -1, 50)
+		e:set_text_color (0, -1, 0x333333ff)
+		e.text_align_y = ALIGN_CENTER
+		e.text_align_x = ALIGN_CENTER
+
+		e:set_shadow_x       (0, 0)
+		e:set_shadow_y       (0, 1)
+		e:set_shadow_blur    (0, 2)
+		e:set_shadow_color   (0, 0x000000ff)
+		e:set_shadow_content (0, true)
+		e:set_shadow_inset   (0, true)
+
+		e:set_shadow_x       (1, 0)
+		e:set_shadow_y       (1, 1)
+		e:set_shadow_blur    (1, 1)
+		e:set_shadow_color   (1, 0x888888ff)
+		e:set_shadow_content (1, true)
+		e:set_shadow_inset   (1, false)
+	end
+
+	for i=3,e.child_count do
+		local e = e:child(i-1)
+		if e then
+			e.border_width = 1
+		end
+	end
+end
+
+function test.flexbox_baseline_wrapped()
+	e.layout_type = LAYOUT_FLEXBOX
+	e.border_width = 1
+	e.flex_wrap = choose('w', {true, false})
+	e.item_align_x = choose(2, {
+		ALIGN_AUTO,
+		--ALIGN_LEFT,
+		--ALIGN_RIGHT,
+		ALIGN_START,
+		ALIGN_END,
+		ALIGN_CENTER,
+		ALIGN_STRETCH,
+	})
+	e.item_align_y = choose(3, {
+		ALIGN_BASELINE,
+		ALIGN_TOP,
+		ALIGN_BOTTOM,
+		--ALIGN_START,
+		--ALIGN_END,
+		ALIGN_CENTER,
+		ALIGN_STRETCH,
+	})
+	e.align_items_y = choose(4, {
+		ALIGN_TOP,
+		ALIGN_BOTTOM,
+		--ALIGN_START,
+		--ALIGN_END,
+		ALIGN_CENTER,
+		ALIGN_SPACE_AROUND,
+		ALIGN_SPACE_BETWEEN,
+		ALIGN_SPACE_EVENLY,
+		ALIGN_STRETCH,
+	})
+	e.align_items_x = choose(5, {
+		ALIGN_TOP,
+		ALIGN_BOTTOM,
+		--ALIGN_START,
+		--ALIGN_END,
+		ALIGN_CENTER,
+		ALIGN_SPACE_AROUND,
+		ALIGN_SPACE_BETWEEN,
+		ALIGN_SPACE_EVENLY,
+		ALIGN_STRETCH,
+	})
+
+	local texts = {
+		"Lorem ipsum",
+		"dolor sit amet",
+		"You only killed the bride’s father, you know.",
+		"I didn’t mean to.",
+		"Didn’t mean to?",
+		"You put your sword right through his head.",
+		"Oh dear… is he all right?",
+	}
+
+	math.randomseed(slide(0, 1, 10))
+
+	e.child_count = slide(1, 0, 1000, 20)
+	for i = 0, e.child_count-1 do
+		local e = e:child(i)
+		e.border_width = 1
+		e.padding = 10
+		e.min_cw = 100 + math.random(slide(6, 0, 500))
+		e.min_ch = math.random(slide(7, 0, 200))
+		e.text_align_x = ALIGN_CENTER
+		e.text_align_y = ALIGN_BOTTOM
+		e.layout_type = LAYOUT_TEXTBOX
+		e:set_text_utf8(texts[math.random(#texts)], -1)
+		e:set_font_id   (0, -1, opensans)
+		e:set_font_size (0, -1, 14)
+		if i == 1 then
+			--e.align_y = ALIGN_BOTTOM
+		end
+	end
+end
+
+function test.grid_autopos(flow)
+
+	e.layout_type = LAYOUT_GRID
+	e.border_color = 0x000000ff
+	e.border_width = 1
+
+	e.child_count = slide(1, 1, 1000, 21)
+	for i = 0, e.child_count-1 do
+		local e = e:child(i)
+		e.min_cw = 0
+		e.min_ch = 0
+		e.border_width = 2
+		e.border_offset = 0
+		e.snap_x = false
+		e.snap_y = true
+		e.clip_content = CLIP_BACKGROUND
+		e:set_text_utf8(''..i+1, -1)
+		e:set_font_id   (0, -1, opensans)
+		e:set_font_size (0, -1, 10)
+	end
+	e.grid_row_gap = 10
+	e.grid_col_gap = 10
+	e.grid_wrap = slide(2, 1, 100, math.sqrt(e.child_count) - 1)
+	e.grid_flow = flow or
+		  choose(3, {0, GRID_FLOW_Y})
+		+ choose(4, {0, GRID_FLOW_B})
+		+ choose(5, {0, GRID_FLOW_R})
+end
+
+do_test()
+
+function win:repaint()
+
+	local cr = self:bitmap():cairo()
+
+	cr:identity_matrix()
+	--cr:rgba(1, 1, 1, 1)
+	cr:rgba(0, 0, 0, 1)
+	cr:paint()
+
+	local w, h = self:client_size()
+	cr:translate(50, 50)
+
+	local zoom = slide('z', 1, 10, 5)
+	if zoom < 5 then zoom = 1/zoom else zoom = zoom - 4 end
+
+	e:sync_top(zoom * w - 100, zoom * h - 100)
+	e:draw(cr)
+end
+
+function win:keypress(key)
+	if key == 'esc' then
+		self:close()
+	elseif key == 'pageup' or key == 'pagedown' then
+		test_index = test_index + (key == 'pageup' and -1 or 1)
+		params = {}
+		e:free()
+		e = nil
+		do_test()
+		self:invalidate()
+	elseif key == 'up' or key == 'down' or key == 'left' or key == 'right' then
+		local param_key
+		for k in pairs(params) do
+			if app:key(k) then
+				param_key = k
+			end
+		end
+		if param_key then
+			params[param_key] = params[param_key]
+				+ ((key == 'up' or key == 'left') and -1 or 1)
+			do_test()
+			self:invalidate()
+		end
+	end
+end
+
+app:run()
+
+e:free()
+
+lib:dump_stats()
+lib:free()
+memreport()
+assert(memtotal() == 0)

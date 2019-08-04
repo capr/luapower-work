@@ -352,7 +352,7 @@ struct GlyphRun (gettersandsetters) {
 	descent         : num;
 	advance_x       : num;
 	wrap_advance_x  : num;
-	--cached images for each subpixel-offset with painted glyph on them.
+	--pre-rendered images for each subpixel offset.
 	images          : arr{T = GlyphImage, context_t = &Renderer};
 	images_memsize  : int;
 	--for cursor positioning and hit testing (len = text.len+1)

@@ -54,15 +54,10 @@ matrix = cairo_matrix_t
 pattern = cairo_pattern_t
 context = cairo_t
 surface = cairo_surface_t
-create_surface = cairo_image_surface_create_for_bitmap
 
 rect = rect(num)
 
 Bitmap = bitmap.Bitmap
-
-terra Bitmap:surface()
-	return create_surface(self)
-end
 
 --common enums ---------------------------------------------------------------
 
@@ -198,7 +193,7 @@ BACKGROUND_PATTERN         = 4     --mask for LINEAR|RADIAL|IMAGE
 BACKGROUND_GRADIENT        = 4+2   --mask for LINEAR|RADIAL
 BACKGROUND_LINEAR_GRADIENT = 4+2
 BACKGROUND_RADIAL_GRADIENT = 4+2+1
-BACKGROUND_IMAGE           = 4
+BACKGROUND_IMAGE           = 8
 
 map_enum(C, 'CAIRO_EXTEND_', 'BACKGROUND_EXTEND_')
 
@@ -223,6 +218,7 @@ struct BackgroundPattern {
 	y: num;
 	gradient: BackgroundGradient;
 	bitmap: Bitmap;
+	bitmap_surface: &surface;
 	pattern: &pattern;
 	transform: Transform;
 	extend: enum; --BACKGROUND_EXTEND_*
@@ -240,8 +236,30 @@ terra BackgroundPattern:free_pattern()
 	end
 end
 
+terra BackgroundPattern:set_bitmap(w: int, h: int, format: int, stride: int, pixels: &uint8)
+	if self.bitmap_surface ~= nil then
+		self.bitmap_surface:free()
+		self.bitmap_surface = nil
+	end
+	if pixels ~= nil then
+		self.bitmap:free()
+		self.bitmap.format = format
+		self.bitmap.w = w
+		self.bitmap.h = h
+		self.bitmap.stride = stride
+		self.bitmap.pixels = pixels
+		self.bitmap.capacity = 0 --not owning the pixel buffer
+	else
+		self.bitmap:realloc(w, h, format, stride, 0)
+	end
+end
+
 terra BackgroundPattern:free()
 	self:free_pattern()
+	if self.bitmap_surface ~= nil then
+		self.bitmap_surface:free()
+		self.bitmap_surface = nil
+	end
 	self.bitmap:free()
 	self.gradient:free()
 end
@@ -285,16 +303,35 @@ struct Shadow (gettersandsetters) {
 	offset_x: num; --relative to the shape that it is shadowing
 	offset_y: num;
 	color: color;
-	blur_radius: uint8;
-	blur_passes: uint8;
-	inset: bool;
-	content: bool;  --shadow the layer content vs its box
+	_blur_radius: uint8;
+	_blur_passes: uint8;
+	_inset: bool;
+	_content: bool;  --shadow the layer content vs its box
 	--state
 	blur: Blur;
 	surface: &surface;
 	surface_x: num; --relative to the origin of the shadow shape
 	surface_y: num;
 }
+
+terra Shadow.methods.invalidate :: {&Shadow} -> {}
+terra Shadow.methods.content_flag_changed :: {&Shadow} -> {}
+
+terra Shadow:get_blur_radius() return self._blur_radius end
+terra Shadow:get_blur_passes() return self._blur_passes end
+terra Shadow:get_inset      () return self._inset end
+terra Shadow:get_content    () return self._content end
+
+terra Shadow:set_blur_radius(v: int)   if v ~= self._blur_radius then self._blur_radius = v; self:invalidate() end end
+terra Shadow:set_blur_passes(v: int)   if v ~= self._blur_passes then self._blur_passes = v; self:invalidate() end end
+terra Shadow:set_inset      (v: bool)  if v ~= self._inset       then self._inset       = v; self:invalidate() end end
+terra Shadow:set_content    (v: bool)
+	if self._content ~= v then
+		self._content = v
+		self:invalidate()
+		self:content_flag_changed()
+	end
+end
 
 terra Shadow:init(layer: &Layer)
 	fill(self)
@@ -459,6 +496,8 @@ struct Layer (gettersandsetters) {
 	snap_x       : bool; --snap to pixels on x-axis
 	snap_y       : bool; --snap to pixels on y-axis
 
+	parent_has_content_shadow: bool;
+
 	opacity: num;
 
 	padding_left   : num;
@@ -523,7 +562,10 @@ struct Layer (gettersandsetters) {
 	hit_test_mask: enum;
 }
 
+terra Layer.methods.changed :: {&Layer} -> {}
 terra Layer.methods.init_layout :: {&Layer} -> {}
+terra Layer.methods.content_bbox :: {&Layer, bool} -> {num, num, num, num}
+terra Layer.methods.draw_content :: {&Layer, &context} -> {}
 
 terra Layer:init(lib: &Lib, parent: &Layer)
 	fill(self)
@@ -1067,6 +1109,10 @@ terra Layer:draw_border(cr: &context)
 	end
 end
 
+terra Layer:border_shape_changed()
+	self:invalidate_shadows(false)
+end
+
 --background drawing ---------------------------------------------------------
 
 terra Layer:background_visible()
@@ -1103,7 +1149,10 @@ terra Background:pattern()
 				p.pattern:add_color_stop_rgba(c.offset, c.color)
 			end
 		elseif self.type == BACKGROUND_IMAGE then
-			p.pattern = cairo_pattern_create_for_surface(p.bitmap:surface())
+			if p.bitmap_surface == nil then
+				p.bitmap_surface = p.bitmap:surface()
+			end
+			p.pattern = cairo_pattern_create_for_surface(p.bitmap_surface)
 		end
 	end
 	return p.pattern
@@ -1272,6 +1321,43 @@ end
 terra Layer:draw_outset_box_shadows(cr: &context)
 	self:draw_shadows(cr, false, false)
 end
+
+terra Layer:update_parent_has_content_shadow_flag(v: bool): {}
+	for e in self do
+		e.parent_has_content_shadow = v
+		e:update_parent_has_content_shadow_flag(v)
+	end
+end
+terra Layer:get_has_content_shadow()
+	for _,s in self.shadows do
+		if s.content then
+			return true
+		end
+	end
+	return false
+end
+terra Shadow:content_flag_changed()
+	self.layer:update_parent_has_content_shadow_flag(self.layer.has_content_shadow)
+end
+
+terra Layer:invalidate_shadows(content: bool)
+	for _,s in self.shadows do
+		if s.content == content then
+			s:invalidate()
+		end
+	end
+end
+
+terra Layer:changed()
+	if self.parent_has_content_shadow then
+		var parent = self.parent
+		while parent ~= nil do
+			parent:invalidate_shadows(true)
+			parent = parent.parent
+		end
+	end
+end
+Layer.methods.changed:setinlined()
 
 --text drawing & hit testing -------------------------------------------------
 

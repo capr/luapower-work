@@ -15,6 +15,8 @@
 	fl:new(...) -> e, id
 	fl:release()
 
+	fl.livecount -> n
+
 ]]
 
 setfenv(1, require'terra/low')
@@ -47,6 +49,7 @@ local arrayfreelist_type = memoize(function(T, size_t, context_t)
 	end)
 
 	addmethods(freelist, function()
+
 		if context_t ~= tuple() then
 			terra freelist:init(context: context_t)
 				@self = [freelist.empty]
@@ -57,11 +60,13 @@ local arrayfreelist_type = memoize(function(T, size_t, context_t)
 				@self = [freelist.empty]
 			end
 		end
+
 		terra freelist:free()
 			self.items:free_elements()
 			self.items:free()
 			self.freeindices:free()
 		end
+
 		terra freelist:alloc()
 			var e: &T
 			var id: size_t
@@ -74,9 +79,14 @@ local arrayfreelist_type = memoize(function(T, size_t, context_t)
 			end
 			return e, id
 		end
+
 		terra freelist:release(i: size_t)
 			self.items:free_element(i)
 			self.freeindices:add(i)
+		end
+
+		terra freelist:get_livecount()
+			return self.items.len - self.freeindices.len
 		end
 	end)
 

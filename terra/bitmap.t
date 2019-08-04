@@ -80,6 +80,7 @@ terra Bitmap:init(format: enum)
 end
 
 terra Bitmap:free()
+	if self.capacity == 0 then return end --not owning the pixel buffer
 	dealloc(self.pixels)
 end
 

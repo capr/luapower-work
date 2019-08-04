@@ -5,6 +5,7 @@ setfenv(1, require'terra/low')
 
 require_h'cairo_h'
 linklibrary'cairo'
+local bitmap = require'terra/bitmap'
 
 local function retbool(t, name, f)
 	t['_'..name] = f
@@ -400,7 +401,6 @@ s.apply_alpha = terra(self: &cairo_surface_t, alpha: double)
 end
 
 --bitmap utils
-local bitmap = require'terra/bitmap'
 terra C.cairo_bitmap_format(fmt: cairo_format_t)
 	return [enum](iif(fmt == CAIRO_FORMAT_A8,
 		bitmap.FORMAT_G8, iif(fmt == CAIRO_FORMAT_ARGB32,
@@ -411,12 +411,10 @@ terra C.cairo_format_for_bitmap_format(fmt: enum)
 		CAIRO_FORMAT_A8, iif(fmt == bitmap.FORMAT_ARGB32,
 			CAIRO_FORMAT_ARGB32, CAIRO_FORMAT_INVALID)))
 end
-
---copy surface to bitmap
 s.bitmap_format = terra(self: &cairo_surface_t)
 	return cairo_bitmap_format(self:format())
 end
-s.copy = terra(self: &cairo_surface_t)
+s.copy = terra(self: &cairo_surface_t) --copy surface to bitmap
 	var b = bitmap.new(self:width(), self:height(), self:bitmap_format(), self:stride())
 	self:flush()
 	copy(b.pixels, [&uint8](self:data()), self:stride() * self:height())
@@ -434,6 +432,9 @@ s.asbitmap = terra(self: &cairo_surface_t)
 	b.stride = self:stride()
 	b.pixels = [&uint8](self:data())
 	return b
+end
+terra bitmap.Bitmap:surface()
+	return cairo_image_surface_create_for_bitmap(self)
 end
 
 local p = wrapopaque(cairo_pattern_t).methods
