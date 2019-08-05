@@ -59,14 +59,6 @@ local e --top layer
 
 local test_index = 1
 local params = {}
-function do_test()
-	test_index = glue.clamp(test_index, 1, #test_names)
-
-	local k = test_names[test_index]
-	if not k then return end
-	if not e then e = lib:layer() end
-	test[k]()
-end
 
 local function choose(key, list, default)
 	key = tostring(key)
@@ -84,15 +76,31 @@ local function slide(key, i, j, default)
 	return x
 end
 
+function do_test()
+	test_index = glue.clamp(test_index, 1, #test_names)
+
+	local k = test_names[test_index]
+	if not k then return end
+	if not e then e = lib:layer() end
+	test[k]()
+
+	e.rotation    = slide('r', 0, 360)
+	e.scale       = slide('s', 1, 100, 10) / 10
+	e.rotation_cx = slide(',', 0, 1000)
+	e.rotation_cy = slide('.', 0, 1000)
+	e.scale_cx    = slide(';', 0, 1000)
+	e.scale_cy    = slide("'", 0, 1000)
+end
+
 --tests ----------------------------------------------------------------------
 
 function test.box_model()
-	e.border_width = slide(1, 0, 100)
-	e.border_offset = slide('o', -10, 10) / 10
-	e.background_clip_border_offset = slide('[', -10, 10) / 10
-	e.corner_radius = slide('r', 0, 1000) * 10
-	e.border_color = 0x33333388
-	e.background_color = 0xcccccc88
+	e.border_width                  = slide(1, 0, 100)
+	e.border_offset                 = slide(2, -10, 10) / 10
+	e.background_clip_border_offset = slide(3, -10, 10) / 10
+	e.corner_radius                 = slide(4, 0, 1000) * 10
+	e.border_color                  = 0x33333388
+	e.background_color              = 0xcccccc88
 
 	math.randomseed(0)
 	e.border_color_left   = math.random(0xffffffff)
@@ -100,24 +108,22 @@ function test.box_model()
 	e.border_color_right  = math.random(0xffffffff)
 	e.border_color_bottom = math.random(0xffffffff)
 
-	e.padding = slide('p', 0, 100, 0)
-	e.clip_content = choose(6, {
-		CLIP_BACKGROUND,
-		CLIP_NONE,
-		CLIP_PADDING,
-	})
+	e.padding      = slide(5, 0, 100, 0)
+	e.clip_content = choose(6, {false, true})
 	e.child_count = 1
 	e.layout_type = LAYOUT_FLEXBOX
-	e:child(0).background_color = 0xffff00ff
+	e:child(0).background_color = 0xffff0088
 end
 
 function test.background_types()
+
 	e.background_type = choose(1, {
 		BACKGROUND_COLOR,
 		BACKGROUND_LINEAR_GRADIENT,
 		BACKGROUND_RADIAL_GRADIENT,
 		BACKGROUND_IMAGE,
 	})
+
 	e.background_extend = choose(2, {
 		BACKGROUND_EXTEND_NONE,
 		BACKGROUND_EXTEND_PAD,
@@ -128,10 +134,10 @@ function test.background_types()
 	if e.background_type == BACKGROUND_COLOR then
 
 		e.background_color =
-			  slide(3, 0, 0xff, 0x88) * 0x1000000
-			+ slide(4, 0, 0xff, 0x88) *   0x10000
-			+ slide(5, 0, 0xff, 0x88) *     0x100
-			+ slide(6, 0, 0xff, 0xff)
+			  slide('r', 0, 0xff, 0x88) * 0x1000000
+			+ slide('g', 0, 0xff, 0x88) *   0x10000
+			+ slide('b', 0, 0xff, 0x88) *     0x100
+			+ slide('a', 0, 0xff, 0xff)
 
 	elseif bit.band(e.background_type, BACKGROUND_GRADIENT) ~= 0 then
 
@@ -155,21 +161,20 @@ function test.background_types()
 
 	end
 
-	e.background_x = 10 * slide('x', 0, 100)
-	e.background_y = 10 * slide('y', 0, 100)
-	e.background_rotation = slide('r', 0, 360)
-	e.background_scale = slide('s', 1, 100, 10) / 10
-	e.background_rotation_cx = slide('shift x', 0, 1000)
-	e.background_rotation_cy = slide('shift y', 0, 1000)
-	e.background_scale_cx    = slide('ctrl x', 0, 1000)
-	e.background_scale_cy    = slide('ctrl y', 0, 1000)
+	e.background_x =      10 * slide(3, 0, 100)
+	e.background_y =      10 * slide(4, 0, 100)
+	e.background_rotation    = slide(5, 0, 360)
+	e.background_scale       = slide(6, 1, 100, 10) / 10
+	e.background_rotation_cx = slide(7, 0, 1000)
+	e.background_rotation_cy = slide(8, 0, 1000)
+	e.background_scale_cx    = slide(9, 0, 1000)
+	e.background_scale_cy    = slide(0, 0, 1000)
 end
 
 function test.layers_with_everything()
 	e.child_count = slide(1, 0, 5, 3)
 
-	e.clip_content = CLIP_PADDING
-	--e.clip_content = CLIP_NONE
+	e.clip_content = true
 
 	e.padding_left   = 50
 	e.padding_top    = 50
@@ -212,7 +217,7 @@ function test.layers_with_everything()
 	if e1 ~= nil then
 		local e = e1
 		e.layout_type = LAYOUT_TEXTBOX
-		e.clip_content = CLIP_BACKGROUND
+		e.clip_content = true
 		e.border_width = 10; e1.padding = 20
 		e.border_color = 0xffff00ff
 		e.min_cw = 10; e1.min_ch = 10
@@ -235,7 +240,7 @@ function test.layers_with_everything()
 	local e2 = e:child(1)
 	if e2 ~= nil then
 		local e = e2
-		e.clip_content = CLIP_PADDING
+		e.clip_content = true
 		e.layout_type = LAYOUT_TEXTBOX
 		e.background_type = BACKGROUND_COLOR
 		e.background_color = 0x33333366
@@ -277,7 +282,7 @@ end
 function test.flexbox_baseline_wrapped()
 	e.layout_type = LAYOUT_FLEXBOX
 	e.border_width = 1
-	e.flex_wrap = choose('w', {true, false})
+	e.flex_wrap = choose(1, {true, false})
 	e.item_align_x = choose(2, {
 		ALIGN_AUTO,
 		--ALIGN_LEFT,
@@ -365,7 +370,7 @@ function test.grid_autopos(flow)
 		e.border_offset = 0
 		e.snap_x = false
 		e.snap_y = true
-		e.clip_content = CLIP_BACKGROUND
+		e.clip_content = true
 		e:set_text_utf8(''..i+1, -1)
 		e:set_font_id   (0, -1, opensans)
 		e:set_font_size (0, -1, 10)

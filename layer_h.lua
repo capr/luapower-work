@@ -83,13 +83,13 @@ void layer_set_padding_bottom(layer_t*, double);
 void layer_set_padding(layer_t*, double);
 bool layer_get_visible(layer_t*);
 int8_t layer_get_operator(layer_t*);
-int8_t layer_get_clip_content(layer_t*);
+bool layer_get_clip_content(layer_t*);
 bool layer_get_snap_x(layer_t*);
 bool layer_get_snap_y(layer_t*);
 double layer_get_opacity(layer_t*);
 void layer_set_visible(layer_t*, bool);
 void layer_set_operator(layer_t*, int8_t);
-void layer_set_clip_content(layer_t*, int8_t);
+void layer_set_clip_content(layer_t*, bool);
 void layer_set_snap_x(layer_t*, bool);
 void layer_set_snap_y(layer_t*, bool);
 void layer_set_opacity(layer_t*, double);
@@ -678,9 +678,6 @@ enum {
 	BITMAP_FORMAT_ARGB32 = 2,
 	BITMAP_FORMAT_G8 = 1,
 	BITMAP_FORMAT_INVALID = 0,
-	CLIP_BACKGROUND = 2,
-	CLIP_NONE = 0,
-	CLIP_PADDING = 1,
 	DIR_AUTO = 64,
 	DIR_LTR = 272,
 	DIR_RTL = 273,

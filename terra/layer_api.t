@@ -47,7 +47,7 @@ terra Layer:get_opacity      () return self.opacity end
 
 terra Layer:set_visible      (v: bool) self.visible = v end
 terra Layer:set_operator     (v: enum) self.operator = v end
-terra Layer:set_clip_content (v: enum) self.clip_content = v end
+terra Layer:set_clip_content (v: bool) self.clip_content = v end
 terra Layer:set_snap_x       (v: bool) self.snap_x = v end
 terra Layer:set_snap_y       (v: bool) self.snap_y = v end
 terra Layer:set_opacity      (v: num)  self.opacity = v end

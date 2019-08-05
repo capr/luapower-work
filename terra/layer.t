@@ -12,8 +12,7 @@
 	* the "layer box" is defined by (x, y, w, h).
 	* paddings are applied to the layer box, creating the "content box".
 	* child layers are positioned relative to the content box.
-	* child layers can be clipped to the content box or to the layer box,
-	  subject to `clip_content`.
+	* child layers can be clipped to the content box subject to `clip_content`.
 	* border can be inside or outside the layer box, subject to `border_offset`.
 	* border and padding are independent as both are relative to the layer box
 	  so to make room for an inner border, you need to add some padding.
@@ -473,10 +472,6 @@ struct Lib (gettersandsetters) {
 
 --layer ----------------------------------------------------------------------
 
-CLIP_NONE       = 0
-CLIP_PADDING    = 1
-CLIP_BACKGROUND = 2
-
 terra Layer.methods.free :: {&Layer} -> {}
 
 struct Layer (gettersandsetters) {
@@ -492,7 +487,7 @@ struct Layer (gettersandsetters) {
 
 	visible      : bool;
 	operator     : enum;
-	clip_content : enum; --CLIP_*
+	clip_content : bool;
 	snap_x       : bool; --snap to pixels on x-axis
 	snap_y       : bool; --snap to pixels on y-axis
 
@@ -1472,19 +1467,16 @@ terra Layer.methods.bbox :: {&Layer, bool} -> {num, num, num, num}
 terra Layer:bbox(strict: bool) --in parent's content space
 	var bb = rect{0, 0, 0, 0}
 	if self.visible then
-		if strict or self.clip_content == CLIP_NONE then
+		if strict or not self.clip_content then
 			var cbb = rect(self:content_bbox(strict))
 			inc(cbb.x, self.cx)
 			inc(cbb.y, self.cy)
-			if self.clip_content ~= CLIP_NONE then
+			if self.clip_content then
 				cbb:intersect(rect(self:background_rect(0)))
-				if self.clip_content == CLIP_PADDING then
-					cbb:intersect(rect{self.px, self.py, self.cw, self.ch})
-				end
 			end
 			bb:bbox(cbb)
 		end
-		if (not strict and self.clip_content ~= CLIP_NONE)
+		if not strict and self.clip_content
 			or self.background.hittable
 			or self:background_visible()
 		then
@@ -1567,16 +1559,11 @@ terra Layer:draw(cr: &context) --called in parent's content space
 		cr:restore()
 	end
 
-	if self.clip_content ~= CLIP_NONE then
+	if self.clip_content then
 		cr:save()
 		cr:new_path()
 		self:background_path(cr, 0)
 		cr:clip()
-		if self.clip_content == CLIP_PADDING then
-			cr:new_path()
-			cr:rectangle(self.px, self.py, self.cw, self.ch)
-			cr:clip()
-		end
 	end
 
 	var cm = bm:copy()
@@ -1585,7 +1572,7 @@ terra Layer:draw(cr: &context) --called in parent's content space
 	cr:matrix(&cm)
 	self:draw_outset_content_shadows(cr)
 
-	if self.clip_content == CLIP_NONE then
+	if not self.clip_content then
 		cr:matrix(&bm)
 		self:draw_border(cr)
 	end
@@ -1594,7 +1581,7 @@ terra Layer:draw(cr: &context) --called in parent's content space
 	self:draw_content(cr)
 	self:draw_inset_content_shadows(cr)
 
-	if self.clip_content ~= CLIP_NONE then
+	if self.clip_content then
 		cr:restore()
 		self:draw_border(cr)
 	end
@@ -1625,7 +1612,7 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 	cr:identity_matrix()
 
 	--hit the content first if it's not clipped
-	if self.clip_content == CLIP_NONE then
+	if not self.clip_content then
 		var cx, cy = self:to_content(x, y)
 		var e, area = self:hit_test_content(cr, cx, cy, reason)
 		if e ~= nil then
@@ -1649,7 +1636,7 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 					return nil, HIT_NONE
 				end
 			end
-		elseif self.clip_content ~= CLIP_NONE then --outside border outer edge when clipped
+		elseif self.clip_content then --outside border outer edge when clipped
 			cr:restore()
 			return nil, HIT_NONE
 		end
@@ -1657,28 +1644,14 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 
 	--hit background's clip area
 	var in_bg = false
-	if self.clip_content ~= CLIP_NONE or self.background.hittable or self:background_visible() then
+	if self.clip_content or self.background.hittable or self:background_visible() then
 		cr:new_path()
 		self:background_path(cr, 0)
 		in_bg = cr:in_fill(x, y)
 	end
 
-	--hit content's clip area
-	var in_cc = false
-	if self.clip_content ~= CLIP_NONE and in_bg then --CLIP_BACKGROUND is implicit here
-		if self.clip_content == CLIP_PADDING then
-			cr:new_path()
-			cr:rectangle(self.px, self.py, self.cw, self.ch)
-			if cr:in_fill(x, y) then
-				in_cc = true
-			end
-		else
-			in_cc = true
-		end
-	end
-
 	--hit the content if inside the clip area.
-	if in_cc then
+	if self.clip_content and in_bg then
 		var cx, cy = self:to_content(x, y)
 		var e, area = self:hit_test_content(cr, cx, cy, reason)
 		if e ~= nil then
