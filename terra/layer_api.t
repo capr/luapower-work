@@ -29,6 +29,14 @@ terra Layer:set_padding_right (v: num) self.padding_right  = v end
 terra Layer:set_padding_top   (v: num) self.padding_top    = v end
 terra Layer:set_padding_bottom(v: num) self.padding_bottom = v end
 
+terra Layer:get_padding()
+	return (
+		  self.padding_left
+		+ self.padding_right
+		+ self.padding_top
+		+ self.padding_bottom) / 4
+end
+
 terra Layer:set_padding(v: num)
 	self.padding_left   = v
 	self.padding_right  = v
@@ -50,7 +58,7 @@ terra Layer:set_operator     (v: enum) self.operator = v end
 terra Layer:set_clip_content (v: bool) self.clip_content = v end
 terra Layer:set_snap_x       (v: bool) self.snap_x = v end
 terra Layer:set_snap_y       (v: bool) self.snap_y = v end
-terra Layer:set_opacity      (v: num)  self.opacity = v end
+terra Layer:set_opacity      (v: num)  self.opacity = clamp(v, 0, 1) end
 
 do end --transforms
 
@@ -64,7 +72,7 @@ terra Layer:get_scale_cy    () return self.transform.scale_cy    end
 terra Layer:set_rotation    (v: num) self.transform.rotation    = v end
 terra Layer:set_rotation_cx (v: num) self.transform.rotation_cx = v end
 terra Layer:set_rotation_cy (v: num) self.transform.rotation_cy = v end
-terra Layer:set_scale       (v: num) self.transform.scale       = v end
+terra Layer:set_scale       (v: num) self.transform.scale       = max(v, 0.0001) end
 terra Layer:set_scale_cx    (v: num) self.transform.scale_cx    = v end
 terra Layer:set_scale_cy    (v: num) self.transform.scale_cy    = v end
 
@@ -75,10 +83,18 @@ terra Layer:get_border_width_right  () return self.border.width_right  end
 terra Layer:get_border_width_top    () return self.border.width_top    end
 terra Layer:get_border_width_bottom () return self.border.width_bottom end
 
-terra Layer:set_border_width_left   (v: num) self.border.width_left   = v; self:border_shape_changed() end
-terra Layer:set_border_width_right  (v: num) self.border.width_right  = v; self:border_shape_changed() end
-terra Layer:set_border_width_top    (v: num) self.border.width_top    = v; self:border_shape_changed() end
-terra Layer:set_border_width_bottom (v: num) self.border.width_bottom = v; self:border_shape_changed() end
+terra Layer:set_border_width_left   (v: num) self.border.width_left   = max(v, 0); self:border_shape_changed() end
+terra Layer:set_border_width_right  (v: num) self.border.width_right  = max(v, 0); self:border_shape_changed() end
+terra Layer:set_border_width_top    (v: num) self.border.width_top    = max(v, 0); self:border_shape_changed() end
+terra Layer:set_border_width_bottom (v: num) self.border.width_bottom = max(v, 0); self:border_shape_changed() end
+
+terra Layer:get_border_width()
+	return (
+		  self.border_width_left
+		+ self.border_width_right
+		+ self.border_width_top
+		+ self.border_width_bottom) / 4
+end
 
 terra Layer:set_border_width(v: num)
 	self.border_width_left   = v
@@ -93,11 +109,19 @@ terra Layer:get_corner_radius_bottom_left  () return self.border.corner_radius_b
 terra Layer:get_corner_radius_bottom_right () return self.border.corner_radius_bottom_right end
 terra Layer:get_corner_radius_kappa        () return self.border.corner_radius_kappa        end
 
-terra Layer:set_corner_radius_top_left     (v: num) self.border.corner_radius_top_left     = v; self:border_shape_changed() end
-terra Layer:set_corner_radius_top_right    (v: num) self.border.corner_radius_top_right    = v; self:border_shape_changed() end
-terra Layer:set_corner_radius_bottom_left  (v: num) self.border.corner_radius_bottom_left  = v; self:border_shape_changed() end
-terra Layer:set_corner_radius_bottom_right (v: num) self.border.corner_radius_bottom_right = v; self:border_shape_changed() end
-terra Layer:set_corner_radius_kappa        (v: num) self.border.corner_radius_kappa        = v; self:border_shape_changed() end
+terra Layer:set_corner_radius_top_left     (v: num) self.border.corner_radius_top_left     = max(v, 0); self:border_shape_changed() end
+terra Layer:set_corner_radius_top_right    (v: num) self.border.corner_radius_top_right    = max(v, 0); self:border_shape_changed() end
+terra Layer:set_corner_radius_bottom_left  (v: num) self.border.corner_radius_bottom_left  = max(v, 0); self:border_shape_changed() end
+terra Layer:set_corner_radius_bottom_right (v: num) self.border.corner_radius_bottom_right = max(v, 0); self:border_shape_changed() end
+terra Layer:set_corner_radius_kappa        (v: num) self.border.corner_radius_kappa        = max(v, 0); self:border_shape_changed() end
+
+terra Layer:get_corner_radius()
+	return (
+		  self.corner_radius_top_left
+		+ self.corner_radius_top_right
+		+ self.corner_radius_bottom_left
+		+ self.corner_radius_bottom_right) / 4
+end
 
 terra Layer:set_corner_radius(v: num)
 	self.corner_radius_top_left     = v
@@ -116,6 +140,14 @@ terra Layer:set_border_color_right  (v: uint32) self.border.color_right  .uint =
 terra Layer:set_border_color_top    (v: uint32) self.border.color_top    .uint = v end
 terra Layer:set_border_color_bottom (v: uint32) self.border.color_bottom .uint = v end
 
+terra Layer:get_border_color()
+	return
+		   self.border_color_left
+		or self.border_color_right
+		or self.border_color_top
+		or self.border_color_bottom
+end
+
 terra Layer:set_border_color(v: uint32)
 	self.border_color_left   = v
 	self.border_color_right  = v
@@ -124,13 +156,13 @@ terra Layer:set_border_color(v: uint32)
 end
 
 terra Layer:get_border_dash_count() return self.border.dash.len end
-terra Layer:set_border_dash_count(v: int) self.border.dash:setlen(v, 0) end
+terra Layer:set_border_dash_count(v: int) self.border.dash:setlen(v, 1) end
 
-terra Layer:get_border_dash(i: int) return self.border.dash(i) end
-terra Layer:set_border_dash(i: int, v: num) return self.border.dash:set(i, v, 0) end
+terra Layer:get_border_dash(i: int) return self.border.dash(i, 1) end
+terra Layer:set_border_dash(i: int, v: double) return self.border.dash:set(i, max(v, 0.0001), 1) end
 
 terra Layer:get_border_dash_offset() return self.border.dash_offset end
-terra Layer:set_border_dash_offset(v: int) self.border.dash_offset = v end
+terra Layer:set_border_dash_offset(v: num) self.border.dash_offset = v end
 
 terra Layer:get_border_offset() return self.border.offset end
 terra Layer:set_border_offset(v: num) self.border.offset = v; self:border_shape_changed() end
@@ -186,13 +218,11 @@ terra Layer:set_background_color_stop_count(n: int)
 end
 
 terra Layer:get_background_color_stop_color(i: int)
-	var cs = self.background.pattern.gradient.color_stops:at(i, nil)
-	return iif(cs ~= nil, cs.color.uint, 0)
+	return self.background.pattern.gradient.color_stops(i, ColorStop{0, 0}).color.uint
 end
 
 terra Layer:get_background_color_stop_offset(i: int)
-	var cs = self.background.pattern.gradient.color_stops:at(i, nil)
-	return iif(cs ~= nil, cs.offset, 0)
+	return self.background.pattern.gradient.color_stops(i, ColorStop{0, 0}).offset
 end
 
 terra Layer:set_background_color_stop_color(i: int, color: uint32)
@@ -276,7 +306,7 @@ end
 
 terra Layer:get_shadow_x       (i: int) return self:shadow(i).offset_x end
 terra Layer:get_shadow_y       (i: int) return self:shadow(i).offset_y end
-terra Layer:get_shadow_color   (i: int) return self:shadow(i).color end
+terra Layer:get_shadow_color   (i: int) return self:shadow(i).color.uint end
 terra Layer:get_shadow_blur    (i: int) return int(self:shadow(i).blur_radius) end
 terra Layer:get_shadow_passes  (i: int) return int(self:shadow(i).blur_passes) end
 terra Layer:get_shadow_inset   (i: int) return self:shadow(i).inset end
@@ -307,6 +337,10 @@ terra Layer:get_text_utf8(out: rawstring, max_outlen: int)
 	return self.text.layout:get_text_utf8(out, max_outlen)
 end
 
+terra Layer:get_text_utf8_len()
+	return self.text.layout.text_utf8_len
+end
+
 terra Layer:get_text_maxlen() return self.text.layout.maxlen end
 terra Layer:set_text_maxlen(v: int)  self.text.layout.maxlen = v end
 
@@ -319,6 +353,14 @@ terra Layer:set_text_align_x(v: enum) self.text.layout.align_x = v end
 terra Layer:set_text_align_y(v: enum) self.text.layout.align_y = v end
 
 --text spans
+
+terra Layer:get_span_count()
+	return self.text.layout.span_count
+end
+
+terra Layer:set_span_count(n: int)
+	self.text.layout.span_count = n
+end
 
 local prefixed = {
 	color   =1,
@@ -334,14 +376,12 @@ for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
 	Layer.methods['set_'..PFIELD] = terra(self: &Layer, i: int, j: int, v: T)
 		self.text.layout:['set_'..FIELD](i, j, v)
 	end
-	--[[ TODO: not used:
-	Layer.methods['get_text_span_'..FIELD] = terra(self: &Layer, span_i: int)
+	Layer.methods['get_span_'..PFIELD] = terra(self: &Layer, span_i: int)
 		return self.text.layout:['get_span_'..FIELD](span_i)
 	end
-	Layer.methods['set_text_span_'..FIELD] = terra(self: &Layer, span_i: int, v: T)
+	Layer.methods['set_span_'..PFIELD] = terra(self: &Layer, span_i: int, v: T)
 		self.text.layout:['set_span_'..FIELD](span_i, v)
 	end
-	]]
 end
 
 --text measuring and hit-testing
@@ -405,10 +445,10 @@ terra Layer:get_grid_min_lines() return self.grid.min_lines end
 terra Layer:set_grid_min_lines(v: int) self.grid.min_lines = v end
 
 terra Layer:get_min_cw() return self.min_cw end
-terra Layer:get_min_ch() return self.min_cw end
+terra Layer:get_min_ch() return self.min_ch end
 
-terra Layer:set_min_cw(v: num) self.min_cw = v end
-terra Layer:set_min_ch(v: num) self.min_ch = v end
+terra Layer:set_min_cw(v: num) self.min_cw = max(v, 0) end
+terra Layer:set_min_ch(v: num) self.min_ch = max(v, 0) end
 
 terra Layer:get_align_x() return self.align_x end
 terra Layer:get_align_y() return self.align_y end
@@ -433,7 +473,7 @@ terra Layer:set_grid_row_span(v: int) self.grid_row_span = v end
 terra Layer:get_hit_test_mask() return self.hit_test_mask end
 terra Layer:set_hit_test_mask(v: enum) self.hit_test_mask = v end
 
-terra Layer:hit_test_c(cr: &context, x: num, y: num, reason: enum, out: &&Layer)
+terra Layer:hit_test_c(cr: &context, x: num, y: num, reason: int, out: &&Layer)
 	var layer, area = self:hit_test(cr, x, y, reason)
 	@out = layer
 	return area
@@ -543,6 +583,8 @@ function build()
 		set_padding_top=1,
 		set_padding_right=1,
 		set_padding_bottom=1,
+
+		get_padding=1,
 		set_padding=1,
 
 		--transforms
@@ -603,6 +645,8 @@ function build()
 		set_border_width_right  =1,
 		set_border_width_top    =1,
 		set_border_width_bottom =1,
+
+		get_border_width        =1,
 		set_border_width        =1,
 
 		get_corner_radius_top_left     =1,
@@ -616,6 +660,8 @@ function build()
 		set_corner_radius_bottom_left  =1,
 		set_corner_radius_bottom_right =1,
 		set_corner_radius_kappa        =1,
+
+		get_corner_radius              =1,
 		set_corner_radius              =1,
 
 		get_border_color_left   =1,
@@ -627,6 +673,8 @@ function build()
 		set_border_color_right  =1,
 		set_border_color_top    =1,
 		set_border_color_bottom =1,
+
+		get_border_color        =1,
 		set_border_color        =1,
 
 		get_border_dash_count=1,
@@ -712,6 +760,9 @@ function build()
 
 		--shadows
 
+		get_shadow_count=1,
+		set_shadow_count=1,
+
 		get_shadow_x       =1,
 		get_shadow_y       =1,
 		get_shadow_color   =1,
@@ -778,7 +829,9 @@ function build()
 		set_text_opacity      =1,
 		set_text_operator     =1,
 
-		--[[
+		get_span_count=1,
+		set_span_count=1,
+
 		get_span_font_id           =1,
 		get_span_font_size         =1,
 		get_span_features          =1,
@@ -806,7 +859,6 @@ function build()
 		set_span_text_color        =1,
 		set_span_text_opacity      =1,
 		set_span_text_operator     =1,
-		]]
 
 		text_cursor_xs=1,
 
@@ -901,7 +953,7 @@ function build()
 
 		--drawing & sync
 
-		sync_top=1,
+		sync_layout=1,
 		sync_layout_separate_axes=1, --for scrollbox
 		draw=1,
 		hit_test_c='hit_test',

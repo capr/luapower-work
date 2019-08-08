@@ -102,6 +102,7 @@ cr.refcount      = cairo_get_reference_count
 cr.get_user_data = cairo_get_user_data
 cr.set_user_data = cairo_set_user_data
 cr.status        = cairo_status
+cr.status_message = terra(self: &cairo_t) return status_message(self:status()) end
 cr.save          = cairo_save
 cr.restore       = cairo_restore
 cr.push_group    = overload('push_group', {cairo_push_group, cairo_push_group_with_content})

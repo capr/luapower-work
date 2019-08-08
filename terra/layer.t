@@ -162,7 +162,7 @@ struct Border (gettersandsetters) {
 	color_bottom : color;
 
 	dash: arr(double);
-	dash_offset: int;
+	dash_offset: num;
 
 	-- border stroke positioning relative to box edge.
 	-- -1..1 goes from inside to outside of box edge.
@@ -321,8 +321,8 @@ terra Shadow:get_blur_passes() return self._blur_passes end
 terra Shadow:get_inset      () return self._inset end
 terra Shadow:get_content    () return self._content end
 
-terra Shadow:set_blur_radius(v: int)   if v ~= self._blur_radius then self._blur_radius = v; self:invalidate() end end
-terra Shadow:set_blur_passes(v: int)   if v ~= self._blur_passes then self._blur_passes = v; self:invalidate() end end
+terra Shadow:set_blur_radius(v: int)   if v ~= self._blur_radius then self._blur_radius = clamp(v, 0, 255); self:invalidate() end end
+terra Shadow:set_blur_passes(v: int)   if v ~= self._blur_passes then self._blur_passes = clamp(v, 0,  10); self:invalidate() end end
 terra Shadow:set_inset      (v: bool)  if v ~= self._inset       then self._inset       = v; self:invalidate() end end
 terra Shadow:set_content    (v: bool)
 	if self._content ~= v then
@@ -405,7 +405,6 @@ struct LayoutSolver {
 	sync_min_h : {&Layer, bool} -> num;
 	sync_x     : {&Layer, bool} -> bool;
 	sync_y     : {&Layer, bool} -> bool;
-	sync_top   : {&Layer, num, num} -> bool;
 }
 
 FLEX_FLOW_X = 0
@@ -1025,12 +1024,10 @@ terra Layer:draw_border(cr: &context)
 		then --stroke-based drawing (doesn't require path offseting; supports dashing)
 			self:border_path(cr, 0, 0)
 			cr:line_width(self.border.width_left)
-			if self.border.dash.len > 0 then
-				cr:dash(
-					self.border.dash.elements,
-					self.border.dash.len,
-					self.border.dash_offset)
-			end
+			cr:dash(
+				self.border.dash.elements,
+				self.border.dash.len,
+				self.border.dash_offset)
 			cr:stroke()
 		else --fill-based drawing (requires path offsetting; supports patterns)
 			cr:fill_rule(CAIRO_FILL_RULE_EVEN_ODD)
@@ -1416,7 +1413,7 @@ terra Layer:text_bbox()
 	return self.text.layout:bbox() --float->double conversion!
 end
 
-terra Layer:hit_test_text(cr: &context, x: num, y: num, reason: enum)
+terra Layer:hit_test_text(cr: &context, x: num, y: num)
 	if self.text.layout.visible then
 		var line_i, x_flag = self.text.layout:hit_test(x, y)
 		if line_i >= 0 and line_i < self.text.layout.lines.len and x_flag == 0 then
@@ -1522,7 +1519,7 @@ terra Layer:draw_content(cr: &context) --called in own content space
 end
 
 terra Layer:hit_test_content(cr: &context, x: num, y: num, reason: enum)
-	var area = self:hit_test_text(cr, x, y, reason)
+	var area = self:hit_test_text(cr, x, y)
 	if area ~= HIT_NONE then
 		return self, area
 	else
@@ -1605,7 +1602,8 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 		return nil, HIT_NONE
 	end
 
-	var self_allowed = (self.hit_test_mask and reason) ~= 0
+	var self_allowed = self.hit_test_mask == 0
+		or (self.hit_test_mask and reason) ~= 0
 
 	var x, y = self:from_parent_to_box(x, y)
 	cr:save()
@@ -1664,6 +1662,8 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 	if self_allowed and in_bg then
 		return self, HIT_BACKGROUND
 	end
+
+	return nil, HIT_NONE
 end
 
 --layouts --------------------------------------------------------------------
@@ -1685,10 +1685,6 @@ terra Layer:sync_min_w(b: bool)    return self.layout_solver.sync_min_w(self, b)
 terra Layer:sync_min_h(b: bool)    return self.layout_solver.sync_min_h(self, b) end
 terra Layer:sync_layout_x(b: bool) return self.layout_solver.sync_x(self, b) end
 terra Layer:sync_layout_y(b: bool) return self.layout_solver.sync_y(self, b) end
-terra Layer:sync_top(w: num, h: num)
-	self.layout_solver.sync_top(self, w, h)
-	self:sync_layout()
-end
 
 --layout utils ---------------------------------------------------------------
 
@@ -1730,18 +1726,6 @@ terra Layer:sync_layout_children()
 	end
 end
 
-local terra sync_top(self: &Layer, w: num, h: num) --for all other layout types
-	var min_cw = w - self.pw
-	var min_ch = h - self.ph
-	if self.min_cw ~= min_cw or self.min_ch ~= min_ch then
-		self.min_cw = min_cw
-		self.min_ch = min_ch
-		return true
-	else
-		return false
-	end
-end
-
 --null layout ----------------------------------------------------------------
 
 --layouting system entry point: called on the top layer.
@@ -1780,18 +1764,6 @@ local terra null_sync_x(self: &Layer, other_axis_synced: bool)
 	return true
 end
 
-local terra null_sync_top(self: &Layer, w: num, h: num)
-	if self.x ~= 0 or self.y ~= 0 or self.w ~= w or self.h ~= h then
-		self.x = 0
-		self.y = 0
-		self.w = w
-		self.h = h
-		return true
-	else
-		return false
-	end
-end
-
 local null_layout = constant(`LayoutSolver {
 	type       = LAYOUT_NULL;
 	axis_order = 0;
@@ -1800,7 +1772,6 @@ local null_layout = constant(`LayoutSolver {
 	sync_min_h = null_sync_min_h;
 	sync_x     = null_sync_x;
 	sync_y     = null_sync_x;
-	sync_top   = null_sync_top;
 })
 
 --textbox layout -------------------------------------------------------------
@@ -1879,7 +1850,6 @@ local text_layout = constant(`LayoutSolver {
 	sync_min_h = text_sync_min_h;
 	sync_x     = text_sync_x;
 	sync_y     = text_sync_y;
-	sync_top   = sync_top;
 })
 
 --stuff common to flex & grid layouts ----------------------------------------
@@ -2386,7 +2356,6 @@ local flex_layout = constant(`LayoutSolver {
 	sync_min_h = flex_sync_min_h;
 	sync_x     = flex_sync_x;
 	sync_y     = flex_sync_y;
-	sync_top   = sync_top;
 })
 
 --[[
@@ -2886,7 +2855,6 @@ local grid_layout = constant(`LayoutSolver {
 	sync_min_h = grid_sync_min_h;
 	sync_x     = grid_sync_x;
 	sync_y     = grid_sync_y;
-	sync_top   = sync_top;
 })
 
 --layout plugin vtable -------------------------------------------------------

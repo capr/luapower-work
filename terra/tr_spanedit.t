@@ -148,15 +148,16 @@ terra Span:load_script(layout: &Layout, s: rawstring)
 	self.script = hb_script_from_string(s, -1)
 end
 
---TODO: use an internal buffer
+local script_buf = global(char[5])
 terra Span:save_script(layout: &Layout, out: &rawstring)
 	var tag = hb_script_to_iso15924_tag(self.script)
-	copy(@out, [rawstring](&tag), sizeof(tag))
+	hb_tag_to_string(tag, script_buf)
+	@out = script_buf
 end
 
 terra Span:load_font_id(layout: &Layout, font_id: font_id_t)
-	var font = layout.r.fonts:at(font_id)
-	self.font_id = iif(font:ref(), font_id, -1)
+	var font = layout.r.fonts:at(font_id, nil)
+	self.font_id = iif(font ~= nil, iif(font:ref(), font_id, -1), -1)
 end
 
 --NOTE: -1 is two positions outside the text, not one. This allows
@@ -247,6 +248,14 @@ for i,FIELD in ipairs(FIELDS) do
 		self.state = min(self.state, MAX_STATE)
 	end
 
+end
+
+terra Layout:get_span_count()
+	return self.spans.len
+end
+
+terra Layout:set_span_count(n: int)
+	self.spans:setlen(n, [Span.empty])
 end
 
 --text editing ---------------------------------------------------------------

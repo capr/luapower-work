@@ -42,6 +42,10 @@ terra Layout:get_text_utf8(out: rawstring, max_outlen: int)
 	end
 end
 
+terra Layout:get_text_utf8_len()
+	return self:get_text_utf8(nil, -1)
+end
+
 terra Layout:set_text_utf8(s: rawstring, len: int)
 	assert(s ~= nil)
 	self.state = 0
