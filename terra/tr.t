@@ -73,6 +73,8 @@ terra Renderer:free()
 	self.carets_buffer   :free()
 	self.substack        :free()
 	self.ranges          :free()
+	self.sbuf            :free()
+	self.xsbuf           :free()
 	FT_Done_FreeType(self.ft_lib)
 end
 

@@ -1141,10 +1141,12 @@ terra Background:pattern()
 				p.pattern:add_color_stop_rgba(c.offset, c.color)
 			end
 		elseif self.type == BACKGROUND_IMAGE then
-			if p.bitmap_surface == nil then
-				p.bitmap_surface = p.bitmap:surface()
+			if p.bitmap.format ~= bitmap.FORMAT_INVALID then
+				if p.bitmap_surface == nil then
+					p.bitmap_surface = p.bitmap:surface()
+				end
+				p.pattern = cairo_pattern_create_for_surface(p.bitmap_surface)
 			end
-			p.pattern = cairo_pattern_create_for_surface(p.bitmap_surface)
 		end
 	end
 	return p.pattern
@@ -1161,11 +1163,13 @@ terra Background:paint(cr: &context)
 		self.pattern.transform:apply(&m)
 		m:invert()
 		var patt = self:pattern()
-		patt:matrix(&m)
-		patt:extend(self.pattern.extend)
-		cr:source(patt)
-		cr:paint()
-		cr:rgb(0, 0, 0) --release source
+		if patt ~= nil then
+			patt:matrix(&m)
+			patt:extend(self.pattern.extend)
+			cr:source(patt)
+			cr:paint()
+			cr:rgb(0, 0, 0) --release source
+		end
 	end
 end
 
@@ -1565,8 +1569,8 @@ terra Layer:draw(cr: &context) --called in parent's content space
 
 	var cm = bm:copy()
 	cm:translate(self.px, self.py)
-
 	cr:matrix(&cm)
+
 	self:draw_outset_content_shadows(cr)
 
 	if not self.clip_content then

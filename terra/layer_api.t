@@ -192,7 +192,10 @@ terra Layer:set_background_color(v: uint)
 end
 
 terra Layer:get_background_color_set() return self.background.color_set end
-terra Layer:set_background_color_set(v: bool) self.background.color_set = v end
+terra Layer:set_background_color_set(v: bool)
+	self.background.color_set = v
+	if not v then self.background.color.uint = 0 end
+end
 
 terra Layer:get_background_x1() return self.background.pattern.gradient.x1 end
 terra Layer:get_background_y1() return self.background.pattern.gradient.y1 end
@@ -231,11 +234,11 @@ terra Layer:set_background_color_stop_color(i: int, color: uint32)
 end
 
 terra Layer:set_background_color_stop_offset(i: int, offset: num)
-	self.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).offset = offset
+	self.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).offset = clamp(offset, 0, 1)
 	self:background_changed()
 end
 
-terra Layer:set_background_image(w: int, h: int, format: int, stride: int, pixels: &uint8)
+terra Layer:set_background_image(w: int, h: int, format: enum, stride: int, pixels: &uint8)
 	self.background.pattern:set_bitmap(w, h, format, stride, pixels)
 	self:background_changed()
 end
@@ -249,7 +252,7 @@ terra Layer:get_background_image_pixels()
 	return self.background.pattern.bitmap.pixels
 end
 terra Layer:get_background_image_format()
-	return int(self.background.pattern.bitmap.format)
+	return self.background.pattern.bitmap.format
 end
 terra Layer:background_image_invalidate()
 	var s = self.background.pattern.bitmap_surface
@@ -409,7 +412,7 @@ terra Layer:get_flex_wrap() return self.flex.wrap end
 terra Layer:set_flex_wrap(v: bool) self.flex.wrap = v end
 
 terra Layer:get_fr() return self.fr end
-terra Layer:set_fr(v: num) self.fr = v end
+terra Layer:set_fr(v: num) self.fr = max(v, 0) end
 
 terra Layer:get_break_before () return self.break_before end
 terra Layer:get_break_after  () return self.break_after  end

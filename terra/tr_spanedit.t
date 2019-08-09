@@ -133,7 +133,7 @@ terra Span:save_features(layout: &Layout, out: &rawstring)
 		end
 	end
 	sbuf:add(0) --null-terminate
-	@out = sbuf.elements
+	@out = iif(sbuf.len > 1, sbuf.elements, nil)
 end
 
 terra Span:load_lang(layout: &Layout, s: rawstring)
@@ -148,11 +148,12 @@ terra Span:load_script(layout: &Layout, s: rawstring)
 	self.script = hb_script_from_string(s, -1)
 end
 
-local script_buf = global(char[5])
 terra Span:save_script(layout: &Layout, out: &rawstring)
+	var sbuf = &layout.r.sbuf
+	sbuf.len = 5
 	var tag = hb_script_to_iso15924_tag(self.script)
-	hb_tag_to_string(tag, script_buf)
-	@out = script_buf
+	hb_tag_to_string(tag, sbuf.elements)
+	@out = iif(sbuf(0) ~= 0, sbuf.elements, nil)
 end
 
 terra Span:load_font_id(layout: &Layout, font_id: font_id_t)

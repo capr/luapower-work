@@ -2,7 +2,7 @@
 --IMGUI for creating manual tests for UI libraries.
 --Written by Cosmin Apreutesei. Public Domain.
 
---This API is designed for maximum of stability and thus minimum flexibility.
+--This API is designed for stability so it is small and not very customizable.
 
 local nw = require'nw'
 local glue = require'glue'
@@ -111,14 +111,13 @@ function testui:pushgroup(dir, minmax)
 	self.group_x = self.x
 	self.group_y = self.y
 	if minmax then
+		local n = 1/minmax
 		if self.dir == 'right' then
-			self.min_w = self.min_w * minmax
+			self.min_w = (self.max_w - (n-1) * self.margin_w) / n
 			self.max_w = self.min_w
-			self.margin_w = 0
 		else
-			self.min_h = self.min_h * minmax
+			self.min_h = (self.max_h - (n-1) * self.margin_h) / n
 			self.max_h = self.min_h
-			self.margin_h = 0
 		end
 	end
 end
@@ -165,9 +164,10 @@ function testui:activate(id, x, y, w, h)
 		return true, true
 	elseif not self.active_id then
 		local hit = self:hit(x, y, w, h)
-		local active = hit and self.mouse.left
+		local active = hit and (self.mouse.left or self.mouse.right)
 		if active then
 			self.active_id = id
+			self.active_button = self.mouse.left and 'left' or 'right'
 			return true, true, true
 		end
 		return active, hit
@@ -195,7 +195,7 @@ function testui:button(id, label, selected)
 	local x, y, w, h = self:rect(w + 10, 0)
 	local _, hit, activated = self:activate(id, x, y, w, h)
 	cr:rectangle(x, y, w, h)
-	self:setcolor'#99'
+	self:setcolor'#33'
 	cr:stroke_preserve()
 	self:setcolor(selected and '#55' or hit and '#33' or '#00')
 	cr:fill()
@@ -208,30 +208,26 @@ end
 
 function testui:choose(id, options, v)
 	local cr = self.cr
-	local mw, mh = self.margin_w, self.margin_h
+	self:pushgroup(self.dir)
 	self.margin_w, self.margin_h = 0, 0
 	local option
 	for i,s in ipairs(options) do
-		local selected
+		local sel
 		if type(v) == 'table' then --multiple choice
-			selected = v[s]
+			sel = v[s]
 		else
-			selected = s == v
+			sel = s == v
 		end
-		if self:button(id..'.'..s, s, selected) then
+		local active = self:button(id..'.'..s, s, sel)
+		if active then
 			option = s
 		end
 	end
-	self.margin_w, self.margin_h = mw, mh
+	self:popgroup()
 	return option
 end
 
-function testui:toggle(id, label, selected)
-	local active, selected = self:button(id, label, selected)
-	if active then return end
-end
-
-function testui:slide(id, label, v, min, max, step)
+function testui:slide(id, label, v, min, max, step, default)
 	v = glue.clamp(v or min, min, max)
 	step = step or (max - min) / 100
 	local cr = self.cr
@@ -239,10 +235,10 @@ function testui:slide(id, label, v, min, max, step)
 	local s2 = string.format('%g', glue.snap(v, step))
 	local w1 = self:text_w(s1)
 	local w2 = self:text_w(s2)
-	local x, y, w, h = self:rect(w1 + w2 + 10, 0)
+	local x, y, w, h = self:rect(w1 + w2 + 20, 0)
 	local active, hit = self:activate(id, x, y, w, h)
 	cr:rectangle(x, y, w, h)
-	self:setcolor'#99'
+	self:setcolor'#22'
 	cr:stroke_preserve()
 	self:setcolor'#00'
 	cr:fill()
@@ -250,11 +246,17 @@ function testui:slide(id, label, v, min, max, step)
 	local pw = glue.lerp(v, min, max, 0, w)
 	cr:rectangle(x, y, pw, h)
 	cr:fill()
-	self:text(s1, 'left' , nil, x+5, y, w, h)
+	self:text(s1, 'left' , nil, x+5, y, w - w2 - 14, h)
 	self:text(s2, 'right', nil, x-5, y, w, h)
 	if active then
 		self.window:invalidate()
-		local v = glue.lerp(self.mx, x, x + w, min, max)
+		if self.active_button == 'right' then
+			if default ~= nil then
+				v = default
+			end
+		else
+			v = glue.lerp(self.mx, x, x + w, min, max)
+		end
 		return glue.snap(glue.clamp(v, min, max), step)
 	end
 end
@@ -295,7 +297,7 @@ function testui:run()
 
 	function self.window:mouseup(button)
 		self.testui.mouse[button] = false
-		if button == 'left' then
+		if button == self.testui.active_button then
 			self.testui.active_id = false
 		end
 		self:invalidate()
@@ -309,16 +311,22 @@ function testui:run()
 
 	function self.window:repaint()
 		local cr = self:bitmap():cairo()
+		cr:new_path()
+		cr:reset_clip()
+		cr:identity_matrix()
+		cr:operator'over'
+		cr:save()
 		self.testui.cr = cr
 		self.testui:setcolor'#00'
 		cr:paint()
 		self.testui.win_w, self.testui.win_h = self:client_size()
 		self.testui:reset()
-		cr:new_path()
-		cr:operator'over'
-		cr:save()
 		self.testui:repaint()
 		cr:restore()
+
+		if cr:status() ~= 0 then
+			print(cr:status_message())
+		end
 	end
 
 	self.app:run()
