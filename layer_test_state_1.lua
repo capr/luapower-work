@@ -2,7 +2,6 @@ return {
 	root={
 		align_items_x=8,
 		align_items_y=8,
-		background_color=4294967057,
 		background_color_stop_count=2,
 		background_color_stops={
 			{
@@ -21,7 +20,6 @@ return {
 		background_rotation_cy=-183.5,
 		background_scale=0.55000000000000004,
 		background_scale_cx=-36,
-		background_type=7,
 		background_x1=-7,
 		background_x2=-65,
 		background_y=7,
@@ -58,8 +56,8 @@ return {
 				min_ch=47,
 				min_cw=50.5,
 				w=51,
-				x=31,
-				y=69
+				x=22,
+				y=126
 			},
 			{
 				background_color_stop_count=2,
@@ -83,8 +81,8 @@ return {
 				min_ch=18,
 				min_cw=50.5,
 				w=51,
-				x=144,
-				y=69
+				x=118,
+				y=126
 			},
 			{
 				border_width_bottom=1,
@@ -105,10 +103,9 @@ return {
 						span_text_color=2952731391
 					}
 				},
-				text_utf8='Hey\nYou\226\128\169New Paragraph',
-				w=146,
-				x=257,
-				y=68.625
+				w=216,
+				x=213,
+				y=125.625
 			},
 			{
 				align_items_y=8,
@@ -127,7 +124,7 @@ return {
 						h=61,
 						min_ch=61,
 						min_cw=50.5,
-						w=339,
+						w=340,
 						y=8
 					},
 					{
@@ -156,7 +153,7 @@ return {
 						h=125,
 						min_ch=61,
 						min_cw=50.5,
-						w=226,
+						w=227,
 						x=113,
 						y=86
 					}
@@ -172,48 +169,50 @@ return {
 				padding_right=16,
 				padding_top=16,
 				rotation=-6,
-				w=371,
-				x=465,
-				y=69
+				w=372,
+				x=473,
+				y=126
 			},
 			{
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				h=420,
+				h=192,
 				w=51,
-				x=31,
-				y=457
+				x=22,
+				y=628
 			},
 			{
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				h=420,
+				h=192,
 				w=51,
-				x=144,
-				y=457
+				x=118,
+				y=628
 			},
 			{
+				background_color=4294967057,
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				h=420,
+				h=192,
+				layout_type=1,
 				min_ch=47,
-				min_cw=108.5,
+				min_cw=56.5,
 				text_spans={
 					{
-						span_font_id=1,
-						span_font_size=43.1875
+						span_font_id=0,
+						span_font_size=70.1875
 					}
 				},
 				text_utf8='Hello World!',
-				w=146,
-				x=257,
-				y=457
+				w=216,
+				x=213,
+				y=628
 			},
 			{
 				background_type=8,
@@ -221,7 +220,7 @@ return {
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				h=420,
+				h=192,
 				layout_type=1,
 				text_align_y=2,
 				text_maxlen=1116,
@@ -231,10 +230,9 @@ return {
 						span_font_size=14.796875
 					}
 				},
-				text_utf8='Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Aenean vel elit scelerisque mauris pellentesque. Urna porttitor rhoncus dolor purus non enim praesent. Bibendum ut tristique et egestas quis ipsum. Risus in hendrerit gravida rutrum quisque non tellus orci ac. Etiam erat velit scelerisque in. Ut pharetra sit amet aliquam. Porttitor massa id neque aliquam vestibulum. Metus dictum at tempor commodo ullamcorper. Ut venenatis tellus in metus. Massa placerat duis ultricies lacus sed turpis tincidunt id aliquet. Et netus et malesuada fames ac turpis egestas sed. Tincidunt id aliquet risus feugiat in ante. Dolor sit amet consectetur adipiscing elit duis tristique sollicitudin nibh.\r\n\r\nJusto nec ultrices dui sapien eget mi proin. Molestie a iaculis at erat pellentesque adipiscing commodo elit at. Ac feugiat sed lectus vestibulum mattis ullamcorper. Varius vel pharetra vel turpis nunc eget lorem dolor sed. Varius duis at c',
-				w=371,
-				x=465,
-				y=457
+				w=372,
+				x=473,
+				y=628
 			}
 		},
 		clip_content=true,
@@ -261,8 +259,7 @@ return {
 		shadow_count=1,
 		shadows={
 			{
-				shadow_blur=6,
-				shadow_color=1203589119,
+				shadow_color=2627509503,
 				shadow_content=true
 			}
 		},
@@ -272,5 +269,6 @@ return {
 		y=56.5
 	},
 	selected_layer_path={
+		6
 	}
 }

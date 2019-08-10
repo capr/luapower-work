@@ -6,6 +6,7 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 require'terra/tr_font'
+require'terra/tr_shape'
 require'terra/rawstringview'
 
 local FIELDS = {
@@ -156,6 +157,13 @@ end
 terra Span:load_font_id(layout: &Layout, font_id: font_id_t)
 	var font = layout.r.fonts:at(font_id, nil)
 	self.font_id = iif(font ~= nil, iif(font:ref(), font_id, -1), -1)
+end
+
+terra Span:load_nowrap(layout: &Layout, nowrap: bool)
+	if self.nowrap ~= nowrap then
+		self.nowrap = nowrap
+		layout:nowrap_changed()
+	end
 end
 
 --NOTE: -1 is two positions outside the text, not one. This allows

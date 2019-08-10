@@ -114,6 +114,7 @@ terra Layout:wrap()
 	if self.state >= STATE_WRAPPED then return false end
 	assert(self.state == STATE_WRAPPED - 1)
 	self:_wrap()
+	self:_spaceout()
 	self.state = STATE_WRAPPED
 	return true
 end

@@ -58,32 +58,7 @@ return {
 				min_ch=47,
 				min_cw=50.5,
 				w=51,
-				x=31,
-				y=69
-			},
-			{
-				background_color_stop_count=2,
-				background_color_stops={
-					{
-						background_color_stop_color=11468799
-					},
-					{
-						background_color_stop_color=637599743,
-						background_color_stop_offset=1
-					}
-				},
-				background_extend=2,
-				background_type=6,
-				background_y2=4,
-				border_width_left=6.5,
-				border_width_right=1,
-				corner_radius_bottom_left=16.5,
-				corner_radius_top_left=13,
-				h=251,
-				min_ch=18,
-				min_cw=50.5,
-				w=51,
-				x=144,
+				x=22,
 				y=69
 			},
 			{
@@ -107,8 +82,33 @@ return {
 				},
 				text_utf8='Hey\nYou\226\128\169New Paragraph',
 				w=146,
-				x=257,
+				x=117,
 				y=68.625
+			},
+			{
+				background_color_stop_count=2,
+				background_color_stops={
+					{
+						background_color_stop_color=11468799
+					},
+					{
+						background_color_stop_color=637599743,
+						background_color_stop_offset=1
+					}
+				},
+				background_extend=2,
+				background_type=6,
+				background_y2=4,
+				border_width_left=6.5,
+				border_width_right=1,
+				corner_radius_bottom_left=16.5,
+				corner_radius_top_left=13,
+				h=251,
+				min_ch=18,
+				min_cw=50.5,
+				w=122,
+				x=307,
+				y=69
 			},
 			{
 				align_items_y=8,
@@ -127,7 +127,7 @@ return {
 						h=61,
 						min_ch=61,
 						min_cw=50.5,
-						w=339,
+						w=340,
 						y=8
 					},
 					{
@@ -145,6 +145,8 @@ return {
 						y=86
 					},
 					{
+						background_hittable=false,
+						background_operator=0,
 						border_width_bottom=1,
 						border_width_left=1,
 						border_width_right=1,
@@ -156,7 +158,7 @@ return {
 						h=125,
 						min_ch=61,
 						min_cw=50.5,
-						w=226,
+						w=227,
 						x=113,
 						y=86
 					}
@@ -172,8 +174,8 @@ return {
 				padding_right=16,
 				padding_top=16,
 				rotation=-6,
-				w=371,
-				x=465,
+				w=372,
+				x=473,
 				y=69
 			},
 			{
@@ -183,7 +185,7 @@ return {
 				border_width_top=1,
 				h=420,
 				w=51,
-				x=31,
+				x=22,
 				y=457
 			},
 			{
@@ -192,8 +194,8 @@ return {
 				border_width_right=1,
 				border_width_top=1,
 				h=420,
-				w=51,
-				x=144,
+				w=146,
+				x=117,
 				y=457
 			},
 			{
@@ -203,16 +205,16 @@ return {
 				border_width_top=1,
 				h=420,
 				min_ch=47,
-				min_cw=108.5,
+				min_cw=121.5,
 				text_spans={
 					{
 						span_font_id=1,
-						span_font_size=43.1875
+						span_font_size=51
 					}
 				},
 				text_utf8='Hello World!',
-				w=146,
-				x=257,
+				w=122,
+				x=307,
 				y=457
 			},
 			{
@@ -231,9 +233,9 @@ return {
 						span_font_size=14.796875
 					}
 				},
-				text_utf8='Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Aenean vel elit scelerisque mauris pellentesque. Urna porttitor rhoncus dolor purus non enim praesent. Bibendum ut tristique et egestas quis ipsum. Risus in hendrerit gravida rutrum quisque non tellus orci ac. Etiam erat velit scelerisque in. Ut pharetra sit amet aliquam. Porttitor massa id neque aliquam vestibulum. Metus dictum at tempor commodo ullamcorper. Ut venenatis tellus in metus. Massa placerat duis ultricies lacus sed turpis tincidunt id aliquet. Et netus et malesuada fames ac turpis egestas sed. Tincidunt id aliquet risus feugiat in ante. Dolor sit amet consectetur adipiscing elit duis tristique sollicitudin nibh.\r\n\r\nJusto nec ultrices dui sapien eget mi proin. Molestie a iaculis at erat pellentesque adipiscing commodo elit at. Ac feugiat sed lectus vestibulum mattis ullamcorper. Varius vel pharetra vel turpis nunc eget lorem dolor sed. Varius duis at c',
-				w=371,
-				x=465,
+				text_utf8='Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Aenean vel elit scelerisque mauris pellentesque. Urna porttitor rhoncus dolor purus non enim praesent. Bibendum ut tristique et egestas quis ipsum. Risus in hendrerit gravida rutrum quisque non tellus orci ac. Etiam erat velit scelerisq\0e in. Ut pharet\0a sit amet aliquam. Porttitor massa id neque aliquam vestibulum. Metus dictum at tempor commodo ullamcorper. Ut venenatis tellus in metus. Massa placerat duis ultricies lacus sed turpis tincidunt id aliquet. Et netus et malesuada fames ac turpis egestas sed. Tincidunt id aliquet risus feugiat in ante. Dolor sit amet consectetur adipiscing elit duis tristique sollicitudin nibh.\r\n\r\nJusto nec ultrices dui sapien eget mi proin. Molestie a iaculis at erat pellentesque adipiscing commodo elit at. Ac feugiat sed lectus vestibulum mattis ullamcorper. Varius vel pharetra vel turpis nunc eget lorem dolor sed. Varius duis at c',
+				w=372,
+				x=473,
 				y=457
 			}
 		},

@@ -193,6 +193,16 @@ terra Layout:span_dir(span: &Span, paragraph_offset: int)
 		span.paragraph_dir, self.dir)
 end
 
+terra Layout:nowrap_changed()
+	if self.text.len == 0 then
+		self._min_w = 0
+		self._max_w = 0
+	else
+		self._min_w = -inf
+		self._max_w =  inf
+	end
+end
+
 terra Layout:_shape()
 
 	var r = self.r
@@ -201,19 +211,15 @@ terra Layout:_shape()
 	--reset output
 	segs.len = 0
 	self.lines.len = 0
+	self:nowrap_changed()
 
 	--special-case empty text: we still want to set valid shaping output
 	--in order to properly display a cursor.
 	if self.text.len == 0 then
 		self.bidi = false
 		self.base_dir = self:span_dir(self.spans:at(0), 0)
-		self._min_w = 0
-		self._max_w = 0
 		return
 	end
-
-	self._min_w = -inf
-	self._max_w =  inf
 
 	--script and language detection and assignment
 	r.scripts.len = self.text.len

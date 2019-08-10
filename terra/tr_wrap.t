@@ -7,14 +7,14 @@ setfenv(1, require'terra/tr_types')
 local reorder_segs = require'terra/tr_wrap_reorder'
 
 --wrap-width and advance-width of all the nowrap segments starting with the
---segment at seg_i and the seg_i after those segments.
+--segment at seg_i, and the seg_i after those segments.
 --wrap-width == advance-width when it's a hard break or when it's the last
 --segment (which implies a hard break), otherwise it's advance-width minus
 --the width of the last trailing space.
 terra Layout:nowrap_segments(seg_i: int)
 	var seg = self.segs:at(seg_i)
-	var gr = &self.r.glyph_runs:pair(seg.glyph_run_id).key
 	if not seg.span.nowrap then
+		var gr = &self.r.glyph_runs:pair(seg.glyph_run_id).key
 		var wx = gr.wrap_advance_x
 		var ax = gr.advance_x
 		wx = iif(seg.linebreak ~= BREAK_NONE or seg_i == self.segs.len-1, ax, wx)
@@ -24,6 +24,7 @@ terra Layout:nowrap_segments(seg_i: int)
 	var n = self.segs.len
 	for i = seg_i, n do
 		var seg = self.segs(i)
+		var gr = &self.r.glyph_runs:pair(seg.glyph_run_id).key
 		var ax1 = ax + gr.advance_x
 		if i == n-1 or seg.linebreak ~= BREAK_NONE then --hard break, w == ax
 			return ax1, ax1, i+1
@@ -36,7 +37,8 @@ terra Layout:nowrap_segments(seg_i: int)
 end
 
 --minimum width that the text can wrap into without overflowing.
-terra Layout:min_w()
+terra Layout:get_min_w()
+	assert(self.state >= STATE_SHAPED)
 	var min_w = self._min_w
 	if min_w == -inf then
 		min_w = 0
@@ -52,7 +54,8 @@ terra Layout:min_w()
 end
 
 --text width when there's no wrapping.
-terra Layout:max_w()
+terra Layout:get_max_w()
+	assert(self.state >= STATE_SHAPED)
 	var max_w = self._max_w
 	if max_w == inf then
 		max_w = 0
@@ -78,14 +81,15 @@ end
 
 terra Layout:_wrap()
 
-	self.lines.len = 0
 	self.max_ax = 0
+	self.lines.len = 0
 
 	--special-case empty text: we still want to set valid wrapping output
 	--in order to properly display a cursor.
 	if self.segs.len == 0 then
 		var line = self.lines:add()
 		fill(line)
+		return
 	end
 
 	--do line wrapping and compute line advance.
@@ -104,7 +108,7 @@ terra Layout:_wrap()
 			var prev_seg = self.segs:at(seg_i-1, nil) --last segment of the previous line
 
 			--adjust last segment due to being wrapped.
-			--we can do this because the last segment stays last under bidi reordering.
+			--we can do this here because the last segment stays last under bidi reordering.
 			if softbreak then
 				var prev_run = self:glyph_run(prev_seg)
 				line.advance_x = line.advance_x - prev_seg.advance_x
@@ -146,20 +150,20 @@ terra Layout:_wrap()
 		seg_i = next_seg_i
 	end
 
-	--reorder RTL segments on each line separately and concatenate the runs.
-	if self.bidi then
-		for _,line in self.lines do
-			--UAX#9/L2: reorder segments based on their bidi_level property.
+	for _,line in self.lines do
+
+		--UAX#9/L2: reorder segments based on their bidi_level property.
+		if self.bidi then
 			line.first_vis = reorder_segs(line.first_vis, &self.r.ranges)
 		end
-	end
 
-	for _,line in self.lines do
+		--compute line's max advance_x, used as bounding box boundary.
 		self.max_ax = max(self.max_ax, line.advance_x)
+
+		--set segments `x` to be relative to the line's origin.
 		var ax = 0
 		var seg = line.first_vis
 		while seg ~= nil do
-			--set segments `x` to be relative to the line's origin.
 			seg.x = ax + seg.x
 			ax = ax + seg.advance_x
 			seg = seg.next_vis

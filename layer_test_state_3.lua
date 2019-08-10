@@ -1,7 +1,6 @@
 return {
 	root={
 		background_color=4294967057,
-		background_type=8,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
@@ -16,13 +15,21 @@ return {
 			}
 		},
 		clip_content=true,
-		h=405,
+		h=894,
 		hardline_spacing=0.68300002813339233,
-		layout_type=1,
 		line_spacing=0.78299999237060547,
-		min_cw=607.5,
+		min_cw=737,
 		rotation_cx=251,
 		rotation_cy=213.5,
+		shadow_count=1,
+		shadows={
+			{
+				shadow_blur=6,
+				shadow_inset=true,
+				shadow_x=4.5,
+				shadow_y=4
+			}
+		},
 		text_align_x=4,
 		text_align_y=1,
 		text_spans={
@@ -33,9 +40,8 @@ return {
 				span_text_color=4211042303
 			}
 		},
-		text_utf8='Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Aenean vel elit scelerisque mauris pellentesque. Urna porttitor rhoncus dolor purus non enim praesent. Bibendum ut tristique et egestas quis ipsum. Risus in hendrerit gravida rutrum quisque non tellus orci ac. Etiam erat velit scelerisque in. Ut pharetra sit amet aliquam. Porttitor massa id neque aliquam vestibulum. Metus dictum at tempor commodo ullamcorper. Ut venenatis tellus in metus. Massa placerat duis ultricies lacus sed turpis tincidunt id aliquet. Et netus et malesuada fames ac turpis egestas sed. Tincidunt id aliquet risus feugiat in ante. Dolor sit amet consectetur adipiscing elit duis tristique sollicitudin nibh.\r\n\r\nJusto nec ultrices dui sapien eget mi proin. Molestie a iaculis at erat pellentesque adipiscing commodo elit at. Ac feugiat sed lectus vestibulum mattis ullamcorper. Varius vel pharetra vel turpis nunc eget lorem dolor sed. Varius duis at c',
-		w=608,
-		x=1100,
+		w=964,
+		x=899,
 		y=100
 	},
 	selected_layer_path={

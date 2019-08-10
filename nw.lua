@@ -1558,6 +1558,19 @@ end
 
 --rendering ------------------------------------------------------------------
 
+local count_per_sec = 2
+local frame_count, last_frame_count, last_time = 0, 0
+function app:fps()
+	last_time = last_time or time.clock()
+	frame_count = frame_count + 1
+	local time = time.clock()
+	if time - last_time > 1 / count_per_sec then
+		last_frame_count, frame_count = frame_count, 0
+		last_time = time
+	end
+	return last_frame_count * count_per_sec
+end
+
 function window:invalidate(invalid_clock)
 	self._invalid_clock =
 		math.min(invalid_clock or -1/0, self._invalid_clock or 1/0)

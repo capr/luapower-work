@@ -1,5 +1,6 @@
 
 local ffi = require'ffi'
+local time = require'time'
 local testui = require'testui'
 local glue = require'glue'
 local bundle = require'bundle'
@@ -8,6 +9,18 @@ local color = require'color'
 local pp = require'pp'
 local u = require'utf8quot'
 local push, pop = table.insert, table.remove
+
+--utils ----------------------------------------------------------------------
+
+local function save_table(file, t)
+	assert(glue.writefile(file,
+		'return '..pp.format(t, {indent = '\t', sort_keys = true})))
+end
+
+local function load_table(file)
+	local chunk = loadfile(file)
+	return chunk and chunk()
+end
 
 --const state ----------------------------------------------------------------
 
@@ -58,10 +71,11 @@ local e, hit_e, hit_area
 
 local sessions = {}
 local session_number
+local continuous_repaint
 
 --layer tree (de)serialization -----------------------------------------------
 
-local function serialize(e)
+local function serialize_layer(e)
 
 	--serialize a list of sub-objects (shadows, text spans, etc.)
 	local function list(e, n, fields)
@@ -236,7 +250,7 @@ local function serialize(e)
 	if e.child_count > 0 then
 		local dt = {}
 		for i = 0, e.child_count-1 do
-			dt[i+1] = serialize(e:child(i))
+			dt[i+1] = serialize_layer(e:child(i))
 		end
 		--remove trailing empty children.
 		while #dt > 0 and next(dt[#dt]) == nil do
@@ -249,23 +263,12 @@ local function serialize(e)
 	return t
 end
 
-local function session_file(i)
-	return string.format('layer_test_state_%d.lua', i)
-end
-
-local function save_session(session_number)
-	local t = serialize(top_e)
-	t = {root = t, selected_layer_path = selected_layer_path}
-	assert(glue.writefile(session_file(session_number),
-		'return '..pp.format(t, {indent = '\t', sort_keys = true})))
-end
-
-local function deserialize(e, t)
+local function deserialize_layer(e, t)
 	for k,v in glue.sortedpairs(t) do
 		if k == 'children' then
 			e.child_count = #v
 			for i,t in ipairs(v) do
-				deserialize(e:child(i-1), t)
+				deserialize_layer(e:child(i-1), t)
 			end
 		elseif k == 'text_utf8' then
 			e:set_text_utf8(v, #v)
@@ -294,13 +297,31 @@ local function create_top_e()
 	top_e.border_width = 1
 end
 
-local function load_session(session_number)
+--session management ---------------------------------------------------------
+
+local function session_file(i)
+	return string.format('layer_test_state_%d.lua', i)
+end
+
+local function state_file()
+	return 'layer_test_state.lua'
+end
+
+local function save_session()
+	if not session_number then return end
+	local t = serialize_layer(top_e)
+	local file = session_file(session_number)
+	save_table(file, {root = t, selected_layer_path = selected_layer_path})
+end
+
+local function load_session(sn)
 	create_top_e()
-	local chunk = loadfile(session_file(session_number))
-	if not chunk then return end
-	local t = chunk()
-	selected_layer_path = t.selected_layer_path
-	deserialize(top_e, t.root)
+	local t = load_table(session_file(sn))
+	if t then
+		selected_layer_path = t.selected_layer_path
+		deserialize_layer(top_e, t.root)
+	end
+	session_number = sn
 end
 
 local function load_sessions()
@@ -310,6 +331,24 @@ local function load_sessions()
 		sessions[i] = i
 		i = i + 1
 	end
+end
+
+local function load_state()
+	local state = load_table(state_file())
+	if state then
+		load_session(state.session_number)
+		testui:continuous_repaint(state.continuous_repaint)
+		continuous_repaint = state.continuous_repaint
+	else
+		create_top_e()
+	end
+end
+
+local function save_state()
+	save_table(state_file(), {
+		session_number = session_number,
+		continuous_repaint = continuous_repaint,
+	})
 end
 
 --testui widget wrappers -----------------------------------------------------
@@ -331,7 +370,10 @@ local function slide(prop, min, max, step, ...)
 	local id, get, set = getset(prop, ...)
 	local v = get(e, prop, ...)
 	local v = testui:slide(id, nil, v, min, max, step, get(default_e, prop, 0))
-	if v then set(e, prop, v, ...) end
+	if v then
+		set(e, prop, v, ...)
+		return v
+	end
 end
 local function slidex(prop, ...) return slide(prop, -testui.win_w, testui.win_w, .5, ...) end
 local function slidey(prop, ...) return slide(prop, -testui.win_h, testui.win_h, .5, ...) end
@@ -361,6 +403,7 @@ local function pickcolor(prop, ...)
 		local r, g, b = color.convert('rgb', 'hsl', h1 or h, s1 or s, l1 or l)
 		local c = color.format('rgba32', 'rgb', r, g, b, a1 or a)
 		set(e, prop, c, ...)
+		return c
 	end
 end
 
@@ -392,8 +435,12 @@ local function choose(prop, prefix, options, ...)
 	testui:pushgroup'right'
 	testui.min_w = 0
 	local s = testui:choose(id, options, v)
-	if s then set(e, prop, t[s], ...) end
 	testui:popgroup()
+	if s then
+		local v = t[s]
+		set(e, prop, v, ...)
+		return v
+	end
 end
 
 local function bits_to_options(bits, maps)
@@ -447,12 +494,11 @@ function testui:layer_line(id, sel_child_i)
 	end
 	local t = {}
 	for i = 0, e.child_count-1 do
-		push(t, 'child '..i)
+		push(t, i)
 	end
 	self.min_w = 0
 	self.min_w = 0
-	local s = self:choose(id..'_children', t, sel_child_i and 'child '..sel_child_i)
-	return s and tonumber(s:match'%d+')
+	return self:choose(id..'_children', t, sel_child_i and sel_child_i, 'child %d')
 end
 
 function testui:repaint()
@@ -465,15 +511,12 @@ function testui:repaint()
 
 	local y = self.y
 	self:pushgroup'right'
-	self.x = self.win_w - 80 * #sessions - 20 - 30 * 2
+	self.x = self.win_w - 80 * #sessions - 20 - 30 * 2 - 80
 	self.min_w = 80
 	local sn = self:choose('session', sessions, session_number, 'session %d')
 	if sn then
-		if session_number then
-			save_session(session_number)
-		end
+		save_session()
 		load_session(sn)
-		session_number = sn
 	end
 	self.min_w = 30
 	if self:button'+' then
@@ -482,6 +525,13 @@ function testui:repaint()
 	if self:button'-' then
 		os.remove(session_file(pop(sessions)))
 	end
+
+	self.x = self.x + 20
+	if self:button('CRP', nil, continuous_repaint) then
+		continuous_repaint = not continuous_repaint
+		testui:continuous_repaint(continuous_repaint)
+	end
+
 	self:popgroup()
 	self.y = y
 
@@ -529,6 +579,9 @@ function testui:repaint()
 
 	self:heading'Position'
 
+	if sliden('index') then
+		selected_layer_path[#selected_layer_path] = e.index
+	end
 	self:pushgroup('right', 1/2)
 	slidex('x')
 	slidey('y')
@@ -813,8 +866,20 @@ function testui:repaint()
 
 	--sync'ing & drawing ------------------------------------------------------
 
+	local t0 = time.clock()
 	top_e:sync_layout()
 	top_e:draw(self.cr)
+	local dt = time.clock() - t0
+
+	self.x = self.win_w - 1200
+	self.y = 10
+	self:heading(string.format('Layer Framerate: %d fps, %d ms', 1 / dt, dt * 1000))
+
+	if continuous_repaint then
+		local fps = self.app:fps()
+		self:heading(string.format('Total Framerate: %d fps, %d ms', fps, 1000 / fps))
+	end
+	--self.window:invalidate()
 
 	--hit-testing -------------------------------------------------------------
 
@@ -838,11 +903,10 @@ function testui:repaint()
 end
 
 load_sessions()
-create_top_e()
+load_state()
 testui:run()
-if session_number then
-	save_session(session_number)
-end
+save_session()
+save_state()
 
 --free everything and check for leaks.
 top_e:free()

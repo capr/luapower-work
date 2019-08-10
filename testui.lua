@@ -210,7 +210,9 @@ function testui:choose(id, options, v, option_name)
 	option_name = option_name or glue.pass
 	if type(option_name) == 'string' then
 		local fmt = option_name
-		option_name = function(k) return string.format(fmt, k) end
+		option_name = function(k)
+			return string.format(fmt, k)
+		end
 	end
 	local cr = self.cr
 	self:pushgroup(self.dir)
@@ -268,12 +270,16 @@ end
 
 --test window ----------------------------------------------------------------
 
+testui.app = nw:app()
+
+function testui:continuous_repaint(crp)
+	self.app:maxfps(crp and 1/0 or 60)
+	self._continuous_repaint = crp
+end
+
 function testui:repaint() end --stub
 
 function testui:run()
-
-	assert(not self.app)
-	self.app = nw:app()
 
 	local d = self.app:active_display()
 
@@ -328,9 +334,12 @@ function testui:run()
 		self.testui:reset()
 		self.testui:repaint()
 		cr:restore()
-
 		if cr:status() ~= 0 then
 			print(cr:status_message())
+		end
+		if self.testui._continuous_repaint then
+			self:title(string.format('%d fps', self.testui.app:fps()))
+			self:invalidate()
 		end
 	end
 

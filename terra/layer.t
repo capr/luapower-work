@@ -1255,8 +1255,8 @@ terra Shadow:draw(cr: &context)
 					sr:flush()
 					mask_bmp = src_bmp:copy()
 					mask_sr = mask_bmp:surface()
-					cr:rgba(1, 1, 1, 1)
 					cr:operator(CAIRO_OPERATOR_XOR)
+					cr:rgba(1, 1, 1, 1)
 					cr:paint()
 				end
 			else
@@ -1782,7 +1782,7 @@ local null_layout = constant(`LayoutSolver {
 local terra text_sync(self: &Layer)
 	if not self.visible then return end
 	self:sync_text_shape()
-	self.cw = max(self.text.layout:min_w(), self.min_cw)
+	self.cw = max(self.text.layout.min_w, self.min_cw)
 	self:sync_text_wrap()
 	self.cw = max(self.text.layout.max_ax, self.min_cw)
 	self.ch = max(self.min_ch, self.text.layout.spaced_h)
@@ -1805,7 +1805,7 @@ local terra text_sync_min_w(self: &Layer, other_axis_synced: bool)
 	var min_cw: num
 	if not other_axis_synced or self.nowrap then
 		self:sync_text_shape()
-		min_cw = self.text.layout:min_w()
+		min_cw = self.text.layout.min_w
 	else
 		--height-in-width-out parent layout with wrapping text not supported
 		min_cw = 0
