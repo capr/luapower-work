@@ -76,50 +76,16 @@ terra Layout:max_w()
 	return max_w
 end
 
-terra Line:_update_vertical_metrics(
-	run_line_spacing: num,
-	run_ascent: num,
-	run_descent: num,
-	ascent_factor: num,
-	descent_factor: num
-)
-	self.ascent = max(self.ascent, run_ascent)
-	self.descent = min(self.descent, run_descent)
-	var run_h = run_ascent - run_descent
-	var half_line_gap = run_h * (run_line_spacing - 1) / 2
-	self.spaced_ascent
-		= max(self.spaced_ascent,
-			(run_ascent + half_line_gap) * ascent_factor)
-	self.spaced_descent
-		= min(self.spaced_descent,
-			(run_descent - half_line_gap) * descent_factor)
-end
-
 terra Layout:_wrap()
 
 	self.lines.len = 0
-	self.h = 0
-	self.spaced_h = 0
-	self.baseline = 0
 	self.max_ax = 0
 
-	--special-case empty text: we still want to create valid wrapping output
+	--special-case empty text: we still want to set valid wrapping output
 	--in order to properly display a cursor.
 	if self.segs.len == 0 then
-		var span = self.spans:at(0)
-		var font = self.r.fonts:at(span.font_id, nil)
 		var line = self.lines:add()
 		fill(line)
-		line.spacing = span.hardline_spacing
-		if font ~= nil then
-			line:_update_vertical_metrics(
-				span.hardline_spacing,
-				font.ascent,
-				font.descent,
-				1,
-				span.hardline_spacing
-			)
-		end
 	end
 
 	--do line wrapping and compute line advance.
@@ -154,18 +120,10 @@ terra Layout:_wrap()
 			end
 
 			line = self.lines:add()
+			fill(line)
 			line.index = self.lines.len-1
 			line.first = self.segs:at(seg_i) --first segment in text order
 			line.first_vis = line.first --first segment in visual order
-			line.x = 0
-			line.y = 0
-			line.advance_x = 0
-			line.ascent = 0
-			line.descent = 0
-			line.spaced_ascent = 0
-			line.spaced_descent = 0
-			line.spacing = 1
-
 		end
 
 		line.advance_x = line.advance_x + segs_ax
@@ -180,15 +138,8 @@ terra Layout:_wrap()
 		end
 
 		var last_seg = self.segs:at(next_seg_i-1)
-		if last_seg.linebreak ~= BREAK_NONE then
-			if last_seg.linebreak == BREAK_PARA then
-				--we use this particular segment's `paragraph_spacing` property
-				--since this is the segment asking for a paragraph break.
-				--TODO: is there a more logical way to select this property?
-				line.spacing = last_seg.span.paragraph_spacing
-			else
-				line.spacing = last_seg.span.hardline_spacing
-			end
+		line.linebreak = last_seg.linebreak
+		if line.linebreak ~= BREAK_NONE then
 			line = nil
 		end
 
@@ -203,54 +154,16 @@ terra Layout:_wrap()
 		end
 	end
 
-	var last_line: &Line = nil
 	for _,line in self.lines do
-
 		self.max_ax = max(self.max_ax, line.advance_x)
-
-		--compute line ascent and descent scaling based on paragraph spacing.
-		var ascent_factor = iif(last_line ~= nil, last_line.spacing, 1)
-		var descent_factor = line.spacing
-
 		var ax = 0
 		var seg = line.first_vis
 		while seg ~= nil do
-			--compute line's vertical metrics.
-			var run = self:glyph_run(seg)
-			line:_update_vertical_metrics(
-				seg.span.line_spacing,
-				run.ascent,
-				run.descent,
-				ascent_factor,
-				descent_factor
-			)
 			--set segments `x` to be relative to the line's origin.
 			seg.x = ax + seg.x
 			ax = ax + seg.advance_x
 			seg = seg.next_vis
 		end
-
-		--compute line's y position relative to first line's baseline.
-		if last_line ~= nil then
-			var baseline_h = line.spaced_ascent - last_line.spaced_descent
-			line.y = last_line.y + baseline_h
-		end
-		last_line = line
-	end
-
-	do
-		var first_line = self.lines:at(0)
-		var last_line = self.lines:at(self.lines.len-1)
-		--compute the bounding-box height excluding paragraph spacing.
-		self.h =
-			first_line.ascent
-			+ last_line.y
-			- last_line.descent
-		--compute the bounding-box height including paragraph spacing.
-		self.spaced_h =
-			first_line.spaced_ascent
-			+ last_line.y
-			- last_line.spaced_descent
 	end
 
 end

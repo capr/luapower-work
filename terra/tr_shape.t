@@ -203,7 +203,7 @@ terra Layout:_shape()
 	self.lines.len = 0
 
 	--special-case empty text: we still want to set valid shaping output
-	--fields in order to properly display a cursor.
+	--in order to properly display a cursor.
 	if self.text.len == 0 then
 		self.bidi = false
 		self.base_dir = self:span_dir(self.spans:at(0), 0)

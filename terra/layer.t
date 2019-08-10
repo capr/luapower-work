@@ -61,19 +61,18 @@ Bitmap = bitmap.Bitmap
 --common enums ---------------------------------------------------------------
 
 ALIGN_DEFAULT       = 0                --only for align_x/y
-ALIGN_AUTO          = tr.ALIGN_AUTO    --only for text_align_x
 ALIGN_LEFT          = tr.ALIGN_LEFT
 ALIGN_RIGHT         = tr.ALIGN_RIGHT
 ALIGN_CENTER        = tr.ALIGN_CENTER
+ALIGN_START         = tr.ALIGN_START   --left for LTR text, right for RTL
+ALIGN_END           = tr.ALIGN_END     --left for RTL text, right for LTR
 ALIGN_TOP           = tr.ALIGN_TOP     --needs to be same as ALIGN_LEFT!
 ALIGN_BOTTOM        = tr.ALIGN_BOTTOM  --needs to be same as ALIGN_RIGHT!
 ALIGN_STRETCH       = tr.ALIGN_MAX + 1
-ALIGN_START         = tr.ALIGN_MAX + 2 --left for LTR text, right for RTL
-ALIGN_END           = tr.ALIGN_MAX + 3 --right for LTR text, left for RTL
-ALIGN_SPACE_EVENLY  = tr.ALIGN_MAX + 4 --only for align_items_*
-ALIGN_SPACE_AROUND  = tr.ALIGN_MAX + 5 --only for align_items_*
-ALIGN_SPACE_BETWEEN = tr.ALIGN_MAX + 6 --only for align_items_*
-ALIGN_BASELINE      = tr.ALIGN_MAX + 7 --only for item_align_y
+ALIGN_SPACE_EVENLY  = tr.ALIGN_MAX + 2 --only for align_items_*
+ALIGN_SPACE_AROUND  = tr.ALIGN_MAX + 3 --only for align_items_*
+ALIGN_SPACE_BETWEEN = tr.ALIGN_MAX + 4 --only for align_items_*
+ALIGN_BASELINE      = tr.ALIGN_MAX + 5 --only for item_align_y
 
 local function map_enum(C, src_prefix, dst_prefix)
 	for k,v in pairs(C) do

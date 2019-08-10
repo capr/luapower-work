@@ -58,6 +58,7 @@ terra Layout:set_text_utf8(s: rawstring, len: int)
 end
 
 terra Layout:set_maxlen(v: int)
+	v = max(v, 0)
 	self._maxlen = v
 	if self.text.len > v then --truncate the text
 		self.text.len = v
@@ -95,6 +96,13 @@ end
 
 terra Layout:set_align_x(v: enum)
 	if self._align_x ~= v then
+		assert(
+			   v == ALIGN_LEFT
+			or v == ALIGN_RIGHT
+			or v == ALIGN_CENTER
+			or v == ALIGN_START
+			or v == ALIGN_END
+		)
 		self._align_x = v
 		self.state = min(self.state, STATE_ALIGNED - 1)
 	end
@@ -102,7 +110,33 @@ end
 
 terra Layout:set_align_y(v: enum)
 	if self._align_y ~= v then
+		assert(
+			   v == ALIGN_TOP
+			or v == ALIGN_BOTTOM
+			or v == ALIGN_CENTER
+		)
 		self._align_y = v
+		self.state = min(self.state, STATE_ALIGNED - 1)
+	end
+end
+
+terra Layout:set_line_spacing(v: num)
+	if self._line_spacing ~= v then
+		self._line_spacing = max(v, 0)
+		self.state = min(self.state, STATE_ALIGNED - 1)
+	end
+end
+
+terra Layout:set_hardline_spacing(v: num)
+	if self._hardline_spacing ~= v then
+		self._hardline_spacing = max(v, 0)
+		self.state = min(self.state, STATE_ALIGNED - 1)
+	end
+end
+
+terra Layout:set_paragraph_spacing(v: num)
+	if self._paragraph_spacing ~= v then
+		self._paragraph_spacing = max(v, 0)
 		self.state = min(self.state, STATE_ALIGNED - 1)
 	end
 end

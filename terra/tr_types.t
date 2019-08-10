@@ -63,8 +63,9 @@ ALIGN_RIGHT   = 2
 ALIGN_CENTER  = 3
 ALIGN_TOP     = ALIGN_LEFT
 ALIGN_BOTTOM  = ALIGN_RIGHT
-ALIGN_AUTO    = 4 --based on bidi dir
-ALIGN_MAX     = 4
+ALIGN_START   = 4 --based on bidi dir; only for align_x
+ALIGN_END     = 5 --based on bidi dir; only for align_x
+ALIGN_MAX     = 5
 
 --dir
 DIR_AUTO = FRIBIDI_PAR_ON; assert(DIR_AUTO ~= 0)
@@ -128,9 +129,6 @@ struct Span (gettersandsetters) {
 	script: hb_script_t;
 	lang: hb_language_t;
 	paragraph_dir: dir_t; --bidi direction for current paragraph.
-	line_spacing: num; --line spacing multiplication factor (m.f.).
-	hardline_spacing: num; --line spacing m.f. for hard-breaked lines.
-	paragraph_spacing: num; --paragraph spacing m.f.
 	nowrap: bool; --disable word wrapping.
 	color: color;
 	opacity: double; --the opacity level in 0..1.
@@ -146,9 +144,6 @@ Span.empty = `Span {
 	script = 0;
 	lang = nil;
 	paragraph_dir = 0;
-	line_spacing = 1.0;
-	hardline_spacing = 1.0;
-	paragraph_spacing = 2.0;
 	nowrap = false;
 	color = DEFAULT_TEXT_COLOR;
 	opacity = 1;
@@ -219,7 +214,7 @@ struct Line (gettersandsetters) {
 	descent: num;
 	spaced_ascent: num;
 	spaced_descent: num;
-	spacing: num;
+	linebreak: enum; --set by wrap(), used by align()
 }
 
 --NOTE: the initial not-even-shaped state is 0.
@@ -248,6 +243,9 @@ struct Layout (gettersandsetters) {
 	_align_h: num;
 	_align_x: enum;
 	_align_y: enum;
+	_line_spacing: num; --line spacing multiplication factor (m.f.).
+	_hardline_spacing: num; --line spacing m.f. for hard-breaked lines.
+	_paragraph_spacing: num; --paragraph spacing m.f.
 	--input/clip+paint
 	_clip_x: num;
 	_clip_y: num;
@@ -286,6 +284,9 @@ terra Layout:get_align_w () return self._align_w end
 terra Layout:get_align_h () return self._align_h end
 terra Layout:get_align_x () return self._align_x end
 terra Layout:get_align_y () return self._align_y end
+terra Layout:get_line_spacing      () return self._line_spacing end
+terra Layout:get_hardline_spacing  () return self._hardline_spacing end
+terra Layout:get_paragraph_spacing () return self._paragraph_spacing end
 terra Layout:get_clip_x  () return self._clip_x end
 terra Layout:get_clip_y  () return self._clip_y end
 terra Layout:get_clip_w  () return self._clip_w end
@@ -309,6 +310,9 @@ terra Layout:init(r: &Renderer)
 	self._dir      =  DIR_AUTO
 	self._align_x  =  ALIGN_CENTER
 	self._align_y  =  ALIGN_CENTER
+	self._line_spacing      = 1.0
+	self._hardline_spacing  = 1.0
+	self._paragraph_spacing = 2.0
 	self._clip_x   = -inf
 	self._clip_y   = -inf
 	self._clip_w   =  inf

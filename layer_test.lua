@@ -6,6 +6,8 @@ local bundle = require'bundle'
 local layer = require'layer'
 local color = require'color'
 local pp = require'pp'
+local u = require'utf8quot'
+local push, pop = table.insert, table.remove
 
 --const state ----------------------------------------------------------------
 
@@ -23,8 +25,6 @@ local function unload_font(font_id, file_data_buf, file_size_buf)
 	--nothing
 end
 
-local lorem_ipsum = bundle.load('lorem_ipsum.txt'):sub(1, 1000)
-
 assert(layer.memtotal() == 0)
 
 local lib = layer.layerlib(load_font, unload_font)
@@ -34,17 +34,30 @@ local amiri    = lib:font()
 
 local default_e = lib:layer()
 
+local lorem_ipsum = bundle.load('lorem_ipsum.txt'):sub(1, 1000)
+local test_texts = {
+	[''] = '',
+	lorem_ipsum = lorem_ipsum,
+	hello = 'Hello World!',
+	parbreak = u'Hey\nYou&ps;New Paragraph',
+}
+local test_text_names = glue.index(test_texts)
+
+local outlen = 65535
+local out = ffi.new('char[?]', outlen)
+local function utf8_text(e)
+	local n = e:get_text_utf8(out, outlen)
+	return n > 0 and ffi.string(out, n) or nil
+end
+
 --global state ---------------------------------------------------------------
 
-local top_e = lib:layer()
-top_e.x = 1100
-top_e.y = 100
-top_e.w = 500
-top_e.h = 300
-top_e.border_width = 1
-
+local top_e
 local selected_layer_path = {}
 local e, hit_e, hit_area
+
+local sessions = {}
+local session_number
 
 --layer tree (de)serialization -----------------------------------------------
 
@@ -71,14 +84,14 @@ local function serialize(e)
 		end
 		--remove trailing empty elements.
 		while #dt > 0 and next(dt[#dt]) == nil do
-			table.remove(dt)
+			pop(dt)
 		end
 		if #dt == 0 then return end
 		return dt
 	end
 
-	local function cstring(p)
-		return p ~= nil and ffi.string(p) or nil
+	local function cstring(p, len)
+		return p ~= nil and ffi.string(p, len) or nil
 	end
 
 	--serialize layer properties.
@@ -161,11 +174,14 @@ local function serialize(e)
 		shadow_inset   =1,
 		shadow_content =1,
 	})
-	t.text_utf8 = e.text_utf8
+	t.text_utf8 = utf8_text(e)
 	t.text_maxlen = e.text_maxlen
 	t.text_dir = e.text_dir
 	t.text_align_x = e.text_align_x
 	t.text_align_y = e.text_align_y
+	t.paragraph_dir     = e.paragraph_dir
+	t.line_spacing      = e.line_spacing
+	t.hardline_spacing  = e.hardline_spacing
 	t.span_count = e.span_count
 	t.text_spans = list(e, e.span_count, {
 		span_font_id           =1,
@@ -174,9 +190,6 @@ local function serialize(e)
 		span_script            =cstring,
 		span_lang              =cstring,
 		span_paragraph_dir     =1,
-		span_line_spacing      =1,
-		span_hardline_spacing  =1,
-		span_paragraph_spacing =1,
 		span_nowrap            =1,
 		span_text_color        =1,
 		span_text_opacity      =1,
@@ -227,7 +240,7 @@ local function serialize(e)
 		end
 		--remove trailing empty children.
 		while #dt > 0 and next(dt[#dt]) == nil do
-			table.remove(dt)
+			pop(dt)
 		end
 		if #dt > 0 then
 			t.children = dt
@@ -236,12 +249,14 @@ local function serialize(e)
 	return t
 end
 
-local STATE_FILE = 'layer_test_state.lua'
+local function session_file(i)
+	return string.format('layer_test_state_%d.lua', i)
+end
 
-local function save_state()
+local function save_session(session_number)
 	local t = serialize(top_e)
 	t = {root = t, selected_layer_path = selected_layer_path}
-	assert(glue.writefile(STATE_FILE,
+	assert(glue.writefile(session_file(session_number),
 		'return '..pp.format(t, {indent = '\t', sort_keys = true})))
 end
 
@@ -252,6 +267,8 @@ local function deserialize(e, t)
 			for i,t in ipairs(v) do
 				deserialize(e:child(i-1), t)
 			end
+		elseif k == 'text_utf8' then
+			e:set_text_utf8(v, #v)
 		elseif type(v) == 'table' then
 			for i,t in ipairs(v) do
 				for k,v in glue.sortedpairs(t) do
@@ -265,12 +282,34 @@ local function deserialize(e, t)
 	end
 end
 
-local function load_state()
-	local chunk = loadfile(STATE_FILE)
+local function create_top_e()
+	if top_e then
+		top_e:free()
+	end
+	top_e = lib:layer()
+	top_e.x = 1100
+	top_e.y = 100
+	top_e.w = 500
+	top_e.h = 300
+	top_e.border_width = 1
+end
+
+local function load_session(session_number)
+	create_top_e()
+	local chunk = loadfile(session_file(session_number))
 	if not chunk then return end
 	local t = chunk()
 	selected_layer_path = t.selected_layer_path
 	deserialize(top_e, t.root)
+end
+
+local function load_sessions()
+	sessions = {}
+	local i = 1
+	while glue.canopen(session_file(i)) do
+		sessions[i] = i
+		i = i + 1
+	end
 end
 
 --testui widget wrappers -----------------------------------------------------
@@ -280,17 +319,19 @@ local function get_prop(e, prop) return e[prop] end
 local function set_prop(e, prop, v) e[prop] = v end
 local function get_prop_i(e, prop, i) return e['get_'..prop](e, i) end
 local function set_prop_i(e, prop, v, i) e['set_'..prop](e, i, v) end
-local function getset(prop, i)
+local function get_prop_ij(e, prop, i, j) return e['get_'..prop](e, i, j) end
+local function set_prop_ij(e, prop, v, i, j) e['set_'..prop](e, i, j, v) end
+local function getset(prop, i, j)
 	local id = i and prop..'['..i..']' or prop
-	get = i and get_prop_i or get_prop
-	set = i and set_prop_i or set_prop
+	get = j and get_prop_ij or i and get_prop_i or get_prop
+	set = j and set_prop_ij or i and set_prop_i or set_prop
 	return id, get, set
 end
-local function slide(prop, min, max, step, i, ...)
-	local id, get, set = getset(prop, i, ...)
-	local v = get(e, prop, i)
+local function slide(prop, min, max, step, ...)
+	local id, get, set = getset(prop, ...)
+	local v = get(e, prop, ...)
 	local v = testui:slide(id, nil, v, min, max, step, get(default_e, prop, 0))
-	if v then set(e, prop, v, i) end
+	if v then set(e, prop, v, ...) end
 end
 local function slidex(prop, ...) return slide(prop, -testui.win_w, testui.win_w, .5, ...) end
 local function slidey(prop, ...) return slide(prop, -testui.win_h, testui.win_h, .5, ...) end
@@ -298,9 +339,9 @@ local function slidew(prop, ...) return slide(prop, -100, 100, .5, ...) end
 local function slidea(prop, ...) return slide(prop, -360, 360, .5, ...) end
 local function sliden(prop, ...) return slide(prop, -10, 10, .1, ...) end
 local function slideo(prop, ...) return slide(prop, -2, 2, .001, ...) end
-local function pickcolor(prop, i, ...)
-	local id, get, set = getset(prop, i, ...)
-	local r, g, b, a = color.parse_rgba32(get(e, prop, i))
+local function pickcolor(prop, ...)
+	local id, get, set = getset(prop, ...)
+	local r, g, b, a = color.parse_rgba32(get(e, prop, ...))
 	local h, s, l = color.convert('hsl', 'rgb', r, g, b)
 
 	testui:pushgroup'down'
@@ -319,7 +360,7 @@ local function pickcolor(prop, i, ...)
 		if h1 and l == 0 and s == 0 and a == 0 then l1 = .5; s1 = 1; a1 = 1 end
 		local r, g, b = color.convert('rgb', 'hsl', h1 or h, s1 or s, l1 or l)
 		local c = color.format('rgba32', 'rgb', r, g, b, a1 or a)
-		set(e, prop, c, i)
+		set(e, prop, c, ...)
 	end
 end
 
@@ -327,18 +368,23 @@ local map_t = glue.memoize(function(prop) return {} end)
 local function enum_map(prop, prefix, options)
 	local t = map_t(prop)
 	if not next(t) then
-		for i,s in ipairs(options) do
-			local enum = layer[prefix:upper()..s:upper()]
-			t[s] = enum
-			t[enum] = s
+		if type(prefix) == 'string' then
+			for i,s in ipairs(options) do
+				local enum = layer[prefix:upper()..s:upper()]
+				t[s] = enum
+				t[enum] = s
+			end
+		else
+			glue.update(t, prefix)
+			glue.update(t, glue.index(prefix))
 		end
 	end
 	return t
 end
-local function choose(prop, prefix, options, i, ...)
-	local id, get, set = getset(prop, i, ...)
+local function choose(prop, prefix, options, ...)
+	local id, get, set = getset(prop, ...)
 	local t = enum_map(prop, prefix, options)
-	local v = t[get(e, prop, i)]
+	local v = t[get(e, prop, ...)]
 	testui:pushgroup'down'
 	testui.margin_h = -2
 	testui:label(prop)
@@ -346,7 +392,7 @@ local function choose(prop, prefix, options, i, ...)
 	testui:pushgroup'right'
 	testui.min_w = 0
 	local s = testui:choose(id, options, v)
-	if s then set(e, prop, t[s], i) end
+	if s then set(e, prop, t[s], ...) end
 	testui:popgroup()
 end
 
@@ -359,10 +405,10 @@ local function bits_to_options(bits, maps)
 	end
 	return vt
 end
-local function mchoose(prop, prefix, options, i, ...)
-	local id, get, set = getset(prop, i, ...)
+local function mchoose(prop, prefix, options, ...)
+	local id, get, set = getset(prop, ...)
 	local t = enum_map(prop, prefix, options)
-	local v = get(e, prop, i)
+	local v = get(e, prop, ...)
 	testui:pushgroup'down'
 	testui.margin_h = -2
 	testui:label(prop)
@@ -373,16 +419,16 @@ local function mchoose(prop, prefix, options, i, ...)
 	local s = testui:choose(id, options, vt)
 	if s then
 		local v = glue.setbit(v, t[s], not vt[s])
-		set(e, prop, v, i)
+		set(e, prop, v, ...)
 	end
 	testui:popgroup()
 end
 
-local function toggle(prop, i, ...)
-	local id, get, set = getset(prop, i, ...)
-	local v = get(e, prop, i, ...)
+local function toggle(prop, ...)
+	local id, get, set = getset(prop, ...)
+	local v = get(e, prop, ...)
 	if testui:button(id, nil, v) then
-		set(e, prop, not v, i)
+		set(e, prop, not v, ...)
 	end
 end
 
@@ -401,12 +447,12 @@ function testui:layer_line(id, sel_child_i)
 	end
 	local t = {}
 	for i = 0, e.child_count-1 do
-		table.insert(t, 'child '..i)
+		push(t, 'child '..i)
 	end
 	self.min_w = 0
 	self.min_w = 0
-	local s, sel = self:choose(id..'_children', t, sel_child_i and 'child '..sel_child_i)
-	return s and tonumber(s:match'%d+'), sel
+	local s = self:choose(id..'_children', t, sel_child_i and 'child '..sel_child_i)
+	return s and tonumber(s:match'%d+')
 end
 
 function testui:repaint()
@@ -415,7 +461,33 @@ function testui:repaint()
 	self.min_w = 240
 	self.max_w = 240
 
+	--session selector --------------------------------------------------------
+
+	local y = self.y
+	self:pushgroup'right'
+	self.x = self.win_w - 80 * #sessions - 20 - 30 * 2
+	self.min_w = 80
+	local sn = self:choose('session', sessions, session_number, 'session %d')
+	if sn then
+		if session_number then
+			save_session(session_number)
+		end
+		load_session(sn)
+		session_number = sn
+	end
+	self.min_w = 30
+	if self:button'+' then
+		push(sessions, #sessions + 1)
+	end
+	if self:button'-' then
+		os.remove(session_file(pop(sessions)))
+	end
+	self:popgroup()
+	self.y = y
+
 	--layer tree editor / layer selector --------------------------------------
+
+	local e0 = e
 
 	e = top_e
 	local path_i = 1
@@ -423,7 +495,7 @@ function testui:repaint()
 	while true do
 		self:pushgroup'right'
 		local child_i = selected_layer_path[path_i]
-		local sel_child_i = self:layer_line(id, child_i)
+		local sel_child_i, selected = self:layer_line(id, child_i)
 		local toggled = child_i and sel_child_i == child_i
 		child_i = sel_child_i or child_i
 		self:popgroup()
@@ -445,6 +517,9 @@ function testui:repaint()
 		path_i = path_i + 1
 		id = id..'/'..child_i
 	end
+
+	if e0 then e0.background_color_set = false end
+	if e then e.background_color = 0xffffff11 end
 
 	--layer property editors --------------------------------------------------
 
@@ -477,16 +552,22 @@ function testui:repaint()
 	self:heading'Border'
 
 	slidew('border_width'       )
+	self:pushgroup('right', 1/2)
 	slidew('border_width_left'  )
 	slidew('border_width_right' )
+	self:nextgroup()
 	slidew('border_width_top'   )
 	slidew('border_width_bottom')
+	self:popgroup()
 
 	slidew('corner_radius')
+	self:pushgroup('right', 1/2)
 	slidew('corner_radius_top_left')
 	slidew('corner_radius_top_right')
+	self:nextgroup()
 	slidew('corner_radius_bottom_left')
 	slidew('corner_radius_bottom_right')
+	self:popgroup()
 
 	pickcolor('border_color')
 	pickcolor('border_color_left')
@@ -524,6 +605,24 @@ function testui:repaint()
 	slidex('scale_cx')
 	slidey('scale_cy')
 	self:popgroup()
+
+	self:heading'Shadows'
+
+	slide('shadow_count', -10, 10, 1)
+	for i = 0, e.shadow_count-1 do
+		pickcolor('shadow_color', i)
+		self:pushgroup('right', 1/2)
+		slidew('shadow_x', i)
+		slidew('shadow_y', i)
+		self:popgroup()
+		self:pushgroup('right', 1/2)
+		slide ('shadow_blur',   -500, 500, 1, i)
+		slide ('shadow_passes',  -20,  20, 1, i)
+		self:nextgroup()
+		toggle('shadow_inset', i)
+		toggle('shadow_content', i)
+		self:popgroup()
+	end
 
 	self:nextgroup(10)
 
@@ -583,22 +682,39 @@ function testui:repaint()
 
 	choose('background_extend', 'background_extend_', {'none', 'pad', 'reflect', 'repeat'})
 
-	self:heading'Shadows'
+	self:heading'Text'
 
-	slide('shadow_count', -10, 10, 1)
-	for i = 0, e.shadow_count-1 do
-		pickcolor('shadow_color', i)
-		self:pushgroup('right', 1/2)
-		slidew('shadow_x', i)
-		slidew('shadow_y', i)
-		self:popgroup()
-		self:pushgroup('right', 1/2)
-		slide ('shadow_blur',   -500, 500, 1, i)
-		slide ('shadow_passes',  -20,  20, 1, i)
-		self:nextgroup()
-		toggle('shadow_inset', i)
-		toggle('shadow_content', i)
-		self:popgroup()
+	self:pushgroup'right'
+	self.min_w = 0
+	local text = utf8_text(e)
+	local text_name = test_text_names[text]
+	local sel_text_name = self:choose('text_utf8', glue.keys(test_texts, true), text_name)
+	if sel_text_name then
+		local sel_text = test_texts[sel_text_name]
+		e:set_text_utf8(sel_text, #sel_text)
+	end
+	self:popgroup()
+
+	slide ('text_maxlen', -10, 9999, 1)
+	choose('text_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'})
+	choose('text_align_x', 'align_', {'left', 'right', 'center', 'start', 'end'})
+	choose('text_align_y', 'align_', {'top', 'bottom', 'center'})
+	slideo('line_spacing')
+	slideo('hardline_spacing')
+	slideo('paragraph_spacing')
+
+	sliden('span_count')
+	for i = 0, e.span_count-1 do
+		choose('span_font_id', {OpenSans=0, Amiri=1}, {'OpenSans', 'Amiri'}, i)
+		slide ('span_font_size', -10, 100, 0.1, i)
+		--TODO: slide ('features',
+		--TODO: choose('script', i)
+		--TODO: choose('lang'             , i)
+		choose('span_paragraph_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i)
+		toggle('span_nowrap'          , i)
+		pickcolor('span_text_color'   , i)
+		slideo('span_text_opacity'    , i)
+		choose('span_text_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'}, i)
 	end
 
 	self:nextgroup(10)
@@ -703,15 +819,11 @@ function testui:repaint()
 	--hit-testing -------------------------------------------------------------
 
 	if self.mx then
-		local hit_e0 = hit_e
 		local lbuf = ffi.new'layer_t*[1]'
 		hit_area = top_e:hit_test(self.cr, self.mx, self.my, 0, lbuf)
 		hit_e = lbuf[0]
 		if hit_e == nil then hit_e = nil end
 		if hit_area == 0 then hit_area = nil end
-
-		if hit_e0 then hit_e0.background_color_set = false end
-		if hit_e then hit_e.background_color = 0xffffff33 end
 
 		if hit_e and self.mouse.left then
 			selected_layer_path = {}
@@ -725,9 +837,12 @@ function testui:repaint()
 
 end
 
-load_state()
+load_sessions()
+create_top_e()
 testui:run()
-save_state()
+if session_number then
+	save_session(session_number)
+end
 
 --free everything and check for leaks.
 top_e:free()

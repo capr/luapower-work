@@ -15,9 +15,6 @@ local FIELDS = {
 	'script',
 	'lang',
 	'paragraph_dir',
-	'line_spacing',
-	'hardline_spacing',
-	'paragraph_spacing',
 	'nowrap',
 	'color',
 	'opacity',
@@ -178,9 +175,6 @@ SPAN_FIELD_TYPES = {
 	script            = rawstring ,
 	lang              = rawstring ,
 	paragraph_dir     = int       ,
-	line_spacing      = double    ,
-	hardline_spacing  = double    ,
-	paragraph_spacing = double    ,
 	nowrap            = bool      ,
 	color             = uint32    ,
 	opacity           = double    ,
@@ -188,9 +182,6 @@ SPAN_FIELD_TYPES = {
 }
 
 local SPAN_FIELD_MAX_STATE = {
-	line_spacing      = STATE_WRAPPED,
-	hardline_spacing  = STATE_WRAPPED,
-	paragraph_spacing = STATE_WRAPPED,
 	nowrap            = STATE_SHAPED,
 	color             = STATE_ALIGNED,
 	opacity           = STATE_ALIGNED,
@@ -256,7 +247,7 @@ terra Layout:get_span_count()
 end
 
 terra Layout:set_span_count(n: int)
-	self.spans:setlen(n, [Span.empty])
+	self.spans:setlen(max(n, 1), [Span.empty])
 end
 
 --text editing ---------------------------------------------------------------

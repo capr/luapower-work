@@ -206,21 +206,26 @@ function testui:button(id, label, selected)
 	end
 end
 
-function testui:choose(id, options, v)
+function testui:choose(id, options, v, option_name)
+	option_name = option_name or glue.pass
+	if type(option_name) == 'string' then
+		local fmt = option_name
+		option_name = function(k) return string.format(fmt, k) end
+	end
 	local cr = self.cr
 	self:pushgroup(self.dir)
 	self.margin_w, self.margin_h = 0, 0
 	local option
-	for i,s in ipairs(options) do
+	for i,k in ipairs(options) do
 		local sel
 		if type(v) == 'table' then --multiple choice
-			sel = v[s]
+			sel = v[k]
 		else
-			sel = s == v
+			sel = k == v
 		end
-		local active = self:button(id..'.'..s, s, sel)
+		local active = self:button(id..'.'..k, option_name(k), sel)
 		if active then
-			option = s
+			option = k
 		end
 	end
 	self:popgroup()
@@ -277,14 +282,14 @@ function testui:run()
 		y = 'center-active',
 		w = d.w - 200,
 		h = d.h - 200,
-		--maximized = true,
+		maximized = true,
 	}
 
 	self.window.testui = self
 
 	function self.window:keyup(key)
 		if key == 'esc' then
-			if self:ismaximized() then self:restore() else self:close() end
+			self:close()
 		end
 	end
 

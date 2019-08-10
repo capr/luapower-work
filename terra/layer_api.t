@@ -355,6 +355,14 @@ terra Layer:get_text_align_y() return self.text.layout.align_y end
 terra Layer:set_text_align_x(v: enum) self.text.layout.align_x = v end
 terra Layer:set_text_align_y(v: enum) self.text.layout.align_y = v end
 
+terra Layer:get_line_spacing      () return self.text.layout.line_spacing end
+terra Layer:get_hardline_spacing  () return self.text.layout.hardline_spacing end
+terra Layer:get_paragraph_spacing () return self.text.layout.paragraph_spacing end
+
+terra Layer:set_line_spacing      (v: num) self.text.layout.line_spacing      = v end
+terra Layer:set_hardline_spacing  (v: num) self.text.layout.hardline_spacing  = v end
+terra Layer:set_paragraph_spacing (v: num) self.text.layout.paragraph_spacing = v end
+
 --text spans
 
 terra Layer:get_span_count()
@@ -649,8 +657,8 @@ function build()
 		set_border_width_top    =1,
 		set_border_width_bottom =1,
 
-		get_border_width        =1,
-		set_border_width        =1,
+		get_border_width=1,
+		set_border_width=1,
 
 		get_corner_radius_top_left     =1,
 		get_corner_radius_top_right    =1,
@@ -664,8 +672,8 @@ function build()
 		set_corner_radius_bottom_right =1,
 		set_corner_radius_kappa        =1,
 
-		get_corner_radius              =1,
-		set_corner_radius              =1,
+		get_corner_radius=1,
+		set_corner_radius=1,
 
 		get_border_color_left   =1,
 		get_border_color_right  =1,
@@ -677,8 +685,8 @@ function build()
 		set_border_color_top    =1,
 		set_border_color_bottom =1,
 
-		get_border_color        =1,
-		set_border_color        =1,
+		get_border_color=1,
+		set_border_color=1,
 
 		get_border_dash_count=1,
 		set_border_dash_count=1,
@@ -804,15 +812,20 @@ function build()
 		set_text_align_x=1,
 		set_text_align_y=1,
 
+		get_line_spacing      =1,
+		get_hardline_spacing  =1,
+		get_paragraph_spacing =1,
+
+		set_line_spacing      =1,
+		set_hardline_spacing  =1,
+		set_paragraph_spacing =1,
+
 		get_font_id           =1,
 		get_font_size         =1,
 		get_features          =1,
 		get_script            =1,
 		get_lang              =1,
 		get_paragraph_dir     =1,
-		get_line_spacing      =1,
-		get_hardline_spacing  =1,
-		get_paragraph_spacing =1,
 		get_nowrap            =1,
 		get_text_color        =1,
 		get_text_opacity      =1,
@@ -824,9 +837,6 @@ function build()
 		set_script            =1,
 		set_lang              =1,
 		set_paragraph_dir     =1,
-		set_line_spacing      =1,
-		set_hardline_spacing  =1,
-		set_paragraph_spacing =1,
 		set_nowrap            =1,
 		set_text_color        =1,
 		set_text_opacity      =1,
@@ -841,9 +851,6 @@ function build()
 		get_span_script            =1,
 		get_span_lang              =1,
 		get_span_paragraph_dir     =1,
-		get_span_line_spacing      =1,
-		get_span_hardline_spacing  =1,
-		get_span_paragraph_spacing =1,
 		get_span_nowrap            =1,
 		get_span_text_color        =1,
 		get_span_text_opacity      =1,
@@ -855,9 +862,6 @@ function build()
 		set_span_script            =1,
 		set_span_lang              =1,
 		set_span_paragraph_dir     =1,
-		set_span_line_spacing      =1,
-		set_span_hardline_spacing  =1,
-		set_span_paragraph_spacing =1,
 		set_span_nowrap            =1,
 		set_span_text_color        =1,
 		set_span_text_opacity      =1,
