@@ -107,30 +107,73 @@ terra Layout:_spaceout()
 
 end
 
+terra Layout:justify(line: &Line)
+	var w: num = 0 --total width of between-segments whitespace
+	var n = 0 --total number of between-segments places
+	for seg in line do
+		if seg.next_vis ~= nil then
+			var gr = self:glyph_run(seg)
+			inc(w, gr.advance_x - gr.wrap_advance_x)
+			inc(n)
+		else
+			inc(w, self.align_w - line.advance_x)
+		end
+	end
+	var sp = w / n
+	var ax: num = 0
+	for seg in line do
+		var gr = self:glyph_run(seg)
+		seg.x = ax
+		ax = ax + gr.wrap_advance_x + sp
+	end
+end
+
+--set segments `x` to be relative to the line's origin.
+terra Layout:unjustify(line: &Line)
+	var ax: num = 0
+	var seg = line.first_vis
+	while seg ~= nil do
+		seg.x = ax + 0 --TODO: seg.x
+		ax = ax + seg.advance_x
+		seg = seg.next_vis
+	end
+end
 
 terra Layout:_align()
 
-	var align_x = self.align_x
-	if align_x == ALIGN_START or align_x == ALIGN_END then
-		var left  = iif(align_x == ALIGN_START, ALIGN_LEFT, ALIGN_RIGHT)
-		var right = iif(align_x == ALIGN_START, ALIGN_RIGHT, ALIGN_LEFT)
-		    if self.base_dir == DIR_AUTO then align_x = left
-		elseif self.base_dir == DIR_LTR  then align_x = left
-		elseif self.base_dir == DIR_RTL  then align_x = right
-		elseif self.base_dir == DIR_WLTR then align_x = left
-		elseif self.base_dir == DIR_WRTL then align_x = right
-		end
-	end
-
 	self.min_x = inf
 	for line_i, line in self.lines do
+
+		var align_x = self.align_x
+		if align_x == ALIGN_START or align_x == ALIGN_END then
+			var dir = iif(line.first ~= nil, line.first.paragraph_dir, ALIGN_LEFT)
+			var left  = iif(align_x == ALIGN_START, ALIGN_LEFT, ALIGN_RIGHT)
+			var right = iif(align_x == ALIGN_START, ALIGN_RIGHT, ALIGN_LEFT)
+				 if dir == DIR_AUTO then align_x = left
+			elseif dir == DIR_LTR  then align_x = left
+			elseif dir == DIR_RTL  then align_x = right
+			elseif dir == DIR_WLTR then align_x = left
+			elseif dir == DIR_WRTL then align_x = right
+			end
+		end
+
 		--compute line's aligned x position relative to the textbox origin.
-		if align_x == ALIGN_RIGHT then
-			line.x = self.align_w - line.advance_x
-		elseif align_x == ALIGN_CENTER then
-			line.x = (self.align_w - line.advance_x) / 2.0
-		else
+		if align_x == ALIGN_JUSTIFY then
 			line.x = 0
+			if line.linebreak == BREAK_NONE then
+				self:justify(line)
+			else
+				self:unjustify(line)
+			end
+		else
+			if align_x == ALIGN_RIGHT then
+				line.x = self.align_w - line.advance_x
+			elseif align_x == ALIGN_CENTER then
+				line.x = (self.align_w - line.advance_x) / 2.0
+			else
+				line.x = 0
+			end
+			self:unjustify(line)
 		end
 		self.min_x = min(self.min_x, line.x)
 	end
@@ -148,4 +191,13 @@ terra Layout:_align()
 	end
 
 	self.clip_valid = false
+end
+
+terra Layout:bbox()
+	var bx = self.x + self.min_x
+	var bw = self.max_ax
+	var by = self.y + self.baseline
+		- iif(self.lines.len > 0, self.lines:at(0).spaced_ascent, 0)
+	var bh = self.spaced_h
+	return bx, by, bw, bh
 end

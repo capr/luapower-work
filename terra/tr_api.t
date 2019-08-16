@@ -254,6 +254,7 @@ function build()
 
 		shape=1,
 		wrap=1,
+		spaceout=1,
 		align=1,
 		clip=1,
 		layout=1,

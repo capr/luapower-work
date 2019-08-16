@@ -144,7 +144,7 @@ typedef enum _cairo_operator {
 	CAIRO_OPERATOR_HSL_HUE,
 	CAIRO_OPERATOR_HSL_SATURATION,
 	CAIRO_OPERATOR_HSL_COLOR,
-	CAIRO_OPERATOR_HSL_LUMINOSITY
+	CAIRO_OPERATOR_HSL_LUMINOSITY,
 }; typedef cairo_enum_t cairo_operator_t;
 
 void cairo_set_operator       (cairo_t *cr, cairo_operator_t op);

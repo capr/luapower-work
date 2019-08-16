@@ -4,6 +4,8 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
+require'terra/tr_cursor'
+require'terra/tr_selection'
 require'terra/utf8'
 
 terra Layout:text_changed()
@@ -16,6 +18,8 @@ terra Layout:text_changed()
 			break
 		end
 	end
+	self.cursors:call'reset'
+	self.selections:call'reset'
 end
 
 terra Layout:get_text_len() return self.text.len end
@@ -66,7 +70,7 @@ terra Layout:set_maxlen(v: int)
 	end
 end
 
-terra Layout:set_dir(v: dir_t)
+terra Layout:set_dir(v: bidi_dir_t)
 	if self._dir ~= v then
 		assert(
 			   v == DIR_AUTO
@@ -100,6 +104,7 @@ terra Layout:set_align_x(v: enum)
 			   v == ALIGN_LEFT
 			or v == ALIGN_RIGHT
 			or v == ALIGN_CENTER
+			or v == ALIGN_JUSTIFY
 			or v == ALIGN_START
 			or v == ALIGN_END
 		)
@@ -122,22 +127,22 @@ end
 
 terra Layout:set_line_spacing(v: num)
 	if self._line_spacing ~= v then
-		self._line_spacing = max(v, 0)
-		self.state = min(self.state, STATE_ALIGNED - 1)
+		self._line_spacing = v
+		self.state = min(self.state, STATE_SPACED - 1)
 	end
 end
 
 terra Layout:set_hardline_spacing(v: num)
 	if self._hardline_spacing ~= v then
-		self._hardline_spacing = max(v, 0)
-		self.state = min(self.state, STATE_ALIGNED - 1)
+		self._hardline_spacing = v
+		self.state = min(self.state, STATE_SPACED - 1)
 	end
 end
 
 terra Layout:set_paragraph_spacing(v: num)
 	if self._paragraph_spacing ~= v then
-		self._paragraph_spacing = max(v, 0)
-		self.state = min(self.state, STATE_ALIGNED - 1)
+		self._paragraph_spacing = v
+		self.state = min(self.state, STATE_SPACED - 1)
 	end
 end
 

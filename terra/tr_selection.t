@@ -31,10 +31,14 @@ terra Selection:release()
 	self.layout.selections:remove(i) --calls Selection:free()
 end
 
+terra Selection:reset()
+	self.p1:reset()
+	self.p2:reset()
+end
+
 terra Selection:reposition()
-	var p = self.layout:cursor_at_offset(0)
-	self.p1 = p
-	self.p2 = p
+	self.p1:reposition()
+	self.p2:reposition()
 end
 
 --line-relative (x, w) of a selection rectangle on two cursor
@@ -90,7 +94,7 @@ end
 terra Selection:paint(cr: &context, spaced: bool)
 	var p1 = self.p1
 	var p2 = self.p2
-	if self.layout:cursor_offset(p1) > self.layout:cursor_offset(p2) then
+	if p1.offset > p2.offset then
 		swap(p1, p2)
 	end
 	assert(self.layout:seg_index(p1.seg) <= self.layout:seg_index(p2.seg))
@@ -126,8 +130,8 @@ terra Selection:paint(cr: &context, spaced: bool)
 end
 
 terra Selection:offsets()
-	var o1 = self.layout:cursor_offset(self.p1)
-	var o2 = self.layout:cursor_offset(self.p2)
+	var o1 = self.p1.offset
+	var o2 = self.p2.offset
 	return min(o1, o2), max(o1, o2), o1 < o2
 end
 
@@ -137,6 +141,5 @@ terra Selection:select(o1: int, o2: int)
 end
 
 terra Selection:get_empty()
-	var o1, o2, _ = self:offsets()
-	return o1 == o2
+	return self.p1.offset == self.p2.offset
 end

@@ -130,6 +130,8 @@ cr.line_join   = overload('line_join',   {cairo_set_line_join,   cairo_get_line_
 cr.dash        = overload('dash',        {cairo_set_dash,        cairo_get_dash, cairo_get_dash_count})
 cr.miter_limit = overload('miter_limit', {cairo_set_miter_limit, cairo_get_miter_limit})
 
+cairo_matrix_t.identity = `cairo_matrix_t {1, 0, 0, 1, 0, 0}
+
 local m = cairo_matrix_t.methods
 m.init = overload('init', {
 	cairo_matrix_init_identity,

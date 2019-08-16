@@ -47,7 +47,7 @@ local amiri    = lib:font()
 
 local default_e = lib:layer()
 
-local lorem_ipsum = bundle.load('lorem_ipsum.txt'):sub(1, 1000)
+local lorem_ipsum = bundle.load('lorem_ipsum.txt')
 local test_texts = {
 	[''] = '',
 	lorem_ipsum = lorem_ipsum,
@@ -72,6 +72,8 @@ local e, hit_e, hit_area
 local sessions = {}
 local session_number
 local continuous_repaint
+local layer_changed, layer_changed_dt = false, 0
+local layer_fps_t, layer_fps_dt
 
 --layer tree (de)serialization -----------------------------------------------
 
@@ -183,8 +185,8 @@ local function serialize_layer(e)
 		shadow_x       =1,
 		shadow_y       =1,
 		shadow_color   =1,
-		shadow_blur    =1,
-		shadow_passes  =1,
+		shadow_blur=1,
+		shadow_passes=1,
 		shadow_inset   =1,
 		shadow_content =1,
 	})
@@ -209,11 +211,11 @@ local function serialize_layer(e)
 		span_text_opacity      =1,
 		span_text_operator     =1,
 	})
-	--TODO: text_cursor_xs
+	t.text_selectable   = e.text_selectable
+	--TODO:
 	-- text_caret_width
 	-- text_caret_color
 	-- text_caret_insert_mode
-	-- text_selectable
 	t.in_transition     = e.in_transition
 	t.layout_type       = e.layout_type
 	t.align_items_x     = e.align_items_x
@@ -355,11 +357,11 @@ end
 --they all use the upvalues `e` and `testui`.
 
 local function get_prop(e, prop) return e[prop] end
-local function set_prop(e, prop, v) e[prop] = v end
+local function set_prop(e, prop, v) e[prop] = v; layer_changed = true end
 local function get_prop_i(e, prop, i) return e['get_'..prop](e, i) end
-local function set_prop_i(e, prop, v, i) e['set_'..prop](e, i, v) end
+local function set_prop_i(e, prop, v, i) e['set_'..prop](e, i, v); layer_changed = true end
 local function get_prop_ij(e, prop, i, j) return e['get_'..prop](e, i, j) end
-local function set_prop_ij(e, prop, v, i, j) e['set_'..prop](e, i, j, v) end
+local function set_prop_ij(e, prop, v, i, j) e['set_'..prop](e, i, j, v); layer_changed = true end
 local function getset(prop, i, j)
 	local id = i and prop..'['..i..']' or prop
 	get = j and get_prop_ij or i and get_prop_i or get_prop
@@ -375,8 +377,8 @@ local function slide(prop, min, max, step, ...)
 		return v
 	end
 end
-local function slidex(prop, ...) return slide(prop, -testui.win_w, testui.win_w, .5, ...) end
-local function slidey(prop, ...) return slide(prop, -testui.win_h, testui.win_h, .5, ...) end
+local function slidex(prop, ...) return slide(prop, -testui.win_w/2, testui.win_w/2, .5, ...) end
+local function slidey(prop, ...) return slide(prop, -testui.win_h/2, testui.win_h/2, .5, ...) end
 local function slidew(prop, ...) return slide(prop, -100, 100, .5, ...) end
 local function slidea(prop, ...) return slide(prop, -360, 360, .5, ...) end
 local function sliden(prop, ...) return slide(prop, -10, 10, .1, ...) end
@@ -489,7 +491,8 @@ function testui:layer_line(id, sel_child_i)
 		local i = e.child_count
 		e.child_count = n
 		for i = i,n-1 do
-			e:child(i).border_width = 1
+			local e = e:child(i)
+			e.border_width = 1
 		end
 	end
 	local t = {}
@@ -498,7 +501,7 @@ function testui:layer_line(id, sel_child_i)
 	end
 	self.min_w = 0
 	self.min_w = 0
-	return self:choose(id..'_children', t, sel_child_i and sel_child_i, 'child %d')
+	return self:choose(id..'_children', t, sel_child_i, 'child %d')
 end
 
 function testui:repaint()
@@ -545,18 +548,20 @@ function testui:repaint()
 	while true do
 		self:pushgroup'right'
 		local child_i = selected_layer_path[path_i]
-		local sel_child_i, selected = self:layer_line(id, child_i)
+		local sel_child_i = self:layer_line(id, child_i)
 		local toggled = child_i and sel_child_i == child_i
 		child_i = sel_child_i or child_i
 		self:popgroup()
-		if toggled then
+		if toggled or (child_i or 0) >= e.child_count then
 			--clear selections of children including this level.
 			for i = #selected_layer_path, path_i, -1 do
 				selected_layer_path[i] = nil
 			end
 			break
 		end
-		if not child_i then break end
+		if not child_i then
+			break
+		end
 		selected_layer_path[path_i] = child_i
 		e = e:child(child_i)
 		if sel_child_i then --clear selections of children beyond this level.
@@ -627,6 +632,8 @@ function testui:repaint()
 	pickcolor('border_color_right')
 	pickcolor('border_color_top')
 	pickcolor('border_color_bottom')
+
+	slideo('border_offset')
 
 	sliden('border_dash_count')
 	for i = 0, e.border_dash_count-1 do
@@ -745,21 +752,24 @@ function testui:repaint()
 	if sel_text_name then
 		local sel_text = test_texts[sel_text_name]
 		e:set_text_utf8(sel_text, #sel_text)
+		layer_changed = true
 	end
 	self:popgroup()
 
 	slide ('text_maxlen', -10, 9999, 1)
 	choose('text_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'})
-	choose('text_align_x', 'align_', {'left', 'right', 'center', 'start', 'end'})
+	choose('text_align_x', 'align_', {'left', 'right', 'center', 'justify', 'start', 'end'})
 	choose('text_align_y', 'align_', {'top', 'bottom', 'center'})
 	slideo('line_spacing')
 	slideo('hardline_spacing')
 	slideo('paragraph_spacing')
 
+	self:heading'Text Spans'
+
 	sliden('span_count')
 	for i = 0, e.span_count-1 do
 		choose('span_font_id', {OpenSans=0, Amiri=1}, {'OpenSans', 'Amiri'}, i)
-		slide ('span_font_size', -10, 100, 0.1, i)
+		slide ('span_font_size', -10, 100, 1, i)
 		--TODO: slide ('features',
 		--TODO: choose('script', i)
 		--TODO: choose('lang'             , i)
@@ -770,11 +780,18 @@ function testui:repaint()
 		choose('span_text_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'}, i)
 	end
 
+	self:heading'Text Cursor & Selection'
+
+	toggle'text_selectable'
+	slide('cursor_offset', -1, e.text_len + 1, 1)
+
 	self:nextgroup(10)
 
 	self:heading'Layouting'
 
+	self.x = self.x + 40
 	choose('layout_type', 'layout_', {'null', 'textbox', 'flexbox', 'grid'})
+	self.x = self.x - 40
 
 	self:pushgroup('right', 1/2)
 	slidex('min_cw')
@@ -799,6 +816,7 @@ function testui:repaint()
 	})
 	choose('item_align_y', 'align_', {
 		'top', 'bottom', 'center', 'stretch', 'start', 'end',
+		'baseline',
 	})
 
 	self:heading'Child / Flex & Grid Layout'
@@ -812,7 +830,6 @@ function testui:repaint()
 	choose('align_y', 'align_', {
 		'default',
 		'top', 'bottom', 'center', 'stretch', 'start', 'end',
-		'baseline',
 	})
 
 	self:heading'Flex Layout'
@@ -867,19 +884,35 @@ function testui:repaint()
 	--sync'ing & drawing ------------------------------------------------------
 
 	local t0 = time.clock()
-	top_e:sync_layout()
-	top_e:draw(self.cr)
-	local dt = time.clock() - t0
+	top_e:top_layer_draw(self.cr)
+	local t = time.clock()
+	local dt = t - t0
+
+	if layer_changed then
+		layer_changed_dt = dt
+		layer_changed = false
+	end
+
+	if t - (self.layer_fps_t or 0) > 0.5 then
+		self.layer_fps_t = t
+		self.layer_fps_dt = dt
+	end
 
 	self.x = self.win_w - 1200
 	self.y = 10
-	self:heading(string.format('Layer Framerate: %d fps, %d ms', 1 / dt, dt * 1000))
+	self:heading(string.format(
+		'Draw layer:                                %.1f fps, %.1f ms',
+		1 / self.layer_fps_dt, self.layer_fps_dt * 1000))
+	self:heading(string.format(
+		'Draw layers after change:     %.1f fps, %.1f ms',
+		1 / layer_changed_dt, layer_changed_dt * 1000))
 
 	if continuous_repaint then
 		local fps = self.app:fps()
-		self:heading(string.format('Total Framerate: %d fps, %d ms', fps, 1000 / fps))
+		self:heading(string.format(
+			'Overall framerate:                   %.1f fps, %.1f ms',
+			fps, 1000 / fps))
 	end
-	--self.window:invalidate()
 
 	--hit-testing -------------------------------------------------------------
 

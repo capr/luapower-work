@@ -27,24 +27,11 @@ setfenv(1, require'terra/low'.module())
 require'terra/memcheck'
 require'terra/cairo'
 require'terra/tr_paint_cairo'
-tr = require'terra/tr_api'
+tr = require'terra/tr'
 bitmap = require'terra/bitmap'
 require'terra/boxblur'
 require'terra/utf8'
 require'terra/box2d'
-
---utils ----------------------------------------------------------------------
-
-terra snapx(x: num, enable: bool)
-	return iif(enable, floor(x + .5), x)
-end
-
-terra snapxw(x: num, w: num, enable: bool)
-	if not enable then return x, w end
-	var x1 = floor(x + .5)
-	var x2 = floor(x + w + .5)
-	return x1, x2 - x1
-end
 
 --external types -------------------------------------------------------------
 
@@ -64,6 +51,7 @@ ALIGN_DEFAULT       = 0                --only for align_x/y
 ALIGN_LEFT          = tr.ALIGN_LEFT
 ALIGN_RIGHT         = tr.ALIGN_RIGHT
 ALIGN_CENTER        = tr.ALIGN_CENTER
+ALIGN_JUSTIFY       = tr.ALIGN_JUSTIFY
 ALIGN_START         = tr.ALIGN_START   --left for LTR text, right for RTL
 ALIGN_END           = tr.ALIGN_END     --left for RTL text, right for LTR
 ALIGN_TOP           = tr.ALIGN_TOP     --needs to be same as ALIGN_LEFT!
@@ -75,13 +63,22 @@ ALIGN_SPACE_BETWEEN = tr.ALIGN_MAX + 4 --only for align_items_*
 ALIGN_BASELINE      = tr.ALIGN_MAX + 5 --only for item_align_y
 
 local function map_enum(C, src_prefix, dst_prefix)
+	dst_prefix = dst_prefix or src_prefix
 	for k,v in pairs(C) do
 		local op = k:match('^'..src_prefix..'(.*)')
 		if op then _M[dst_prefix..op] = v end
 	end
 end
 map_enum(C, 'CAIRO_OPERATOR_', 'OPERATOR_')
-map_enum(tr, 'DIR_', 'DIR_')
+map_enum(tr, 'DIR_')
+map_enum(tr, 'CURSOR_')
+map_enum(bitmap, 'FORMAT_', 'BITMAP_FORMAT_')
+map_enum(C, 'CAIRO_EXTEND_', 'BACKGROUND_EXTEND_')
+
+OPERATOR_MIN = OPERATOR_CLEAR
+OPERATOR_MAX = OPERATOR_HSL_LUMINOSITY
+BACKGROUND_EXTEND_MIN = BACKGROUND_EXTEND_NONE
+BACKGROUND_EXTEND_MAX = BACKGROUND_EXTEND_PAD
 
 HIT_NONE           = 0
 HIT_BORDER         = 1
@@ -101,7 +98,7 @@ struct BoolBitmap {
 }
 
 terra BoolBitmap:init()
-	self.bitmap:init(bitmap.FORMAT_G8)
+	self.bitmap:init(BITMAP_FORMAT_G8)
 end
 
 terra BoolBitmap:free()
@@ -192,8 +189,6 @@ BACKGROUND_GRADIENT        = 4+2   --mask for LINEAR|RADIAL
 BACKGROUND_LINEAR_GRADIENT = 4+2
 BACKGROUND_RADIAL_GRADIENT = 4+2+1
 BACKGROUND_IMAGE           = 8
-
-map_enum(C, 'CAIRO_EXTEND_', 'BACKGROUND_EXTEND_')
 
 struct ColorStop {
 	offset: num;
@@ -320,8 +315,8 @@ terra Shadow:get_blur_passes() return self._blur_passes end
 terra Shadow:get_inset      () return self._inset end
 terra Shadow:get_content    () return self._content end
 
-terra Shadow:set_blur_radius(v: int)   if v ~= self._blur_radius then self._blur_radius = clamp(v, 0, 255); self:invalidate() end end
-terra Shadow:set_blur_passes(v: int)   if v ~= self._blur_passes then self._blur_passes = clamp(v, 0,  10); self:invalidate() end end
+terra Shadow:set_blur_radius(v: uint8) if v ~= self._blur_radius then self._blur_radius = v; self:invalidate() end end
+terra Shadow:set_blur_passes(v: uint8) if v ~= self._blur_passes then self._blur_passes = v; self:invalidate() end end
 terra Shadow:set_inset      (v: bool)  if v ~= self._inset       then self._inset       = v; self:invalidate() end end
 terra Shadow:set_content    (v: bool)
 	if self._content ~= v then
@@ -335,8 +330,8 @@ terra Shadow:init(layer: &Layer)
 	fill(self)
 	self.layer = layer
 	self.color = DEFAULT_SHADOW_COLOR
-	self.blur_passes = 3
-	self.blur:init(bitmap.FORMAT_G8)
+	self._blur_passes = 3
+	self.blur:init(BITMAP_FORMAT_G8)
 end
 
 terra Shadow:invalidate()
@@ -375,14 +370,6 @@ struct Text (gettersandsetters) {
 	layout: tr.Layout;
 	selectable: bool;
 }
-
-terra Text:get_cursor()
-	return self.layout.cursors(0, nil)
-end
-
-terra Text:get_selection()
-	return self.layout.selections(0, nil)
-end
 
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
@@ -423,10 +410,6 @@ struct GridLayoutCol {
 	snap_x: bool;
 	inlayout: bool;
 }
-
-terra GridLayoutCol:setxw(x: num, w: num)
-	self.x, self.w = x, w
-end
 
 struct GridLayout {
 	col_frs: arr(num);
@@ -476,6 +459,7 @@ struct Layer (gettersandsetters) {
 
 	lib: &Lib;
 	_parent: &Layer;
+	top_layer: &Layer;
 	children: arr{T = &Layer, own_elements = true};
 
 	_x: num;
@@ -518,6 +502,8 @@ struct Layer (gettersandsetters) {
 	--layouting and before redrawing.
 	in_transition: bool;
 
+	layout_valid: bool;
+
 	--flex & grid layout
 	align_items_x: enum;  --ALIGN_*
 	align_items_y: enum;  --ALIGN_*
@@ -555,7 +541,12 @@ struct Layer (gettersandsetters) {
 	hit_test_mask: enum;
 }
 
-terra Layer.methods.changed :: {&Layer} -> {}
+terra Layer.methods.content_shape_changed :: {&Layer} -> {}
+terra Layer.methods.minsize_changed :: {&Layer} -> {}
+terra Layer.methods.size_changed :: {&Layer} -> {}
+terra Layer.methods.border_shape_changed :: {&Layer} -> {}
+terra Layer.methods.background_changed :: {&Layer} -> {}
+
 terra Layer.methods.init_layout :: {&Layer} -> {}
 terra Layer.methods.content_bbox :: {&Layer, bool} -> {num, num, num, num}
 terra Layer.methods.draw_content :: {&Layer, &context} -> {}
@@ -564,6 +555,7 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 	fill(self)
 	self.lib = lib
 	self._parent = parent
+	self.top_layer = iif(parent ~= nil, parent.top_layer, self)
 
 	self.visible = true
 	self.operator = OPERATOR_OVER
@@ -604,6 +596,7 @@ terra Lib:layer()
 end
 
 terra Layer:get_parent() return self._parent end
+terra Layer:get_top_layer() return self.top_layer end
 
 terra Layer:get_index()
 	return iif(self.parent ~= nil, self.parent.children:find(self), 0)
@@ -612,6 +605,7 @@ end
 terra Layer:release()
 	if self.parent ~= nil then
 		self.parent.children:remove(self.index)
+		self.parent:minsize_changed()
 	else
 		self:free()
 	end
@@ -622,6 +616,7 @@ terra Layer:move(parent: &Layer, i: int)
 		if parent ~= nil then
 			i = parent.children:clamp(i)
 			parent.children:move(self.index, i)
+			self:minsize_changed()
 		end
 	else
 		if self.parent ~= nil then
@@ -633,6 +628,8 @@ terra Layer:move(parent: &Layer, i: int)
 			self._parent = parent
 		end
 		self._parent = parent
+		self.top_layer = iif(parent ~= nil, parent.top_layer, self)
+		self:minsize_changed()
 	end
 end
 
@@ -668,14 +665,14 @@ terra Layer:set_child_count(n: int)
 	for _,e in new_elements do
 		@e = self.lib:layer()
 		(@e)._parent = self
+		(@e).top_layer = self.top_layer
 	end
+	self:minsize_changed()
 end
 
 terra Layer:child(i: int)
-	return self.children(i, nil)
+	return self.children(i)
 end
-
-terra Layer.methods.size_changed :: {&Layer} -> {}
 
 --layer geometry -------------------------------------------------------------
 
@@ -723,11 +720,6 @@ terra Layer:get_cy() return self.y + self.padding_top end
 terra Layer:set_cx(cx: num) self.x = cx - self.w / 2 end
 terra Layer:set_cy(cy: num) self.y = cy - self.h / 2 end
 
-terra Layer:snapx(x: num) return snapx(x, self.snap_x) end
-terra Layer:snapy(y: num) return snapx(y, self.snap_y) end
-terra Layer:snapxw(x: num, w: num) return snapxw(x, w, self.snap_x) end
-terra Layer:snapyh(y: num, h: num) return snapxw(y, h, self.snap_y) end
-
 --layer relative geometry & matrix -------------------------------------------
 
 terra Layer:rel_matrix() --box matrix relative to parent's content space
@@ -738,12 +730,7 @@ terra Layer:rel_matrix() --box matrix relative to parent's content space
 end
 
 terra Layer:abs_matrix(): matrix --box matrix in window space
-	var am: matrix
-	if self.parent ~= nil then
-		am = self.parent:abs_matrix()
-	else
-		am:init()
-	end
+	var am = iif(self.parent ~= nil, self.parent:abs_matrix(), [matrix.identity])
 	var rm = self:rel_matrix()
 	am:transform(&rm)
 	return am
@@ -1100,10 +1087,6 @@ terra Layer:draw_border(cr: &context)
 	end
 end
 
-terra Layer:border_shape_changed()
-	self:invalidate_shadows(false)
-end
-
 --background drawing ---------------------------------------------------------
 
 terra Layer:background_visible()
@@ -1122,7 +1105,7 @@ terra Layer:background_path(cr: &context, size_offset: num)
 	self:border_path(cr, self.background.clip_border_offset, size_offset)
 end
 
-terra Layer:background_changed()
+terra Layer:invalidate_background()
 	self.background.pattern:free_pattern()
 end
 
@@ -1140,7 +1123,7 @@ terra Background:pattern()
 				p.pattern:add_color_stop_rgba(c.offset, c.color)
 			end
 		elseif self.type == BACKGROUND_IMAGE then
-			if p.bitmap.format ~= bitmap.FORMAT_INVALID then
+			if p.bitmap.format ~= BITMAP_FORMAT_INVALID then
 				if p.bitmap_surface == nil then
 					p.bitmap_surface = p.bitmap:surface()
 				end
@@ -1189,10 +1172,6 @@ terra Shadow:bitmap_rect()
 			return self.layer:background_rect(self.spread)
 		end
 	end
-end
-
-terra Layer:size_changed()
-	self.shadows:call'invalidate'
 end
 
 terra Shadow:path(cr: &context)
@@ -1335,33 +1314,44 @@ terra Shadow:content_flag_changed()
 	self.layer:update_parent_has_content_shadow_flag(self.layer.has_content_shadow)
 end
 
-terra Layer:invalidate_shadows(content: bool)
+terra Layer:invalidate_box_shadows()
 	for _,s in self.shadows do
-		if s.content == content then
+		if not s.content then
 			s:invalidate()
 		end
 	end
 end
 
-terra Layer:changed()
+terra Layer:invalidate_content_shadows()
+	for _,s in self.shadows do
+		if s.content then
+			s:invalidate()
+		end
+	end
+end
+
+terra Layer:invalidate_parent_content_shadows()
 	if self.parent_has_content_shadow then
 		var parent = self.parent
 		while parent ~= nil do
-			parent:invalidate_shadows(true)
+			parent:invalidate_content_shadows()
 			parent = parent.parent
 		end
 	end
 end
-Layer.methods.changed:setinlined()
 
 --text drawing & hit testing -------------------------------------------------
 
+terra Layer:get_caret_created()
+	return self.text.layout.cursors.len > 0
+end
+
 terra Layer:get_caret()
-	return self.text.layout.cursors(0, nil)
+	return self.text.layout.cursors(0)
 end
 
 terra Layer:get_text_selection()
-	return self.text.layout.selections(0, nil)
+	return self.text.layout.selections(0)
 end
 
 terra Layer:get_text_selectable()
@@ -1371,7 +1361,7 @@ end
 terra Layer:set_text_selectable(v: bool)
 	if self.text.selectable ~= v then
 		self.text.selectable = v
-		if self.caret ~= nil and not v then
+		if self.caret_created and not v then
 			self.caret:release()
 			self.text_selection:release()
 		end
@@ -1380,7 +1370,7 @@ end
 
 terra Layer:sync_text_shape()
 	self.text.layout:shape()
-	if self.caret == nil and self.text.selectable then
+	if not self.caret_created and self.text.selectable then
 		self.text.layout:cursor()
 		self.text.layout:selection()
 	end
@@ -1389,6 +1379,7 @@ end
 terra Layer:sync_text_wrap()
 	self.text.layout.align_w = self.cw
 	self.text.layout:wrap()
+	self.text.layout:spaceout()
 end
 
 terra Layer:sync_text_align()
@@ -1397,8 +1388,7 @@ terra Layer:sync_text_align()
 end
 
 terra Layer:get_baseline()
-	if not self.text.layout.visible then return self.h end
-	return self.text.layout.baseline
+	return iif(self.text.layout.visible, self.text.layout.baseline, self.h)
 end
 
 terra Layer:draw_text(cr: &context)
@@ -1433,7 +1423,7 @@ end
 terra Layer:caret_visibility_rect()
 	var x, y, w, h = self:caret_rect()
 	--enlarge the caret rect to contain the line spacing.
-	var line = self.text.cursor.line
+	var line = self.caret.p.line
 	y = y + line.ascent - line.spaced_ascent
 	h = line.spaced_ascent - line.spaced_descent
 	return x, y, w, h
@@ -1461,8 +1451,6 @@ terra Layer:content_bbox(strict: bool) --in self content space
 	bb:bbox(rect(self:text_bbox()))
 	return bb()
 end
-
-terra Layer.methods.bbox :: {&Layer, bool} -> {num, num, num, num}
 
 terra Layer:bbox(strict: bool) --in parent's content space
 	var bb = rect{0, 0, 0, 0}
@@ -1532,6 +1520,16 @@ end
 
 --layer drawing & hit testing ------------------------------------------------
 
+local terra snapx(x: num, enable: bool)
+	return iif(enable, floor(x + .5), x)
+end
+terra Layer:snap_matrix(m: &matrix)
+	if m.xy == 0 and m.yx == 0 and m.xx == 1 and m.yy == 1 then
+		m.x0 = snapx(m.x0, self.snap_x)
+		m.y0 = snapx(m.y0, self.snap_y)
+	end
+end
+
 terra Layer:draw(cr: &context) --called in parent's content space
 
 	if not self.visible or self.opacity <= 0 then
@@ -1546,6 +1544,12 @@ terra Layer:draw(cr: &context) --called in parent's content space
 	end
 
 	var bm = self:cr_abs_matrix(cr)
+	var cm = bm:copy()
+	cm:translate(self.px, self.py)
+
+	self:snap_matrix(&bm)
+	self:snap_matrix(&cm)
+
 	cr:matrix(&bm)
 
 	self:draw_outset_box_shadows(cr)
@@ -1566,8 +1570,6 @@ terra Layer:draw(cr: &context) --called in parent's content space
 		cr:clip()
 	end
 
-	var cm = bm:copy()
-	cm:translate(self.px, self.py)
 	cr:matrix(&cm)
 
 	self:draw_outset_content_shadows(cr)
@@ -1671,8 +1673,27 @@ end
 
 --layouts --------------------------------------------------------------------
 
-terra snap_up(x: num, enable: bool)
-	return iif(enable, ceil(x), x)
+terra Layer:invalidate_layout()
+	self.top_layer.layout_valid = false
+end
+
+terra Layer.methods.sync_layout :: {&Layer} -> {}
+
+terra Layer:top_layer_sync()
+	assert(self.parent == nil)
+	if not self.visible then return end
+	if self.layout_valid then return end
+	self:sync_layout()
+	self.layout_valid = true
+end
+
+terra Layer:sync()
+	self.top_layer:top_layer_sync()
+end
+
+terra Layer:top_layer_draw(cr: &context)
+	self:top_layer_sync()
+	self:draw(cr)
 end
 
 --layout plugin interface ----------------------------------------------------
@@ -1682,10 +1703,9 @@ LAYOUT_TEXTBOX = 1
 LAYOUT_FLEXBOX = 2
 LAYOUT_GRID    = 2+1
 
---layout interface forwarders
-terra Layer:sync_layout()          self.layout_solver.sync(self) end
-terra Layer:sync_min_w(b: bool)    return self.layout_solver.sync_min_w(self, b) end
-terra Layer:sync_min_h(b: bool)    return self.layout_solver.sync_min_h(self, b) end
+terra Layer:sync_layout() self.layout_solver.sync(self) end
+terra Layer:sync_min_w(b: bool) return self.layout_solver.sync_min_w(self, b) end
+terra Layer:sync_min_h(b: bool) return self.layout_solver.sync_min_h(self, b) end
 terra Layer:sync_layout_x(b: bool) return self.layout_solver.sync_x(self, b) end
 terra Layer:sync_layout_y(b: bool) return self.layout_solver.sync_y(self, b) end
 
@@ -1699,7 +1719,6 @@ AXIS_ORDER_YX = 2
 --wrapped content is like that: can't know the height until wrapping the
 --content which needs to know the width (and viceversa for vertical flow).
 terra Layer:sync_layout_separate_axes(axis_order: enum, min_w: num, min_h: num)
-	if not self.visible then return end
 	axis_order = iif(axis_order ~= 0, axis_order, self.layout_solver.axis_order)
 	var sync_x = axis_order == AXIS_ORDER_XY
 	var axis_synced = false
@@ -1734,9 +1753,6 @@ end
 --layouting system entry point: called on the top layer.
 --called by null-layout layers to layout themselves and their children.
 local terra null_sync(self: &Layer)
-	if not self.visible then return end
-	self.x, self.w = self:snapxw(self.x, self.w)
-	self.y, self.h = self:snapyh(self.y, self.h)
 	self:sync_text_shape()
 	self:sync_text_wrap()
 	self:sync_text_align()
@@ -1746,14 +1762,14 @@ end
 --called by flexible layouts to know the minimum width of their children.
 --width-in-height-out layouts call this before h and y are sync'ed.
 local terra null_sync_min_w(self: &Layer, other_axis_synced: bool)
-	self._min_w = snap_up(self.min_cw + self.pw, self.snap_x)
+	self._min_w = self.min_cw + self.pw
 	return self._min_w
 end
 
 --called by flexible layouts to know the minimum height of their children.
 --width-in-height-out layouts call this only after w and x are sync'ed.
 local terra null_sync_min_h(self: &Layer, other_axis_synced: bool)
-	self._min_h = snap_up(self.min_ch + self.ph, self.snap_y)
+	self._min_h = self.min_ch + self.ph
 	return self._min_h
 end
 
@@ -1780,14 +1796,10 @@ local null_layout = constant(`LayoutSolver {
 --textbox layout -------------------------------------------------------------
 
 local terra text_sync(self: &Layer)
-	if not self.visible then return end
 	self:sync_text_shape()
 	self.cw = max(self.text.layout.min_w, self.min_cw)
 	self:sync_text_wrap()
-	self.cw = max(self.text.layout.max_ax, self.min_cw)
 	self.ch = max(self.min_ch, self.text.layout.spaced_h)
-	self.x, self.w = self:snapxw(self.x, self.w)
-	self.y, self.h = self:snapyh(self.y, self.h)
 	self:sync_text_align()
 	self:sync_layout_children()
 end
@@ -1811,7 +1823,7 @@ local terra text_sync_min_w(self: &Layer, other_axis_synced: bool)
 		min_cw = 0
 	end
 	min_cw = max(min_cw, self.min_cw)
-	var min_w = snap_up(min_cw + self.pw, self.snap_x)
+	var min_w = min_cw + self.pw
 	self._min_w = min_w
 	return min_w
 end
@@ -1825,7 +1837,7 @@ local terra text_sync_min_h(self: &Layer, other_axis_synced: bool)
 		min_ch = 0
 	end
 	min_ch = max(min_ch, self.min_ch)
-	var min_h = snap_up(min_ch + self.ph, self.snap_y)
+	var min_h = min_ch + self.ph
 	self._min_h = min_h
 	return min_h
 end
@@ -1857,14 +1869,6 @@ local text_layout = constant(`LayoutSolver {
 
 --stuff common to flex & grid layouts ----------------------------------------
 
-terra Layer:setxw(x: num, w: num)
-	self.x, self.w = snapxw(x, w, self.snap_x)
-end
-
-terra Layer:setyh(y: num, h: num)
-	self.y, self.h = snapxw(y, h, self.snap_y)
-end
-
 terra Layer:get_inlayout()
 	return self.visible
 end
@@ -1873,7 +1877,6 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 
 	local _MIN_W = '_min_'..W
 	local ALIGN_X = 'align_'..X
-	local SETXW = 'set'..X..W
 
 	--compute a single item's stretched width and aligned width.
 	local terra stretched_item_widths(item: &T, total_w: num,
@@ -1946,7 +1949,8 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 					x = sx + (sw - w) / 2
 				end
 
-				item:[SETXW](x, w)
+				item.[X] = x
+				item.[W] = w
 				sx = sx + sw
 			end
 		end
@@ -1979,14 +1983,14 @@ end
 --distribute free space between items on the main axis.
 local function align_items_main_axis_func(items_T, GET_ITEM, T, X, W, _MIN_W)
 	local _MIN_W = _MIN_W or '_min_'..W
-	local SETXW = 'set'..X..W
 	return terra(self: &items_T, i: int, j: int, sx: num, spacing: num)
 		for i = i, j do
 			var item = self:[GET_ITEM](i)
 			if item.inlayout then
 				var x, w = sx, item.[_MIN_W]
 				var sw = w + spacing
-				item:[SETXW](x, w)
+				item.[X] = x
+				item.[W] = w
 				sx = sx + sw
 			end
 		end
@@ -1995,7 +1999,7 @@ end
 
 --flexbox layout -------------------------------------------------------------
 
-local function items_max_w(_MIN_W)
+local function items_max_x(_MIN_W)
 	return terra(self: &Layer, i: int, j: int)
 		var max_w: num = 0.0
 		var item_count = 0
@@ -2009,9 +2013,8 @@ local function items_max_w(_MIN_W)
 		return max_w, item_count
 	end
 end
-
-items_max_x = items_max_w'_min_w'
-items_max_y = items_max_w'_min_h'
+items_max_x_x = items_max_x'_min_w'
+items_max_x_y = items_max_x'_min_h'
 
 --generate pairs of methods for vertical and horizontal flex layouts.
 local function gen_funcs(X, Y, W, H)
@@ -2020,8 +2023,6 @@ local function gen_funcs(X, Y, W, H)
 	local CH = 'c'..H
 	local _MIN_W = '_min_'..W
 	local _MIN_H = '_min_'..H
-	local SNAP_X = 'snap_'..X
-	local SNAP_Y = 'snap_'..Y
 
 	local ALIGN_ITEMS_X = 'align_items_'..X
 	local ALIGN_ITEMS_Y = 'align_items_'..Y
@@ -2029,8 +2030,8 @@ local function gen_funcs(X, Y, W, H)
 	local ITEM_ALIGN_Y = 'item_align_'..Y
 	local ALIGN_Y = 'align_'..Y
 
-	local items_max_x = X == 'x' and items_max_x or items_max_y
-	local items_max_y = X == 'x' and items_max_y or items_max_x
+	local items_max_x = X == 'x' and items_max_x_x or items_max_x_y
+	local items_max_y = X == 'x' and items_max_x_y or items_max_x_x
 
 	local terra items_sum_x(self: &Layer, i: int, j: int)
 		var sum_w: num = 0.0
@@ -2191,10 +2192,7 @@ local function gen_funcs(X, Y, W, H)
 						y = line_y + line_baseline - layer.baseline
 					end
 				end
-				if not isnan(line_baseline) then
-					y = snapx(y, layer.[SNAP_Y])
-				else
-					y, h = snapxw(y, h, layer.[SNAP_Y])
+				if isnan(line_baseline) then
 					layer.[H] = h
 				end
 				layer.[Y] = y
@@ -2291,7 +2289,7 @@ local terra flex_sync_min_h(self: &Layer, other_axis_synced: bool)
 			--their baseline. we can do this here because we already know
 			--we won't stretch them beyond their min_h in this case.
 			if align_baseline then
-				layer.h = snapx(min_h, layer.snap_y)
+				layer.h = min_h
 				layer:sync_layout_y(other_axis_synced)
 			end
 		end
@@ -2665,7 +2663,6 @@ local function gen_funcs(X, Y, W, H, COL)
 	local PW = 'p'..W
 	local MIN_CW = 'min_'..CW
 	local _MIN_W = '_min_'..W
-	local SETXW = 'set'..X..W
 	local COL_FRS = COL..'_frs'
 	local COL_GAP = COL..'_gap'
 	local ALIGN_ITEMS_X = 'align_items_'..X
@@ -2827,7 +2824,8 @@ local function gen_funcs(X, Y, W, H, COL)
 					w = layer.[_MIN_W]
 					x = x1 + (x2 - x1 - w) / 2
 				end
-				layer:[SETXW](x, w)
+				layer.[X] = x
+				layer.[W] = w
 			end
 		end
 
@@ -2878,6 +2876,28 @@ end
 
 terra Layer:init_layout()
 	self.layout_solver = &null_layout
+end
+
+--invalidation ---------------------------------------------------------------
+
+terra Layer:size_changed()
+	self:invalidate_box_shadows()
+end
+
+terra Layer:border_shape_changed()
+	self:invalidate_box_shadows()
+end
+
+terra Layer:background_changed()
+	self:invalidate_background()
+end
+
+terra Layer:content_shape_changed()
+	self:invalidate_parent_content_shadows()
+end
+
+terra Layer:minsize_changed()
+	self:invalidate_layout()
 end
 
 --lib ------------------------------------------------------------------------

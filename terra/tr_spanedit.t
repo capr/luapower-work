@@ -162,7 +162,7 @@ end
 terra Span:load_nowrap(layout: &Layout, nowrap: bool)
 	if self.nowrap ~= nowrap then
 		self.nowrap = nowrap
-		layout:nowrap_changed()
+		layout:invalidate_min_w()
 	end
 end
 
@@ -255,7 +255,14 @@ terra Layout:get_span_count()
 end
 
 terra Layout:set_span_count(n: int)
-	self.spans:setlen(max(n, 1), [Span.empty])
+	n = max(n, 0)
+	if self.spans.len ~= n then
+		self.spans:setlen(n, [Span.empty])
+		if self.spans.len == 0 then
+			self.spans:add([Span.empty])
+		end
+		self.state = 0
+	end
 end
 
 --text editing ---------------------------------------------------------------

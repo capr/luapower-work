@@ -75,6 +75,7 @@ terra Renderer:free()
 	self.ranges          :free()
 	self.sbuf            :free()
 	self.xsbuf           :free()
+	self.paragraph_dirs  :free()
 	FT_Done_FreeType(self.ft_lib)
 end
 
@@ -101,6 +102,10 @@ terra Layout:get_visible()
 		and self.spans:at(0).font_size > 0
 end
 
+terra Layout:get_min_size_valid()
+	return self.text.len == 0 or self.state >= STATE_SPACED
+end
+
 terra Layout:shape()
 	if self.state >= STATE_SHAPED then return false end
 	self:_shape()
@@ -114,8 +119,15 @@ terra Layout:wrap()
 	if self.state >= STATE_WRAPPED then return false end
 	assert(self.state == STATE_WRAPPED - 1)
 	self:_wrap()
-	self:_spaceout()
 	self.state = STATE_WRAPPED
+	return true
+end
+
+terra Layout:spaceout()
+	if self.state >= STATE_SPACED then return false end
+	assert(self.state == STATE_SPACED - 1)
+	self:_spaceout()
+	self.state = STATE_SPACED
 	return true
 end
 
@@ -130,6 +142,7 @@ end
 terra Layout:layout()
 	self:shape()
 	self:wrap()
+	self:spaceout()
 	self:align()
 	self:clip()
 end

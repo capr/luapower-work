@@ -256,15 +256,20 @@ function testui:slide(id, label, v, min, max, step, default)
 	self:text(s1, 'left' , nil, x+5, y, w - w2 - 14, h)
 	self:text(s2, 'right', nil, x-5, y, w, h)
 	if active then
-		self.window:invalidate()
+		local v1 = v
 		if self.active_button == 'right' then
+			--pressing the right button resets the value to the default, if any.
 			if default ~= nil then
-				v = default
+				v1 = default
 			end
 		else
-			v = glue.lerp(self.mx, x, x + w, min, max)
+			v1 = glue.lerp(self.mx, x, x + w, min, max)
 		end
-		return glue.snap(glue.clamp(v, min, max), step)
+		v1 = glue.snap(glue.clamp(v1, min, max), step)
+		if v1 ~= v then
+			self.window:invalidate()
+			return v1
+		end
 	end
 end
 

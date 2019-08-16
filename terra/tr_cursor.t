@@ -8,25 +8,12 @@ require'terra/tr_font'
 require'terra/tr_hit_test'
 require'terra/tr_paint'
 
-local DEFAULT = 0
-
 terra Layout:line_pos(line: &Line)
 	assert(self.state >= STATE_ALIGNED)
+	self.lines:index(line)
 	var x = self.x + line.x
 	var y = self.y + self.baseline + line.y
 	return x, y
-end
-
-terra Layout:cursor_x(p: Pos) --relative to line_pos().
-	assert(self.state >= STATE_SHAPED)
-	self.segs:index(p.seg)
-	if p.seg ~= nil then
-		var run = self:glyph_run(p.seg)
-		var i = run.cursor_xs:clamp(p.i)
-		return p.seg.x + run.cursor_xs(i)
-	else
-		return 0
-	end
 end
 
 terra Layout:seg_line(seg: &Seg)
@@ -39,14 +26,33 @@ terra Layout:seg_line(seg: &Seg)
 	end
 end
 
-terra Layout:seg_line_pos(seg: &Seg)
-	return self:line_pos(self:seg_line(seg))
+terra Pos:get_x() --relative to line_pos().
+	assert(self.layout.state >= STATE_SHAPED)
+	self.layout.segs:index(self.seg)
+	if self.seg ~= nil then
+		var run = self.layout:glyph_run(self.seg)
+		return self.seg.x + run.cursor_xs(self.i)
+	else
+		return 0
+	end
 end
 
-terra Layout:cursor_rect(p: Pos, w: num, forward: bool) --relative to line_pos().
-	assert(self.state >= STATE_ALIGNED)
-	var line = self:seg_line(p.seg)
-	var x = self:cursor_x(p)
+terra Pos:get_line()
+	return self.layout:seg_line(self.seg)
+end
+
+terra Pos:line_pos()
+	return self.layout:line_pos(self.line)
+end
+
+terra Pos:get_rtl()
+	return iif(self.seg ~= nil, self.layout:glyph_run(self.seg).rtl, false)
+end
+
+terra Pos:cursor_rect(w: num, forward: bool) --relative to line_pos.
+	assert(self.layout.state >= STATE_ALIGNED)
+	var line = self.line
+	var x = self.x
 	var y = -line.ascent
 	var w = iif(forward ~= false, 1, -1) * iif(isnan(w), 1, w)
 	var h = line.ascent - line.descent
@@ -54,6 +60,16 @@ terra Layout:cursor_rect(p: Pos, w: num, forward: bool) --relative to line_pos()
 		x, w = x + w, -w
 	end
 	return x, y, max(1, round(w * h / 50.0)), h
+end
+
+terra Layout:cursor_offset(seg: &Seg, i: int)
+	assert(self.state >= STATE_SHAPED)
+	var run = self:glyph_run(seg)
+	return seg.offset + run.cursor_offsets(i)
+end
+
+terra Layout:pos(seg: &Seg, i: int)
+	return Pos{self, seg, i, self:cursor_offset(seg, i)}
 end
 
 local terra cmp_offsets(seg1: &Seg, seg2: &Seg)
@@ -70,16 +86,18 @@ terra Layout:cursor_at_offset(offset: int)
 		var run = self:glyph_run(seg)
 		i = run.cursor_offsets:clamp(i) --fix if inside inter-segment gap.
 		i = run.cursor_offsets(i) --normalize to the first cursor.
-		return Pos{seg, i}
+		return Pos{self, seg, i, offset}
 	else
-		return Pos{nil, 0}
+		return Pos{self, nil, 0, offset}
 	end
 end
 
-terra Layout:cursor_offset(p: Pos)
-	assert(self.state >= STATE_SHAPED)
-	var run = self:glyph_run(p.seg)
-	return p.seg.offset + run.cursor_offsets(p.i)
+terra Pos:reset()
+	@self = self.layout:cursor_at_offset(0)
+end
+
+terra Pos:reposition()
+	@self = self.layout:cursor_at_offset(self.offset)
 end
 
 --Iterate all visually-unique cursor positions in visual order.
@@ -126,9 +144,9 @@ terra Layout:hit_test_cursors(line_i: int, x: num,
 	--find the cursor position closest to x.
 	var x = x - self.x - line.x
 	var min_d: num = 1/0
-	var cp = Pos{nil, 0} --closest cursor
-	var p = Pos{line.first, 0}
-	var p0 = Pos{nil, 0}
+	var cp = Pos{self, nil, 0} --closest cursor
+	var p = Pos{self, line.first, 0}
+	var p0 = Pos{self, nil, 0}
 	while p.seg ~= nil do
 		var xs = self:glyph_run(p.seg).cursor_xs
 		var x = x - p.seg.x
@@ -144,13 +162,14 @@ terra Layout:hit_test_cursors(line_i: int, x: num,
 		p0 = p
 		p.i = p.i + 1
 		if p.i >= xs.len then
-			p = Pos{self.segs:next(p.seg), 0}
+			p = Pos{self, self.segs:next(p.seg), 0}
 		end
 	end
+	cp.offset = self:cursor_offset(cp.seg, cp.i)
 	return cp
 end
 
-local NEXT, PREV, CURR = 1, 2, 3
+local DEFAULT, NEXT, PREV, CURR = 0, 1, 2, 3
 CURSOR_DIR_NEXT = NEXT
 CURSOR_DIR_PREV = PREV
 CURSOR_DIR_CURR = CURR
@@ -164,7 +183,7 @@ terra Layout:rel_physical_cursor(p: Pos, dir: enum,
 		if dir == NEXT then
 			if p.i >= self:glyph_run(p.seg).cursor_xs.len-1 then
 				p.seg = self.segs:next(p.seg, nil)
-				if p.seg == nil then return Pos{p.seg, 0} end
+				if p.seg == nil then return self:pos(p.seg, 0) end
 				p.i = 0
 			else
 				inc(p.i)
@@ -172,7 +191,7 @@ terra Layout:rel_physical_cursor(p: Pos, dir: enum,
 		elseif dir == PREV then
 			if p.i <= 0 then
 				p.seg = self.segs:prev(p.seg, nil)
-				if p.seg == nil then return Pos{p.seg, 0} end
+				if p.seg == nil then return self:pos(p.seg, 0) end
 				p.i = self:glyph_run(p.seg).cursor_xs.len-1
 			else
 				dec(p.i)
@@ -239,6 +258,7 @@ terra Cursor:init(layout: &Layout)
 	self.park_home = true
 	self.park_end = true
 	self.insert_mode = true
+	self.visible = true
 	self.color = DEFAULT_TEXT_COLOR
 	self.opacity = 1
 	self.w = 1
@@ -259,14 +279,6 @@ terra Cursor:release()
 	self.layout.cursors:remove(i) --calls Cursor:free()
 end
 
-terra Cursor:get_line()
-	return self.layout:seg_line(self.p.seg)
-end
-
-terra Cursor:line_pos()
-	return self.layout:seg_line_pos(self.p.seg)
-end
-
 terra Cursor:rel_physical_cursor(dir: enum,
 	valid: valid_t, obj: &opaque, mode: enum
 )
@@ -280,24 +292,10 @@ terra Cursor:assign(c: &Cursor)
 end
 
 terra Cursor:set(p: Pos, x: num)
-	if p.seg ~= self.p.seg or p.i ~= self.p.i then
-		self.p = p
-		if not isnan(x) then
-			self.x = x
-		end
-		self.offset = iif(p.seg ~= nil, self.layout:cursor_offset(p), 0)
-		return true
-	else
-		return false
+	self.p = p
+	if not isnan(x) then
+		self.x = x
 	end
-end
-
-terra Cursor:get_offset()
-	return iif(self.p.seg ~= nil, self.layout:cursor_offset(self.p), 0)
-end
-
-terra Cursor:get_rtl()
-	return iif(self.p.seg ~= nil, self.layout:glyph_run(self.p.seg).rtl, false)
 end
 
 local POS, CHAR, WORD, LINE = 1, 2, 3, 4
@@ -315,27 +313,27 @@ terra Cursor:rect()
 		if p1.seg ~= nil and self.p.seg ~= nil
 			and p1.seg.line_index == self.p.seg.line_index
 		then
-			var x, y, _, h = self.layout:cursor_rect(self.p, nan, false)
-			var x1 = self.layout:cursor_rect(p1, nan, false)._0
+			var x, y, _, h = self.p:cursor_rect(nan, false)
+			var x1 = p1:cursor_rect(nan, false)._0
 			var w = x1 - x
 			if w < 0 then
 				x, w = x + w, -w
 			end
-			var x0, y0 = self:line_pos()
+			var x0, y0 = self.p:line_pos()
 			return x0 + x, y0 + y, w, h
 		end
 	end
 	--normal caret, `w`-wide to the left or right of a cursor position.
-	var forward = not self.rtl and self.layout.align_x ~= ALIGN_RIGHT
-	var x, y, w, h = self.layout:cursor_rect(self.p, self.w, forward)
-	var x0, y0 = self:line_pos()
+	var forward = not self.p.rtl and self.layout.align_x ~= ALIGN_RIGHT
+	var x, y, w, h = self.p:cursor_rect(self.w, forward)
+	var x0, y0 = self.p:line_pos()
 	return x0 + x, y0 + y, w, h
 end
 
 terra Cursor:visibility_rect()
 	var x, y, w, h = self:rect()
 	--enlarge the caret rect to contain the line spacing.
-	var line = self.line
+	var line = self.p.line
 	y = y + line.ascent - line.spaced_ascent
 	h = line.spaced_ascent - line.spaced_descent
 	return x, y, w, h
@@ -363,10 +361,10 @@ local terra diff(obj: &opaque, p: Pos, p0: Pos, mode: enum)
 	if mode == POS then
 		return
 			p.seg.line_index ~= p0.seg.line_index
-			or self.layout:cursor_x(p) ~= self.layout:cursor_x(p0)
-			or self.layout:cursor_offset(p) ~= self.layout:cursor_offset(p0)
+			or self.p.x ~= p0.x
+			or self.p.offset ~= p0.offset
 	elseif mode == CHAR then
-		return self.layout:cursor_offset(p) ~= self.layout:cursor_offset(p0)
+		return p.offset ~= p0.offset
 	elseif mode == WORD then
 		return p.seg ~= p0.seg
 	elseif mode == LINE then
@@ -389,7 +387,7 @@ end
 
 terra Cursor:find_at_offset(offset: int, which: enum)
 	var p = self.layout:cursor_at_offset(offset)
-	if which ~= 0 then
+	if which ~= DEFAULT then
 		return self:find_at_cursor(p, CURR, CHAR, which, false)
 	else
 		return p
@@ -399,8 +397,12 @@ terra Cursor:move_to_offset(offset: int, which: enum)
 	self:set(self:find_at_offset(offset, which), nan)
 end
 
+terra Cursor:reset()
+	self.p:reset()
+end
+
 terra Cursor:reposition()
-	self:move_to_offset(self.offset, DEFAULT)
+	self.p:reposition()
 end
 
 terra Cursor:find_at_rel_cursor(dir: enum, mode: enum, which: enum, clamp: bool)
@@ -450,7 +452,7 @@ terra Cursor:move_to_page(page: int, x: num)
 end
 
 terra Cursor:find_at_rel_page(delta_pages: int, x: num)
-	var _, line_y = self:line_pos()
+	var _, line_y = self.p:line_pos()
 	var y = line_y + (delta_pages or 0) * self.layout.h
 	return self:find_at_pos(x, y)
 end

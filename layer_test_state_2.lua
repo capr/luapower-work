@@ -2,7 +2,6 @@ return {
 	root={
 		align_items_x=8,
 		align_items_y=8,
-		background_color=4294967057,
 		background_color_stop_count=2,
 		background_color_stops={
 			{
@@ -21,201 +20,41 @@ return {
 		background_rotation_cy=-183.5,
 		background_scale=0.55000000000000004,
 		background_scale_cx=-36,
-		background_type=7,
 		background_x1=-7,
 		background_x2=-65,
 		background_y=7,
 		background_y1=75.5,
 		background_y2=219.5,
-		border_color_bottom=4279178112,
-		border_color_left=268435266,
-		border_color_right=4279227264,
-		border_color_top=268429184,
+		border_color_bottom=4294967162,
+		border_color_left=4294967162,
+		border_color_right=4294967162,
+		border_color_top=4294967162,
 		border_dash_offset=7.7000000000000002,
-		border_width_bottom=20,
-		border_width_left=32,
-		border_width_right=5,
-		border_width_top=10,
+		border_offset=-2,
+		border_width_bottom=6,
+		border_width_left=6,
+		border_width_right=6,
+		border_width_top=6,
 		children={
 			{
-				border_dash={
-					{
-						border_dash=12.5
-					},
-					{
-						border_dash=3.3000000000000003
-					},
-					{
-						border_dash=5
-					}
-				},
-				border_dash_count=3,
+				background_color=4294967057,
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				h=251,
-				min_ch=47,
-				min_cw=50.5,
-				w=51,
-				x=22,
-				y=69
-			},
-			{
-				border_width_bottom=1,
-				border_width_left=1,
-				border_width_right=1,
-				border_width_top=1,
-				clip_content=true,
-				h=251.5,
-				hardline_spacing=1.4500000476837158,
-				min_ch=47,
-				min_cw=145.5,
-				snap_y=false,
-				text_maxlen=50041,
+				h=130,
+				layout_type=1,
+				min_cw=61,
 				text_spans={
 					{
 						span_font_id=0,
-						span_font_size=27.59375,
-						span_text_color=2952731391
-					}
-				},
-				text_utf8='Hey\nYou\226\128\169New Paragraph',
-				w=146,
-				x=117,
-				y=68.625
-			},
-			{
-				background_color_stop_count=2,
-				background_color_stops={
-					{
-						background_color_stop_color=11468799
-					},
-					{
-						background_color_stop_color=637599743,
-						background_color_stop_offset=1
-					}
-				},
-				background_extend=2,
-				background_type=6,
-				background_y2=4,
-				border_width_left=6.5,
-				border_width_right=1,
-				corner_radius_bottom_left=16.5,
-				corner_radius_top_left=13,
-				h=251,
-				min_ch=18,
-				min_cw=50.5,
-				w=122,
-				x=307,
-				y=69
-			},
-			{
-				align_items_y=8,
-				border_width_bottom=3.5,
-				border_width_left=3.5,
-				border_width_right=3.5,
-				border_width_top=3.5,
-				children={
-					{
-						border_width_bottom=1,
-						border_width_left=1,
-						border_width_right=1,
-						border_width_top=1,
-						grid_col=1,
-						grid_col_span=3,
-						h=61,
-						min_ch=61,
-						min_cw=50.5,
-						w=340,
-						y=8
-					},
-					{
-						border_width_bottom=5.5,
-						border_width_left=9.5,
-						border_width_right=10.5,
-						border_width_top=6.5,
-						corner_radius_bottom_left=19,
-						corner_radius_bottom_right=19,
-						corner_radius_top_left=19,
-						corner_radius_top_right=19,
-						h=61,
-						min_ch=61,
-						w=113,
-						y=86
-					},
-					{
-						background_hittable=false,
-						background_operator=0,
-						border_width_bottom=1,
-						border_width_left=1,
-						border_width_right=1,
-						border_width_top=1,
-						grid_col=2,
-						grid_col_span=2,
-						grid_row=2,
-						grid_row_span=3,
-						h=125,
-						min_ch=61,
-						min_cw=50.5,
-						w=227,
-						x=113,
-						y=86
-					}
-				},
-				grid_min_lines=0,
-				grid_wrap=3,
-				h=251,
-				layout_type=3,
-				min_ch=219.5,
-				min_cw=339.5,
-				padding_bottom=16,
-				padding_left=16,
-				padding_right=16,
-				padding_top=16,
-				rotation=-6,
-				w=372,
-				x=473,
-				y=69
-			},
-			{
-				border_width_bottom=1,
-				border_width_left=1,
-				border_width_right=1,
-				border_width_top=1,
-				h=420,
-				w=51,
-				x=22,
-				y=457
-			},
-			{
-				border_width_bottom=1,
-				border_width_left=1,
-				border_width_right=1,
-				border_width_top=1,
-				h=420,
-				w=146,
-				x=117,
-				y=457
-			},
-			{
-				border_width_bottom=1,
-				border_width_left=1,
-				border_width_right=1,
-				border_width_top=1,
-				h=420,
-				min_ch=47,
-				min_cw=121.5,
-				text_spans={
-					{
-						span_font_id=1,
-						span_font_size=51
+						span_font_size=47
 					}
 				},
 				text_utf8='Hello World!',
-				w=122,
-				x=307,
-				y=457
+				w=145,
+				x=322.5,
+				y=84.5
 			},
 			{
 				background_type=8,
@@ -223,56 +62,51 @@ return {
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				h=420,
-				layout_type=1,
-				text_align_y=2,
-				text_maxlen=1116,
+				h=11,
+				min_ch=11,
+				min_cw=93,
+				text_selectable=true,
 				text_spans={
 					{
-						span_font_id=0,
-						span_font_size=14.796875
+						span_font_id=1,
+						span_font_size=39
 					}
 				},
-				text_utf8='Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Aenean vel elit scelerisque mauris pellentesque. Urna porttitor rhoncus dolor purus non enim praesent. Bibendum ut tristique et egestas quis ipsum. Risus in hendrerit gravida rutrum quisque non tellus orci ac. Etiam erat velit scelerisq\0e in. Ut pharet\0a sit amet aliquam. Porttitor massa id neque aliquam vestibulum. Metus dictum at tempor commodo ullamcorper. Ut venenatis tellus in metus. Massa placerat duis ultricies lacus sed turpis tincidunt id aliquet. Et netus et malesuada fames ac turpis egestas sed. Tincidunt id aliquet risus feugiat in ante. Dolor sit amet consectetur adipiscing elit duis tristique sollicitudin nibh.\r\n\r\nJusto nec ultrices dui sapien eget mi proin. Molestie a iaculis at erat pellentesque adipiscing commodo elit at. Ac feugiat sed lectus vestibulum mattis ullamcorper. Varius vel pharetra vel turpis nunc eget lorem dolor sed. Varius duis at c',
-				w=372,
-				x=473,
-				y=457
+				text_utf8='Hello World',
+				w=145,
+				x=322.5,
+				y=299
 			}
 		},
 		clip_content=true,
-		corner_radius_bottom_left=5.5,
-		corner_radius_top_left=30,
-		corner_radius_top_right=31,
 		flex_flow=1,
 		grid_min_lines=0,
 		grid_wrap=4,
-		h=996,
-		layout_type=3,
-		min_ch=946,
-		min_cw=867,
+		h=406.5,
+		item_align_y=10,
+		layout_type=2,
+		min_ch=394.5,
+		min_cw=790,
 		opacity=0.70000000000000007,
-		padding_bottom=25,
-		padding_left=49,
-		padding_right=25,
-		padding_top=25,
+		padding_bottom=6,
+		padding_left=6,
+		padding_right=6,
+		padding_top=6,
 		rotation_cx=339.5,
 		rotation_cy=162,
-		scale=0.90000000000000002,
 		scale_cx=257,
 		scale_cy=102.5,
-		shadow_count=1,
-		shadows={
+		text_maxlen=4703,
+		text_spans={
 			{
-				shadow_blur=6,
-				shadow_color=1203589119,
-				shadow_content=true
+				span_font_size=20
 			}
 		},
-		text_maxlen=5551,
-		w=941,
-		x=964,
-		y=56.5
+		w=802,
+		x=890,
+		y=257
 	},
 	selected_layer_path={
+		0
 	}
 }

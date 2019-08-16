@@ -61,11 +61,12 @@ end
 ALIGN_LEFT    = 1
 ALIGN_RIGHT   = 2
 ALIGN_CENTER  = 3
+ALIGN_JUSTIFY = 4
 ALIGN_TOP     = ALIGN_LEFT
 ALIGN_BOTTOM  = ALIGN_RIGHT
-ALIGN_START   = 4 --based on bidi dir; only for align_x
-ALIGN_END     = 5 --based on bidi dir; only for align_x
-ALIGN_MAX     = 5
+ALIGN_START   = 5 --based on bidi dir; only for align_x
+ALIGN_END     = 6 --based on bidi dir; only for align_x
+ALIGN_MAX     = 6
 
 --dir
 DIR_AUTO = FRIBIDI_PAR_ON; assert(DIR_AUTO ~= 0)
@@ -84,7 +85,8 @@ BREAK_PARA = 2
 num = float
 rect = rect(num)
 font_id_t = int16
-dir_t = FriBidiParType
+bidi_dir_t = FriBidiParType
+bidi_level_t = FriBidiLevel
 
 struct Renderer;
 struct Font;
@@ -128,7 +130,7 @@ struct Span (gettersandsetters) {
 	features: arr(hb_feature_t);
 	script: hb_script_t;
 	lang: hb_language_t;
-	paragraph_dir: dir_t; --bidi direction for current paragraph.
+	paragraph_dir: bidi_dir_t; --bidi dir override for current paragraph.
 	nowrap: bool; --disable word wrapping.
 	color: color;
 	opacity: double; --the opacity level in 0..1.
@@ -180,22 +182,21 @@ struct SubSeg {
 }
 
 struct Seg {
+	--filled by shaping
 	glyph_run_id: int;
-	line_num: int; --physical line number
-	--for line breaking
-	linebreak: enum;
-	--for bidi reordering
-	bidi_level: FriBidiLevel;
-	--for cursor positioning
-	span: &Span; --span of the first sub-segment
-	offset: int; --codepoint offset into the text
+	line_num: int;             --physical line number
+	linebreak: enum;           --for line/paragraph breaking
+	bidi_level: bidi_level_t;  --for bidi reordering
+	paragraph_dir: bidi_dir_t; --computed paragraph bidi dir, for ALIGN_AUTO
+	span: &Span;               --span of the first sub-segment
+	offset: int;               --codepoint offset into the text
+	--filled by layouting
 	line_index: int;
-	--slots filled by layouting
 	x: num;
 	advance_x: num; --segment's x-axis boundaries
 	next_vis: &Seg; --next segment on the same line in visual order
-	wrapped: bool; --segment is the last on a wrapped line
-	visible: bool; --segment is not entirely clipped
+	wrapped: bool;  --segment is the last on a wrapped line
+	visible: bool;  --segment is not entirely clipped
 	subsegs: arr(SubSeg);
 }
 
@@ -205,7 +206,7 @@ end
 
 struct Line (gettersandsetters) {
 	index: int;
-	first: &Seg; --first segment in text order
+	first: &Seg;     --first segment in text order
 	first_vis: &Seg; --first segment in visual order
 	x: num;
 	y: num;
@@ -217,10 +218,23 @@ struct Line (gettersandsetters) {
 	linebreak: enum; --set by wrap(), used by align()
 }
 
---NOTE: the initial not-even-shaped state is 0.
-STATE_SHAPED  = 1
-STATE_WRAPPED = 2
-STATE_ALIGNED = 3
+Line.metamethods.__for = function(self, body)
+	if self:islvalue() then self = `&self end
+	return quote
+		var self = self
+		var seg = self.first_vis
+		while seg ~= nil do
+			[body(seg)]
+			seg = seg.next_vis
+		end
+	end
+end
+
+STATE_UNSHAPED = 0 --must be 0
+STATE_SHAPED   = 1
+STATE_WRAPPED  = 2
+STATE_SPACED   = 3
+STATE_ALIGNED  = 4
 
 struct Cursor;
 terra Cursor.methods.free :: {&Cursor} -> {}
@@ -237,7 +251,7 @@ struct Layout (gettersandsetters) {
 	embeds: arr(Embed);
 	text: arr(codepoint);
 	_maxlen: int;
-	_dir: dir_t; --default base paragraph direction.
+	_dir: bidi_dir_t; --default base paragraph direction.
 	--input/wrap+align
 	_align_w: num;
 	_align_h: num;
@@ -258,7 +272,6 @@ struct Layout (gettersandsetters) {
 	--shaping output: segments and bidi info
 	segs: arr(Seg);
 	bidi: bool; --`true` if the text is bidirectional.
-	base_dir: dir_t;
 	--wrap/align output: lines
 	lines: arr(Line);
 	max_ax: num; --text's maximum x-advance (equivalent to text's width).
@@ -273,7 +286,7 @@ struct Layout (gettersandsetters) {
 	--cached computed values
 	_min_w: num;
 	_max_w: num;
-	--text cursors and selections that are kept synchronized with text changes.
+	--text cursors and selections, kept synchronized with text changes.
 	cursors: arr(&Cursor);
 	selections: arr(&Selection);
 }
@@ -441,16 +454,16 @@ terra Glyph.methods.free :: {&Glyph, &Renderer} -> {}
 --cursor & selection types ---------------------------------------------------
 
 --visual position in shaped text and matching offset in logical text.
-struct Pos {
+struct Pos (gettersandsetters) {
+	layout: &Layout;
 	seg: &Seg;
 	i: int;
+	offset: int; --offset in logical text, for repositioning after reshaping.
 }
 
 struct Cursor (gettersandsetters) {
-	layout: &Layout;
 	p: Pos;
-	offset: int; --offset in logical text
-	x: num; --x-position to try to go to when navigating up and down.
+	x: num; --x-coord to try to go to when navigating up and down.
 	--park cursor to home or end if vertical navigation goes above or beyond
 	--available text lines.
 	park_home: bool;
@@ -472,13 +485,21 @@ struct Cursor (gettersandsetters) {
 	w: num;
 }
 
+terra Cursor:get_layout() return self.p.layout end
+terra Cursor:set_layout(p: &Layout) self.p.layout = p end
+
 struct Selection (gettersandsetters) {
-	layout: &Layout;
 	p1: Pos;
 	p2: Pos;
 	color: color;
 	opacity: num;
 }
+
+terra Selection:get_layout() return self.p1.layout end
+terra Selection:set_layout(p: &Layout)
+	self.p1.layout = p
+	self.p2.layout = p
+end
 
 --renderer type --------------------------------------------------------------
 
@@ -516,7 +537,7 @@ struct Renderer (gettersandsetters) {
 	langs:           arr(hb_language_t);
 	bidi_types:      arr(FriBidiCharType);
 	bracket_types:   arr(FriBidiBracketType);
-	levels:          arr(FriBidiLevel);
+	levels:          arr(bidi_level_t);
 	linebreaks:      arr(char);
 	grapheme_breaks: arr(char);
 	carets_buffer:   arr(hb_position_t);
@@ -524,6 +545,7 @@ struct Renderer (gettersandsetters) {
 	ranges:          RangesFreelist;
 	sbuf:            arr(char);
 	xsbuf:           arr(double);
+	paragraph_dirs:  arr(bidi_dir_t);
 
 	--constants that neeed to be initialized at runtime.
 	HB_LANGUAGE_EN: hb_language_t;

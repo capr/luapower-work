@@ -175,8 +175,8 @@ terra ub_lang(hb_lang: hb_language_t): rawstring
 	elseif hb_lang == HB_LANGUAGE_ZH then return 'zh'
 	else return nil end
 end
---search for the span that covers a specific text position.
 
+--search for the span that covers a specific text position.
 terra Layout:_span_index_at_offset(offset: int, i0: int)
 	for i = i0 + 1, self.spans.len do
 		if self.spans:at(i).offset > offset then
@@ -193,12 +193,18 @@ terra Layout:span_dir(span: &Span, paragraph_offset: int)
 		span.paragraph_dir, self.dir)
 end
 
-terra Layout:nowrap_changed()
+terra Layout:invalidate_min_w()
 	if self.text.len == 0 then
 		self._min_w = 0
-		self._max_w = 0
 	else
 		self._min_w = -inf
+	end
+end
+
+terra Layout:invalidate_max_w()
+	if self.text.len == 0 then
+		self._max_w = 0
+	else
 		self._max_w =  inf
 	end
 end
@@ -211,13 +217,13 @@ terra Layout:_shape()
 	--reset output
 	segs.len = 0
 	self.lines.len = 0
-	self:nowrap_changed()
+	self:invalidate_min_w()
+	self:invalidate_max_w()
 
 	--special-case empty text: we still want to set valid shaping output
 	--in order to properly display a cursor.
 	if self.text.len == 0 then
 		self.bidi = false
-		self.base_dir = self:span_dir(self.spans:at(0), 0)
 		return
 	end
 
@@ -276,6 +282,7 @@ terra Layout:_shape()
 	r.levels        .len = self.text.len
 
 	self.bidi = false --is bidi reordering needed on line-wrapping or not?
+	r.paragraph_dirs.len = 0
 
 	var span_index = 0
 	for offset, len in self:paragraphs() do
@@ -302,10 +309,7 @@ terra Layout:_shape()
 
 		self.bidi = self.bidi or max_bidi_level > iif(dir == DIR_RTL, 1, 0)
 
-		if self.base_dir == 0 then --take the dir of the first paragraph
-			assert(offset == 0)
-			self.base_dir = dir
-		end
+		r.paragraph_dirs:add(dir)
 	end
 
 	--Run Unicode line breaking over each span of text with the same language.
@@ -331,6 +335,8 @@ terra Layout:_shape()
 	--NOTE: Empty segs (len=0) are valid.
 
 	var line_num = 0
+	var para_num = 0
+	var para_dir = r.paragraph_dirs(0)
 
 	for offset, len, span, level, script, lang in self:word_spans(
 		r.levels.view,
@@ -344,10 +350,6 @@ terra Layout:_shape()
 		--user codes: 2: paragraph, 1: line, 0: softbreak.
 		var linebreak = iif(linebreak_code == 0,
 			iif(self.text(offset + len - 1) == PS, BREAK_PARA, BREAK_LINE), BREAK_NONE)
-
-		if linebreak ~= BREAK_NONE then
-			inc(line_num)
-		end
 
 		--find the seg length without trailing linebreak chars.
 		while len > 0 and isnewline(self.text(offset + len - 1)) do
@@ -382,6 +384,7 @@ terra Layout:_shape()
 			seg.line_num = line_num --physical line number (for code editors)
 			seg.linebreak = linebreak --means this segment _ends_ a line
 			seg.bidi_level = level --for bidi reordering
+			seg.paragraph_dir = para_dir --for ALIGN_AUTO
 			--for cursor positioning
 			seg.span = span --span of the first sub-seg
 			seg.offset = offset
@@ -391,6 +394,14 @@ terra Layout:_shape()
 			seg.wrapped = false --seg is the last on a wrapped line
 			seg.visible = true --seg is not entirely clipped
 			seg.subsegs:init()
+		end
+
+		if linebreak ~= BREAK_NONE then
+			inc(line_num)
+			if linebreak == BREAK_PARA then
+				inc(para_num)
+				para_dir = r.paragraph_dirs(para_num, 0)
+			end
 		end
 
 	end

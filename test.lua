@@ -1,15 +1,7 @@
+local ffi = require'ffi'
 
-local t = {}
+local b = ffi.new'int[1]'
 
-function t:__newindex(k, v)
-	print(self, k, v)
-end
-
-local o = {}
-setmetatable(o, o)
-o.__index = t
-o.__newindex = o.__newindex
-print(o.__newindex)
-
-o.x = 1
-
+b[0] = 2^50
+print(b[0])
+print(-2^31)

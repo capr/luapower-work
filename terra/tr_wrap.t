@@ -160,23 +160,7 @@ terra Layout:_wrap()
 		--compute line's max advance_x, used as bounding box boundary.
 		self.max_ax = max(self.max_ax, line.advance_x)
 
-		--set segments `x` to be relative to the line's origin.
-		var ax = 0
-		var seg = line.first_vis
-		while seg ~= nil do
-			seg.x = ax + seg.x
-			ax = ax + seg.advance_x
-			seg = seg.next_vis
-		end
 	end
 
 end
 
-terra Layout:bbox()
-	var bx = self.x + self.min_x
-	var bw = self.max_ax
-	var by = self.y + self.baseline
-		- iif(self.lines.len > 0, self.lines:at(0).spaced_ascent, 0)
-	var bh = self.spaced_h
-	return bx, by, bw, bh
-end

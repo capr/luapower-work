@@ -55,7 +55,7 @@ terra GlyphRun:shape(r: &Renderer)
 
 	--1. scale advances and offsets based on `font.scale` (for bitmap fonts).
 	--2. make the advance of each glyph relative to the start of the run
-	--   so that pos_x() is O(1) for any index.
+	--   so that x() is O(1) for any index.
 	--3. compute the run's total advance.
 	self.glyphs:init()
 	self.glyphs.len = len
@@ -133,7 +133,7 @@ local get_ligature_carets = macro(function(
 	end
 end)
 
-terra GlyphRun:pos_x(i: int)
+terra GlyphRun:x(i: int)
 	assert(i <= self.glyphs.len)
 	return iif(i < self.glyphs.len, self.glyphs:at(i).x, self.advance_x)
 end
@@ -169,7 +169,7 @@ terra GlyphRun:add_cursors(
 	--of the glyphs evenly between graphemes.
 	for i = glyph_offset, glyph_offset + glyph_len - 1 do
 		var glyph_index = self.glyphs:at(i).glyph_index
-		var cluster_x = self:pos_x(i)
+		var cluster_x = self:x(i)
 		var carets, caret_count =
 			get_ligature_carets(
 				r,
@@ -195,7 +195,7 @@ terra GlyphRun:add_cursors(
 			--dividing the total x-advance of the remaining glyphs
 			--evenly between remaining graphemes.
 			var next_i = glyph_offset + glyph_len
-			var total_advance_x = self:pos_x(next_i) - self:pos_x(i)
+			var total_advance_x = self:x(next_i) - self:x(i)
 			var w = total_advance_x / grapheme_count
 			for i = 1, grapheme_count-1 do
 				--create a synthetic cluster at each grapheme boundary.
@@ -235,7 +235,7 @@ terra GlyphRun:compute_cursors(r: &Renderer, f: &Font)
 		c = self.text.len
 		var cluster_runs = self:cluster_runs()
 		for i1, n1, c1 in cluster_runs do
-			cx = self:pos_x(i1)
+			cx = self:x(i1)
 			if i ~= -1 then
 				self:add_cursors(r, f, i, n, c, cn, cx, self.text.elements, self.text.len)
 			end
@@ -257,7 +257,7 @@ terra GlyphRun:compute_cursors(r: &Renderer, f: &Font)
 				var cn = c1 - c
 				self:add_cursors(r, f, i, n, c, cn, cx, self.text.elements, self.text.len)
 			end
-			var cx1 = self:pos_x(i1)
+			var cx1 = self:x(i1)
 			i, n, c, cx = i1, n1, c1, cx1
 		end
 		if i ~= -1 then
@@ -289,7 +289,7 @@ terra GlyphRun:compute_cursors(r: &Renderer, f: &Font)
 	if self.trailing_space then
 		var i = iif(self.rtl, 0, self.glyphs.len-1)
 		assert(self.glyphs:at(i).cluster == self.text.len-1)
-		wx = wx - (self:pos_x(i+1) - self:pos_x(i))
+		wx = wx - (self:x(i+1) - self:x(i))
 	end
 	self.wrap_advance_x = wx
 end
