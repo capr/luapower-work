@@ -250,6 +250,15 @@ for i,FIELD in ipairs(FIELDS) do
 
 end
 
+terra Layout:get_span_offset(span_i: int): int
+	return self.spans(span_i, [Span.empty]).offset
+end
+
+terra Layout:set_span_offset(span_i: int, val: int)
+	self.spans:getat(span_i, [Span.empty]).offset = val
+	self.state = 0
+end
+
 terra Layout:get_span_count()
 	return self.spans.len
 end

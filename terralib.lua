@@ -1640,7 +1640,7 @@ do
     function T.struct:getfield(fieldname)
         local l = self:getlayout()
         local i = l.keytoindex[fieldname]
-        if not i then return nil, ("field name '%s' is not a raw field of type %s"):format(tostring(self),tostring(fieldname)) end
+        if not i then return nil, ("field name '%s' is not a raw field of type %s"):format(tostring(fieldname), tostring(self)) end
         return l.entries[i+1]
     end
     function T.struct:getfields()

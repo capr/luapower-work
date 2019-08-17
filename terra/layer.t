@@ -77,6 +77,7 @@ map_enum(C, 'CAIRO_EXTEND_', 'BACKGROUND_EXTEND_')
 
 OPERATOR_MIN = OPERATOR_CLEAR
 OPERATOR_MAX = OPERATOR_HSL_LUMINOSITY
+
 BACKGROUND_EXTEND_MIN = BACKGROUND_EXTEND_NONE
 BACKGROUND_EXTEND_MAX = BACKGROUND_EXTEND_PAD
 
@@ -90,6 +91,19 @@ HIT_TEXT_SELECTION = 4
 
 DEFAULT_BORDER_COLOR = DEFAULT_BORDER_COLOR or `color {0xffffffff}
 DEFAULT_SHADOW_COLOR = DEFAULT_SHADOW_COLOR or `color {0x000000ff}
+
+--utils ----------------------------------------------------------------------
+
+change = macro(function(self, FIELD, v)
+	FIELD = type(FIELD) == 'terraquote' and FIELD:asvalue() or FIELD
+	return quote
+		var changed = self.[FIELD] ~= v
+		if changed then
+			self.[FIELD] = v
+		end
+		in changed
+	end
+end)
 
 --bool bitmap ----------------------------------------------------------------
 
@@ -190,6 +204,9 @@ BACKGROUND_LINEAR_GRADIENT = 4+2
 BACKGROUND_RADIAL_GRADIENT = 4+2+1
 BACKGROUND_IMAGE           = 8
 
+BACKGROUND_TYPE_MIN = BACKGROUND_COLOR
+BACKGROUND_TYPE_MAX = BACKGROUND_IMAGE
+
 struct ColorStop {
 	offset: num;
 	color: color;
@@ -258,7 +275,7 @@ terra BackgroundPattern:free()
 end
 
 struct Background (gettersandsetters) {
-	_type: enum; --BACKGROUND_*
+	type: enum; --BACKGROUND_*
 	hittable: bool;
 	operator: enum; --OPERATOR_*
 	color_set: bool;
@@ -278,14 +295,6 @@ end
 
 terra Background:free()
 	self.pattern:free()
-end
-
-terra Background:get_type() return self._type end
-
-terra Background:set_type(v: enum)
-	if v == self.type then return end
-	self.pattern:free_pattern()
-	self._type = v
 end
 
 --shadow ---------------------------------------------------------------------
@@ -315,12 +324,11 @@ terra Shadow:get_blur_passes() return self._blur_passes end
 terra Shadow:get_inset      () return self._inset end
 terra Shadow:get_content    () return self._content end
 
-terra Shadow:set_blur_radius(v: uint8) if v ~= self._blur_radius then self._blur_radius = v; self:invalidate() end end
-terra Shadow:set_blur_passes(v: uint8) if v ~= self._blur_passes then self._blur_passes = v; self:invalidate() end end
-terra Shadow:set_inset      (v: bool)  if v ~= self._inset       then self._inset       = v; self:invalidate() end end
+terra Shadow:set_blur_radius(v: uint8) if change(self, '_blur_radius', v) then self:invalidate() end end
+terra Shadow:set_blur_passes(v: uint8) if change(self, '_blur_passes', v) then self:invalidate() end end
+terra Shadow:set_inset      (v: bool)  if change(self, '_inset', v) then self:invalidate() end end
 terra Shadow:set_content    (v: bool)
-	if self._content ~= v then
-		self._content = v
+	if change(self, '_content', v) then
 		self:invalidate()
 		self:content_flag_changed()
 	end
@@ -543,6 +551,7 @@ struct Layer (gettersandsetters) {
 
 terra Layer.methods.content_shape_changed :: {&Layer} -> {}
 terra Layer.methods.minsize_changed :: {&Layer} -> {}
+terra Layer.methods.layout_changed :: {&Layer} -> {}
 terra Layer.methods.size_changed :: {&Layer} -> {}
 terra Layer.methods.border_shape_changed :: {&Layer} -> {}
 terra Layer.methods.background_changed :: {&Layer} -> {}
@@ -591,10 +600,6 @@ terra Layer:free()
 	dealloc(self)
 end
 
-terra Lib:layer()
-	return new(Layer, self, nil)
-end
-
 terra Layer:get_parent() return self._parent end
 terra Layer:get_top_layer() return self.top_layer end
 
@@ -641,6 +646,10 @@ terra Layer:set_index(i: int)
 	self:move(self.parent, i)
 end
 
+terra Lib:layer()
+	return new(Layer, self, nil)
+end
+
 terra Layer:layer()
 	var e = self.lib:layer()
 	e.parent = self
@@ -676,6 +685,11 @@ end
 
 --layer geometry -------------------------------------------------------------
 
+terra Layer:get_px() return self.padding_left end
+terra Layer:get_py() return self.padding_top end
+terra Layer:get_pw() return self.padding_left + self.padding_right end
+terra Layer:get_ph() return self.padding_top + self.padding_bottom end
+
 terra Layer:get_x() return self._x end
 terra Layer:get_y() return self._y end
 terra Layer:get_w() return self._w end
@@ -688,8 +702,7 @@ terra Layer:set_w(w: num)
 	w = max(w, 0)
 	if self.in_transition then
 		self.final_w = w
-	elseif self.w ~= w then
-		self._w = w
+	elseif change(self, '_w', w) then
 		self:size_changed()
 	end
 end
@@ -697,28 +710,20 @@ terra Layer:set_h(h: num)
 	h = max(h, 0)
 	if self.in_transition then
 		self.final_h = h
-	elseif self.h ~= h then
-		self._h = h
+	elseif change(self, '_h', h) then
 		self:size_changed()
 	end
 end
 
-terra Layer:get_px() return self.padding_left end
-terra Layer:get_py() return self.padding_top end
-terra Layer:get_pw() return self.padding_left + self.padding_right end
-terra Layer:get_ph() return self.padding_top + self.padding_bottom end
-
+terra Layer:get_cx() return self.x + self.px end --in parent's content space
+terra Layer:get_cy() return self.y + self.py end
 terra Layer:get_cw() return self.w - self.pw end
 terra Layer:get_ch() return self.h - self.ph end
 
-terra Layer:set_cw(cw: num) self.w = cw + (self.w - self.cw) end
-terra Layer:set_ch(ch: num) self.h = ch + (self.h - self.ch) end
-
-terra Layer:get_cx() return self.x + self.padding_left end --in parent's content space
-terra Layer:get_cy() return self.y + self.padding_top end
-
 terra Layer:set_cx(cx: num) self.x = cx - self.w / 2 end
 terra Layer:set_cy(cy: num) self.y = cy - self.h / 2 end
+terra Layer:set_cw(cw: num) self.w = cw + (self.w - self.cw) end
+terra Layer:set_ch(ch: num) self.h = ch + (self.h - self.ch) end
 
 --layer relative geometry & matrix -------------------------------------------
 
@@ -830,7 +835,7 @@ end
 
 --corner radius at pixel offset from the stroke's center on one dimension.
 local terra offset_radius(r: num, o: num)
-	return iif(r > 0, max(0.0, r + o), 0.0)
+	return iif(r > 0, max(num(0), r + o), num(0))
 end
 
 --border rect at %-offset in border width, plus radii of rounded corners.
@@ -1359,8 +1364,7 @@ terra Layer:get_text_selectable()
 end
 
 terra Layer:set_text_selectable(v: bool)
-	if self.text.selectable ~= v then
-		self.text.selectable = v
+	if change(self.text, 'selectable', v) then
 		if self.caret_created and not v then
 			self.caret:release()
 			self.text_selection:release()
@@ -1401,7 +1405,7 @@ end
 
 terra Layer:text_bbox()
 	if not self.text.layout.visible then
-		return 0.0, 0.0, 0.0, 0.0
+		return num(0), num(0), num(0), num(0)
 	end
 	return self.text.layout:bbox() --float->double conversion!
 end
@@ -1903,25 +1907,25 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 	local terra stretch_items_main_axis(
 		self: &items_T, i: int, j: int, total_w: num, item_align_x: enum)
 		--compute the fraction representing the total width.
-		var total_fr: num = 0.0
+		var total_fr = num(0)
 		for i = i, j do
 			var item = self:[GET_ITEM](i)
 			if item.inlayout then
-				total_fr = total_fr + max(0.0, item.fr)
+				total_fr = total_fr + max(num(0), item.fr)
 			end
 		end
-		total_fr = max(1.0, total_fr) --treat sub-unit fractions like css flex
+		total_fr = max(num(1), total_fr) --treat sub-unit fractions like css flex
 
 		--compute the total overflow width and total free width.
-		var total_overflow_w: num = 0.0
-		var total_free_w: num = 0.0
+		var total_overflow_w = num(0)
+		var total_free_w = num(0)
 		for i = i, j do
 			var item = self:[GET_ITEM](i)
 			if item.inlayout then
 				var min_w = item.[_MIN_W]
-				var flex_w = total_w * max(0.0, item.fr) / total_fr
-				var overflow_w = max(0.0, min_w - flex_w)
-				var free_w = max(0.0, flex_w - min_w)
+				var flex_w = total_w * max(num(0), item.fr) / total_fr
+				var overflow_w = max(num(0), min_w - flex_w)
+				var free_w = max(num(0), flex_w - min_w)
 				total_overflow_w = total_overflow_w + overflow_w
 				total_free_w = total_free_w + free_w
 			end
@@ -1930,7 +1934,7 @@ local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
 		--distribute the overflow to children which have free space to
 		--take it. each child shrinks to take in the percent of the overflow
 		--equal to the child's percent of free space.
-		var sx: num = 0.0 --stretched x-coord
+		var sx = num(0) --stretched x-coord
 		for i = i, j do
 			var item = self:[GET_ITEM](i)
 			if item.inlayout then
@@ -1962,8 +1966,8 @@ end
 --get first-item-spacing and inter-item-spacing for distributing main-axis
 --free space between items and aligning the items.
 local terra align_spacings(align: enum, container_w: num, items_w: num, item_count: int)
-	var x: num = 0.0
-	var spacing: num = 0.0
+	var x = num(0)
+	var spacing = num(0)
 	if align == ALIGN_END or align == ALIGN_RIGHT then
 		x = container_w - items_w
 	elseif align == ALIGN_CENTER then
@@ -2001,7 +2005,7 @@ end
 
 local function items_max_x(_MIN_W)
 	return terra(self: &Layer, i: int, j: int)
-		var max_w: num = 0.0
+		var max_w = num(0)
 		var item_count = 0
 		for i = i, j do
 			var item = self.children(i)
@@ -2034,7 +2038,7 @@ local function gen_funcs(X, Y, W, H)
 	local items_max_y = X == 'x' and items_max_x_y or items_max_x_x
 
 	local terra items_sum_x(self: &Layer, i: int, j: int)
-		var sum_w: num = 0.0
+		var sum_w = num(0)
 		var item_count = 0
 		for i = i, j do
 			var item = self.children(i)
@@ -2052,8 +2056,8 @@ local function gen_funcs(X, Y, W, H)
 	--special items_min_h() for baseline align.
 	--requires that the children are already sync'ed on y-axis.
 	local terra items_min_h_baseline(self: &Layer, i: int, j: int)
-		var max_ascent  : num = -inf
-		var max_descent : num = -inf
+		var max_ascent  = num(-inf)
+		var max_descent = num(-inf)
 		for i = i, j do
 			var layer = self.children(i)
 			if layer.visible then
@@ -2080,7 +2084,7 @@ local function gen_funcs(X, Y, W, H)
 			return i, self.children.len
 		end
 		var wrap_w = self.[CW]
-		var line_w: num = 0.0
+		var line_w = num(0)
 		for j = i, self.children.len do
 			var layer = self.children(j)
 			if layer.visible then
@@ -2130,7 +2134,7 @@ local function gen_funcs(X, Y, W, H)
 			--wrapping flex (which is a height-in-width-out layout).
 			return 0
 		end
-		var lines_h: num = 0.0
+		var lines_h = num(0)
 		for i, j in linewrap{self} do
 			var line_h, _ = items_min_h(self, i, j, align_baseline)
 			lines_h = lines_h + line_h
@@ -2228,7 +2232,7 @@ local function gen_funcs(X, Y, W, H)
 			line_spacing = 0
 			line_h = nan
 		else
-			var lines_h: num = 0.0
+			var lines_h = num(0)
 			var line_count: int = 0
 			for i, j in linewrap{self} do
 				var line_h, _ = items_min_h(self, i, j, align_baseline)
@@ -2242,7 +2246,7 @@ local function gen_funcs(X, Y, W, H)
 		var no_line_h = isnan(line_h)
 		for i, j in linewrap{self} do
 			var line_h = line_h
-			var line_baseline: num = nan
+			var line_baseline = num(nan)
 			if no_line_h then
 				line_h, line_baseline = items_min_h(self, i, j, align_baseline)
 			end
@@ -2448,9 +2452,13 @@ end
 --NOTE: row and column numbering starts from 1, but the arrays are 0-indexed.
 
 --these flags can be combined: X|Y + L|R + T|B
-GRID_FLOW_X = 0; GRID_FLOW_Y = 2 --main axis
-GRID_FLOW_L = 0; GRID_FLOW_R = 4 --horizontal direction
-GRID_FLOW_T = 0; GRID_FLOW_B = 8 --vertical direction
+GRID_FLOW_X = 0; GRID_FLOW_Y = 1 --main axis
+GRID_FLOW_L = 0; GRID_FLOW_R = 2 --horizontal direction
+GRID_FLOW_T = 0; GRID_FLOW_B = 4 --vertical direction
+
+--check that all bits are used (see set_grid_flow()).
+GRID_FLOW_MAX = GRID_FLOW_Y + GRID_FLOW_R + GRID_FLOW_B
+assert(nextpow2(GRID_FLOW_MAX) == GRID_FLOW_MAX+1)
 
 --auto-positioning algorithm
 
@@ -2691,7 +2699,7 @@ local function gen_funcs(X, Y, W, H, COL)
 		var frs = &self.grid.[COL_FRS] --{fr1, ...}
 
 		--compute the fraction representing the total width.
-		var total_fr: num = 0.0
+		var total_fr = num(0)
 		for layer in self do
 			if layer.inlayout then
 				var col1 = layer.[_COL]
@@ -2729,7 +2737,7 @@ local function gen_funcs(X, Y, W, H, COL)
 					var col_min_w = span_min_w
 					item._min_w = max(item._min_w, col_min_w)
 				else --merged columns: unmerge
-					var span_fr: num = 0.0
+					var span_fr = num(0)
 					for col = col1, col2 do
 						span_fr = span_fr + frs(col-1, 1)
 					end
@@ -2757,7 +2765,7 @@ local function gen_funcs(X, Y, W, H, COL)
 	end
 
 	local terra sum_min_w(cols: &arr(GridLayoutCol))
-		var w: num = 0.0
+		var w = num(0)
 		for _,col in cols do
 			w = w + col._min_w
 		end
@@ -2800,7 +2808,7 @@ local function gen_funcs(X, Y, W, H, COL)
 			realign_cols_main_axis(cols, 0, cols.len, sx, spacing)
 		end
 
-		var x: num = 0.0
+		var x = num(0)
 		for layer in self do
 			if layer.inlayout then
 
@@ -2872,6 +2880,7 @@ terra Layer:get_layout_type() return self.layout_solver.type end
 
 terra Layer:set_layout_type(type: enum)
 	self.layout_solver = &layouts[type]
+	self:layout_changed()
 end
 
 terra Layer:init_layout()
@@ -2900,6 +2909,10 @@ terra Layer:minsize_changed()
 	self:invalidate_layout()
 end
 
+terra Layer:layout_changed()
+	self:invalidate_layout()
+end
+
 --lib ------------------------------------------------------------------------
 
 terra Lib:init(load_font: tr.FontLoadFunc, unload_font: tr.FontLoadFunc)
@@ -2913,26 +2926,6 @@ end
 terra Lib:free()
 	self.text_renderer:free()
 	self.grid_occupied:free()
-end
-
---text rendering engine configuration
-
-terra Lib:get_font_size_resolution       (): num return self.text_renderer.font_size_resolution end
-terra Lib:get_subpixel_x_resolution      (): num return self.text_renderer.subpixel_x_resolution end
-terra Lib:get_word_subpixel_x_resolution (): num return self.text_renderer.word_subpixel_x_resolution end
-terra Lib:get_glyph_cache_size           () return self.text_renderer.glyph_cache_size end
-terra Lib:get_glyph_run_cache_size       () return self.text_renderer.glyph_run_cache_size end
-
-terra Lib:set_font_size_resolution       (v: num) self.text_renderer.font_size_resolution = v end
-terra Lib:set_subpixel_x_resolution      (v: num) self.text_renderer.subpixel_x_resolution = v end
-terra Lib:set_word_subpixel_x_resolution (v: num) self.text_renderer.word_subpixel_x_resolution = v end
-terra Lib:set_glyph_cache_size           (v: int) self.text_renderer.glyph_cache_max_size = v end
-terra Lib:set_glyph_run_cache_size       (v: int) self.text_renderer.glyph_run_cache_max_size = v end
-
---font registration
-
-terra Lib:font()
-	return self.text_renderer:font()
 end
 
 --debugging stuff

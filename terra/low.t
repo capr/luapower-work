@@ -369,6 +369,10 @@ function offsetafter(T, field)
 	return offsetof(T, field) + sizeof(T:getfield(field).type)
 end
 
+--args packing that don't allocate a table for zero args.
+local empty = {}
+local function args(...) return select('#',...) > 0 and {...} or empty end
+
 --ternary operator -----------------------------------------------------------
 
 --NOTE: terralib.select() can also be used but it's not short-circuiting.
@@ -383,6 +387,15 @@ function getmethod(t, name)
 	if T:ispointer() then T = T.type end
 	return T.getmethod and T:getmethod(name) or nil
 end
+
+local function cancall_lua(T, method)
+	return getmethod(T, method) and true or false
+end
+cancall = macro(function(t, method)
+	method = method:asvalue()
+	local T = type(t) == 'terratype' and t or t:istype() and t:astype() or t:gettype()
+	return cancall_lua(T, method)
+end, cancall_lua)
 
 --struct packing constructor -------------------------------------------------
 
@@ -426,11 +439,16 @@ end
 
 --extensible struct metamethods ----------------------------------------------
 
+local default_mm = {
+	__getmethod = function(self, name)
+		return self.methods and self.methods[name]
+	end,
+}
 local function override(mm, T, f, ismacro)
 	local f0 = T.metamethods[mm]
-	local f0 = f0 and ismacro and f0.fromterra or f0 or noop
+	local f0 = f0 and ismacro and f0.fromterra or f0 or default_mm[mm] or noop
 	--TODO: see why errors are lost in recursive calls to __getmethod
-	--and remove this whole hack with pcall and pass.
+	--and remove this whole hack of pcall/pass.
 	local function pass(ok, ...)
 		if not ok then
 			print(...)
@@ -492,11 +510,39 @@ function addproperties(T, props)
 end
 
 --forward t.name to t.sub.name (for anonymous structs and such).
-function forwardproperties(sub)
+function forwardproperties(sub, sub_T)
 	return function(T)
 		return after_entrymissing(T, function(k, self)
 			return `self.[sub].[k]
 		end)
+	end
+end
+
+--forward t:name() to t.sub:name().
+function forwardmethods(sub, sub_T)
+	return function(T)
+		return after_getmethod(T, function(self, name)
+			if cancall(sub_T, name) then
+				return macro(function(self, ...)
+					local args = args(...)
+					return `self.[sub]:[name]([args])
+				end)
+			end
+		end)
+	end
+end
+
+--C-style class extension without vtables: forward field accesses and method
+--calls to a struct member of type super_T. Multiple inheritance is allowed.
+function extends(super_T, FIELD)
+	return function(T)
+		FIELD = FIELD or '__'..tostring(super_T)
+		insert(T.entries, 1, {field = FIELD, type = super_T})
+		if super_T.gettersandsetters then
+			gettersandsetters(T)
+		end
+		forwardmethods(FIELD, super_T)(T)
+		forwardproperties(FIELD, super_T)(T)
 	end
 end
 
@@ -506,13 +552,13 @@ function gettersandsetters(T)
 	T.gettersandsetters = true
 	after_entrymissing(T, function(name, obj)
 		if T.addmethods then T.addmethods() end
-		if T.methods['get_'..name] then
+		if cancall(T, 'get_'..name) then
 			return `obj:['get_'..name]()
 		end
 	end)
 	after_setentry(T, function(name, obj, rhs)
 		if T.addmethods then T.addmethods() end
-		if T.methods['set_'..name] then
+		if cancall(T, 'set_'..name) then
 			return quote obj:['set_'..name](rhs) end
 		end
 	end)
@@ -1162,18 +1208,6 @@ end
 probe = macro(probe_terra, probe_lua)
 
 --call a method on each element of an array ----------------------------------
-
-local empty = {}
-local function args(...) return select('#',...) > 0 and {...} or empty end
-
-local function cancall_lua(T, method)
-	return getmethod(T, method) and true or false
-end
-cancall = macro(function(t, method)
-	method = method:asvalue()
-	local T = type(t) == 'terratype' and t or t:istype() and t:astype() or t:gettype()
-	return cancall_lua(T, method)
-end, cancall_lua)
 
 call = macro(function(t, method, len, ...)
 	len = len and len:isliteral() and len:asvalue() or len or 1

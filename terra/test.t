@@ -1,12 +1,29 @@
 setfenv(1, require'low')
 
-struct safeint { x: int; }
-safeint.metamethods.__div = macro(function(a, b)
-	return `iif(b.x ~= 0, safeint{a.x / b.x}, safeint{0})
+local assign = macro(function(lvalue, v)
+	print(lvalue, type(lvalue))
+	return quote lvalue = v end
 end)
 
-terra f(x: int, y: int)
-	print(safeint{x} / safeint{y})
+struct S (gettersandsetters) {_x: int}
+struct V (gettersandsetters) {_y: int}
+
+terra S:get_x() return self._x end
+terra S:set_x(v: int) self._x = v end
+
+terra V:get_y() return self._y end
+terra V:set_y(v: int) self._y = v end
+
+struct T (extends(S)) {a: int}
+
+terra f()
+	--var x = 1
+	--assign(x, 2)
+	--print(x)
+	var s: T
+	s.x = 5
+	print(s.x)
+	--assign(s.x, 5)
 end
 
-f(7, 0)
+f()

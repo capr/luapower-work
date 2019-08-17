@@ -2,11 +2,11 @@
 
 	Layer C/ffi API.
 
-	- creates a flattened, ffi-efficient API.
-	- validates input (ranges, enums).
-	- invalidates state when values are updated.
-	- synchronizes state when computed values are read.
-	- adds allocating constructors.
+	- creates a flattened API tailored for ffi use.
+	- validates enums, clamps numbers to range.
+	- invalidates state appropriately when input values are updated.
+	- synchronizes state when computed values are accessed.
+	- adds self-allocating constructors.
 
 ]]
 
@@ -17,19 +17,37 @@ local real_uint32 = uint32
 
 --Using doubles in place of int types allows us to clamp out-of-range Lua
 --numbers instead of the default x86 CPU behavior of converting them to -2^31.
+--The downside is that this probably disables LuaJIT's number specialization.
 api_types = api_types or {
 	[num]    = double,
 	[int]    = double,
 	[uint32] = double,
 	[enum]   = double,
 }
-local num    = api_types[num]
-local int    = api_types[int]
-local uint32 = api_types[uint32]
-local enum   = api_types[enum]
+local num    = api_types[num]    or num
+local int    = api_types[int]    or int
+local uint32 = api_types[uint32] or uint32
+local enum   = api_types[enum]   or enum
+
+local struct Layer (extends(_M.Layer, 'l')) {}
+
+Layer.methods.change = macro(function(self, target, FIELD, v, WHAT)
+	if WHAT then
+		if type(WHAT) == 'terraquote' then WHAT = WHAT:asvalue() end
+		return quote
+			var changed = change(target, FIELD, v)
+			if changed then
+				self:[WHAT..'_changed']()
+			end
+		end
+	else
+		return quote change(target, FIELD, v) end
+	end
+end)
 
 local MAX_U32 = 2^32-1
-local MAX_W   = 10000
+local MAX_X = 10^9
+local MAX_W = 10^9
 local MAX_OFFSET = 100
 local MAX_COLOR_STOP_COUNT  = 100
 local MAX_BORDER_DASH_COUNT = 10
@@ -38,7 +56,11 @@ local MAX_SCALE = 1000
 local MAX_SHADOW_COUNT = 10
 local MAX_SHADOW_BLUR = 255
 local MAX_SHADOW_PASSES = 10
-local MAX_SPAN_COUNT = 10^6
+local MAX_SPAN_COUNT = 10^9
+local MAX_GRID_ITEM_COUNT = 10^9
+local MAX_CHILD_COUNT = 10^9
+
+do end --lib new/release
 
 local terra layerlib_new(load_font: tr.FontLoadFunc, unload_font: tr.FontLoadFunc)
 	return new(Lib, load_font, unload_font)
@@ -48,26 +70,68 @@ terra Lib:release()
 	release(self)
 end
 
-terra Layer:get_in_transition(): bool return self.in_transition end
-terra Layer:set_in_transition(v: bool) self.in_transition = v end
+do end --text rendering engine configuration
 
-terra Layer:get_final_x(): num return self.final_x end
-terra Layer:get_final_y(): num return self.final_y end
-terra Layer:get_final_w(): num return self.final_w end
-terra Layer:get_final_h(): num return self.final_h end
+terra Lib:get_font_size_resolution       (): num return self.text_renderer.font_size_resolution end
+terra Lib:get_subpixel_x_resolution      (): num return self.text_renderer.subpixel_x_resolution end
+terra Lib:get_word_subpixel_x_resolution (): num return self.text_renderer.word_subpixel_x_resolution end
+terra Lib:get_glyph_cache_size           (): int return self.text_renderer.glyph_cache_size end
+terra Lib:get_glyph_run_cache_size       (): int return self.text_renderer.glyph_run_cache_size end
+
+terra Lib:set_font_size_resolution       (v: num) self.text_renderer.font_size_resolution = v end
+terra Lib:set_subpixel_x_resolution      (v: num) self.text_renderer.subpixel_x_resolution = v end
+terra Lib:set_word_subpixel_x_resolution (v: num) self.text_renderer.word_subpixel_x_resolution = v end
+terra Lib:set_glyph_cache_size           (v: int) self.text_renderer.glyph_cache_max_size = v end
+terra Lib:set_glyph_run_cache_size       (v: int) self.text_renderer.glyph_run_cache_max_size = v end
+
+--font registration
+
+terra Lib:font(): int
+	return self.text_renderer:font()
+end
+
+do end --layer hierarchy
+
+terra Layer:set_child_count(n: int)
+	self:change(self.l, 'child_count', clamp(n, 0, MAX_CHILD_COUNT))
+end
+
+do end --geometry
+
+for i,FIELD in ipairs{'x' , 'y', 'cx', 'cy'} do
+	Layer.methods['get_'..FIELD] = terra(self: &Layer): num
+		return self.l.[FIELD]
+	end
+	Layer.methods['set_'..FIELD] = terra(self: &Layer, v: num)
+		self:change(self.l, FIELD, clamp(v, -MAX_X, MAX_X))
+	end
+end
+
+for i,FIELD in ipairs{'w' , 'h', 'cw', 'ch'} do
+	Layer.methods['get_'..FIELD] = terra(self: &Layer): num
+		return self.l.[FIELD]
+	end
+	Layer.methods['set_'..FIELD] = terra(self: &Layer, v: num)
+		self:change(self.l, FIELD, clamp(v, -MAX_W, MAX_W), 'layout')
+	end
+end
+
+terra Layer:get_in_transition(): bool return self.l.in_transition end
+terra Layer:set_in_transition(v: bool) self.l.in_transition = v end
+
+terra Layer:get_final_x(): num return self.l.final_x end
+terra Layer:get_final_y(): num return self.l.final_y end
+terra Layer:get_final_w(): num return self.l.final_w end
+terra Layer:get_final_h(): num return self.l.final_h end
 
 for i,SIDE in ipairs{'left', 'right', 'top', 'bottom'} do
 
 	Layer.methods['get_padding_'..SIDE] = terra(self: &Layer)
-		return self.['padding_'..SIDE]
+		return self.l.['padding_'..SIDE]
 	end
 
 	Layer.methods['set_padding_'..SIDE] = terra(self: &Layer, v: num)
-		v = clamp(v, -MAX_W, MAX_W)
-		if self.['padding_'..SIDE] ~= v then
-			self.['padding_'..SIDE] = v
-		end
-		self:minsize_changed()
+		self:change(self.l, ['padding_'..SIDE], clamp(v, -MAX_W, MAX_W), 'minsize')
 	end
 
 end
@@ -97,12 +161,12 @@ terra Layer:get_opacity      (): num  return self.opacity end
 
 terra Layer:set_operator     (v: enum)
 	assert(v >= OPERATOR_MIN and v <= OPERATOR_MAX)
-	self.operator = v
+	self.l.operator = v
 end
-terra Layer:set_clip_content (v: bool) self.clip_content = v end
-terra Layer:set_snap_x       (v: bool) self.snap_x = v end
-terra Layer:set_snap_y       (v: bool) self.snap_y = v end
-terra Layer:set_opacity      (v: num)  self.opacity = clamp(v, 0, 1) end
+terra Layer:set_clip_content (v: bool) self.l.clip_content = v end
+terra Layer:set_snap_x       (v: bool) self.l.snap_x = v end
+terra Layer:set_snap_y       (v: bool) self.l.snap_y = v end
+terra Layer:set_opacity      (v: num)  self.l.opacity = clamp(v, 0, 1) end
 
 do end --transforms
 
@@ -114,11 +178,11 @@ terra Layer:get_scale_cx    (): num return self.transform.scale_cx    end
 terra Layer:get_scale_cy    (): num return self.transform.scale_cy    end
 
 terra Layer:set_rotation    (v: num) self.transform.rotation    = v end
-terra Layer:set_rotation_cx (v: num) self.transform.rotation_cx = clamp(v, -MAX_W, MAX_W) end
-terra Layer:set_rotation_cy (v: num) self.transform.rotation_cy = clamp(v, -MAX_W, MAX_W) end
+terra Layer:set_rotation_cx (v: num) self.transform.rotation_cx = clamp(v, -MAX_X, MAX_X) end
+terra Layer:set_rotation_cy (v: num) self.transform.rotation_cy = clamp(v, -MAX_X, MAX_X) end
 terra Layer:set_scale       (v: num) self.transform.scale       = clamp(v, MIN_SCALE, MAX_SCALE) end
-terra Layer:set_scale_cx    (v: num) self.transform.scale_cx    = clamp(v, -MAX_W, MAX_W) end
-terra Layer:set_scale_cy    (v: num) self.transform.scale_cy    = clamp(v, -MAX_W, MAX_W) end
+terra Layer:set_scale_cx    (v: num) self.transform.scale_cx    = clamp(v, -MAX_X, MAX_X) end
+terra Layer:set_scale_cy    (v: num) self.transform.scale_cy    = clamp(v, -MAX_X, MAX_X) end
 
 do end --borders
 
@@ -129,11 +193,7 @@ for i,SIDE in ipairs{'left', 'right', 'top', 'bottom'} do
 	end
 
 	Layer.methods['set_border_width_'..SIDE] = terra(self: &Layer, v: num)
-		v = clamp(v, 0, MAX_W)
-		if self.border.['width_'..SIDE] ~= v then
-			self.border.['width_'..SIDE] = v
-		end
-		self:border_shape_changed()
+		self:change(self.border, ['width_'..SIDE], clamp(v, 0, MAX_W), 'border_shape')
 	end
 
 	Layer.methods['get_border_color_'..SIDE] = terra(self: &Layer): uint32
@@ -141,8 +201,7 @@ for i,SIDE in ipairs{'left', 'right', 'top', 'bottom'} do
 	end
 
 	Layer.methods['set_border_color_'..SIDE] = terra(self: &Layer, v: uint32)
-		v = clamp(v, 0, MAX_U32)
-		self.border.['color_'..SIDE].uint = v
+		self.border.['color_'..SIDE].uint = clamp(v, 0, MAX_U32)
 	end
 
 end
@@ -186,11 +245,7 @@ for i,CORNER in ipairs{'top_left', 'top_right', 'bottom_left', 'bottom_right'} d
 	end
 
 	Layer.methods['set_'..RADIUS] = terra(self: &Layer, v: num)
-		v = clamp(v, 0, MAX_W)
-		if self.border.[RADIUS] ~= v then
-			self.border.[RADIUS] = v
-			self:border_shape_changed()
-		end
+		self:change(self.border, RADIUS, clamp(v, 0, MAX_W), 'border_shape')
 	end
 
 end
@@ -232,8 +287,7 @@ end
 
 terra Layer:get_border_offset(): num return self.border.offset end
 terra Layer:set_border_offset(v: num)
-	self.border.offset = clamp(v, -MAX_OFFSET, MAX_OFFSET)
-	self:border_shape_changed()
+	self:change(self.border, 'offset', clamp(v, -MAX_OFFSET, MAX_OFFSET), 'border_shape')
 end
 
 terra Layer:set_border_line_to(line_to: BorderLineToFunc)
@@ -244,7 +298,10 @@ end
 do end --backgrounds
 
 terra Layer:get_background_type(): enum return self.background.type end
-terra Layer:set_background_type(v: enum) self.background.type = v end
+terra Layer:set_background_type(v: enum)
+	assert(v >= BACKGROUND_TYPE_MIN and v <= BACKGROUND_TYPE_MAX)
+	self:change(self.background, 'type', v, 'background')
+end
 
 terra Layer:get_background_hittable(): bool return self.background.hittable end
 terra Layer:set_background_hittable(v: bool) self.background.hittable = v end
@@ -255,7 +312,9 @@ terra Layer:set_background_operator(v: enum)
 	self.background.operator = v
 end
 
-terra Layer:get_background_clip_border_offset(): num return self.background.clip_border_offset end
+terra Layer:get_background_clip_border_offset(): num
+	return self.background.clip_border_offset
+end
 terra Layer:set_background_clip_border_offset(v: num)
 	self.background.clip_border_offset = clamp(v, -MAX_OFFSET, MAX_OFFSET)
 end
@@ -267,7 +326,9 @@ terra Layer:set_background_color(v: uint32)
 	self.background.color_set = true
 end
 
-terra Layer:get_background_color_set(): bool return self.background.color_set end
+terra Layer:get_background_color_set(): bool
+	return self.background.color_set
+end
 terra Layer:set_background_color_set(v: bool)
 	self.background.color_set = v
 	if not v then self.background.color.uint = 0 end
@@ -275,16 +336,14 @@ end
 
 for i,FIELD in ipairs{'x1', 'y1', 'x2', 'y2', 'r1', 'r2'} do
 
+	local MAX = FIELD:find'^r' and MAX_W or MAX_X
+
 	Layer.methods['get_background_'..FIELD] = terra(self: &Layer): num
 		return self.background.pattern.gradient.[FIELD]
 	end
 
 	Layer.methods['set_background_'..FIELD] = terra(self: &Layer, v: num)
-		v = clamp(v, -MAX_W, MAX_W)
-		if self.background.pattern.gradient.[FIELD] ~= v then
-			self.background.pattern.gradient.[FIELD] = clamp(v, -MAX_W, MAX_W)
-			self:background_changed()
-		end
+		self:change(self.background.pattern.gradient, FIELD, clamp(v, -MAX, MAX), 'background')
 	end
 
 end
@@ -309,19 +368,23 @@ terra Layer:get_background_color_stop_offset(i: int): num
 	return self.background.pattern.gradient.color_stops(i, ColorStop{0, 0}).offset
 end
 
-terra Layer:set_background_color_stop_color(i: int, c: uint32)
+terra Layer:set_background_color_stop_color(i: int, v: uint32)
 	if i >= 0 and i < MAX_COLOR_STOP_COUNT then
-		c = clamp(c, 0, MAX_U32)
-		self.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).color.uint = c
-		self:background_changed()
+		v = clamp(v, 0, MAX_U32)
+		if self:get_background_color_stop_color(i) ~= v then
+			self.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).color.uint = v
+			self:background_changed()
+		end
 	end
 end
 
-terra Layer:set_background_color_stop_offset(i: int, offset: num)
+terra Layer:set_background_color_stop_offset(i: int, v: num)
 	if i >= 0 and i < MAX_COLOR_STOP_COUNT then
-		offset = clamp(offset, 0, 1)
-		self.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).offset = offset
-		self:background_changed()
+		v = clamp(v, 0, 1)
+		if self:get_background_color_stop_offset(i) ~= v then
+			self.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).offset = v
+			self:background_changed()
+		end
 	end
 end
 
@@ -330,16 +393,14 @@ terra Layer:set_background_image(w: int, h: int, format: enum, stride: int, pixe
 	self:background_changed()
 end
 
-terra Layer:get_background_image_w(): num return self.background.pattern.bitmap.w end
-terra Layer:get_background_image_h(): num return self.background.pattern.bitmap.h end
-terra Layer:get_background_image_stride(): int return self.background.pattern.bitmap.stride end
+terra Layer:get_background_image_w      (): num  return self.background.pattern.bitmap.w end
+terra Layer:get_background_image_h      (): num  return self.background.pattern.bitmap.h end
+terra Layer:get_background_image_stride (): int  return self.background.pattern.bitmap.stride end
+terra Layer:get_background_image_format (): enum return self.background.pattern.bitmap.format end
 terra Layer:get_background_image_pixels()
 	var s = self.background.pattern.bitmap_surface
 	if s ~= nil then s:flush() end
 	return self.background.pattern.bitmap.pixels
-end
-terra Layer:get_background_image_format(): enum
-	return self.background.pattern.bitmap.format
 end
 terra Layer:background_image_invalidate()
 	var s = self.background.pattern.bitmap_surface
@@ -354,8 +415,8 @@ terra Layer:get_background_x      (): num  return self.background.pattern.x end
 terra Layer:get_background_y      (): num  return self.background.pattern.y end
 terra Layer:get_background_extend (): enum return self.background.pattern.extend end
 
-terra Layer:set_background_x      (v: num)  self.background.pattern.x = clamp(v, -MAX_W, MAX_W) end
-terra Layer:set_background_y      (v: num)  self.background.pattern.y = clamp(v, -MAX_W, MAX_W) end
+terra Layer:set_background_x      (v: num) self.background.pattern.x = clamp(v, -MAX_X, MAX_X) end
+terra Layer:set_background_y      (v: num) self.background.pattern.y = clamp(v, -MAX_X, MAX_X) end
 terra Layer:set_background_extend (v: enum)
 	assert(v >= BACKGROUND_EXTEND_MIN and v <= BACKGROUND_EXTEND_MAX)
 	self.background.pattern.extend = v
@@ -369,20 +430,20 @@ terra Layer:get_background_scale_cx    (): num return self.background.pattern.tr
 terra Layer:get_background_scale_cy    (): num return self.background.pattern.transform.scale_cy    end
 
 terra Layer:set_background_rotation    (v: num) self.background.pattern.transform.rotation    = v end
-terra Layer:set_background_rotation_cx (v: num) self.background.pattern.transform.rotation_cx = clamp(v, -MAX_W, MAX_W) end
-terra Layer:set_background_rotation_cy (v: num) self.background.pattern.transform.rotation_cy = clamp(v, -MAX_W, MAX_W) end
+terra Layer:set_background_rotation_cx (v: num) self.background.pattern.transform.rotation_cx = clamp(v, -MAX_X, MAX_X) end
+terra Layer:set_background_rotation_cy (v: num) self.background.pattern.transform.rotation_cy = clamp(v, -MAX_X, MAX_X) end
 terra Layer:set_background_scale       (v: num) self.background.pattern.transform.scale       = clamp(v, MIN_SCALE, MAX_SCALE) end
-terra Layer:set_background_scale_cx    (v: num) self.background.pattern.transform.scale_cx    = clamp(v, -MAX_W, MAX_W) end
-terra Layer:set_background_scale_cy    (v: num) self.background.pattern.transform.scale_cy    = clamp(v, -MAX_W, MAX_W) end
+terra Layer:set_background_scale_cx    (v: num) self.background.pattern.transform.scale_cx    = clamp(v, -MAX_X, MAX_X) end
+terra Layer:set_background_scale_cy    (v: num) self.background.pattern.transform.scale_cy    = clamp(v, -MAX_X, MAX_X) end
 
 do end --shadows
 
-terra Layer:get_shadow_count() return self.shadows.len end
+terra Layer:get_shadow_count(): int return self.shadows.len end
 terra Layer:set_shadow_count(n: int)
 	n = clamp(n, 0, MAX_SHADOW_COUNT)
 	var new_shadows = self.shadows:setlen(n)
 	for _,s in new_shadows do
-		s:init(self)
+		s:init(&self.l)
 	end
 end
 
@@ -394,7 +455,7 @@ terra Layer:new_shadow(i: int)
 	if i >= 0 and i < MAX_SHADOW_COUNT then
 		var s, new_shadows = self.shadows:getat(i)
 		for _,s in new_shadows do
-			s:init(self)
+			s:init(&self.l)
 		end
 		return s
 	else
@@ -410,85 +471,86 @@ terra Layer:get_shadow_passes  (i: int): int    return self:shadow(i).blur_passe
 terra Layer:get_shadow_inset   (i: int): bool   return self:shadow(i).inset end
 terra Layer:get_shadow_content (i: int): bool   return self:shadow(i).content end
 
-terra Layer:set_shadow_x       (i: int, v: num)    var s = self:new_shadow(i); if s ~= nil then v = clamp(v, -MAX_W, MAX_W); s.offset_x = v end end
-terra Layer:set_shadow_y       (i: int, v: num)    var s = self:new_shadow(i); if s ~= nil then v = clamp(v, -MAX_W, MAX_W); s.offset_y = v end end
-terra Layer:set_shadow_color   (i: int, v: uint32) var s = self:new_shadow(i); if s ~= nil then v = clamp(v, 0, MAX_U32); s.color.uint = v end end
-terra Layer:set_shadow_blur    (i: int, v: int)    var s = self:new_shadow(i); if s ~= nil then v = clamp(v, 0, 255); s.blur_radius = v end end
-terra Layer:set_shadow_passes  (i: int, v: int)    var s = self:new_shadow(i); if s ~= nil then v = clamp(v, 0, 10); s.blur_passes = v end end
-terra Layer:set_shadow_inset   (i: int, v: bool)   var s = self:new_shadow(i); if s ~= nil then s.inset = v end end
-terra Layer:set_shadow_content (i: int, v: bool)   var s = self:new_shadow(i); if s ~= nil then s.content = v end end
+terra Layer:set_shadow_x       (i: int, v: num)    var s = self:new_shadow(i); if s ~= nil then s.offset_x    = clamp(v, -MAX_X, MAX_X) end end
+terra Layer:set_shadow_y       (i: int, v: num)    var s = self:new_shadow(i); if s ~= nil then s.offset_y    = clamp(v, -MAX_X, MAX_X) end end
+terra Layer:set_shadow_color   (i: int, v: uint32) var s = self:new_shadow(i); if s ~= nil then s.color.uint  = clamp(v, 0, MAX_U32) end end
+terra Layer:set_shadow_blur    (i: int, v: int)    var s = self:new_shadow(i); if s ~= nil then s.blur_radius = clamp(v, 0, 255) end end
+terra Layer:set_shadow_passes  (i: int, v: int)    var s = self:new_shadow(i); if s ~= nil then s.blur_passes = clamp(v, 0, 10) end end
+terra Layer:set_shadow_inset   (i: int, v: bool)   var s = self:new_shadow(i); if s ~= nil then s.inset       = v end end
+terra Layer:set_shadow_content (i: int, v: bool)   var s = self:new_shadow(i); if s ~= nil then s.content     = v end end
 
 do end --text
 
 terra Layer:text_layout_changed()
-	if not self.text.layout.min_size_valid then
+	if not self.l.text.layout.min_size_valid then
 		self:minsize_changed()
-	elseif self.text.layout.state == tr.STATE_ALIGNED-1 then
-		self.text.layout:align()
+	elseif self.l.text.layout.state == tr.STATE_ALIGNED-1 then
+		self.l.text.layout:align()
 	end
 end
 
-terra Layer:get_text() return self.text.layout.text.elements end
-terra Layer:get_text_len() return self.text.layout.text_len end
+terra Layer:get_text() return self.l.text.layout.text.elements end
+terra Layer:get_text_len(): int return self.l.text.layout.text_len end
 
 terra Layer:set_text(s: &codepoint, len: int)
-	self.text.layout:set_text(s, len)
+	self.l.text.layout:set_text(s, len)
 	self:text_layout_changed()
 end
 
 terra Layer:set_text_utf8(s: rawstring, len: int)
-	self.text.layout:set_text_utf8(s, len)
+	self.l.text.layout:set_text_utf8(s, len)
 	self:text_layout_changed()
 end
 
-terra Layer:get_text_utf8(out: rawstring, max_outlen: int)
-	return self.text.layout:get_text_utf8(out, max_outlen)
+terra Layer:get_text_utf8(out: rawstring, max_outlen: int): int
+	return self.l.text.layout:get_text_utf8(out, max_outlen)
 end
 
-terra Layer:get_text_utf8_len()
-	return self.text.layout.text_utf8_len
+terra Layer:get_text_utf8_len(): int
+	return self.l.text.layout.text_utf8_len
 end
 
-terra Layer:get_text_maxlen(): int return self.text.layout.maxlen end
+terra Layer:get_text_maxlen(): int return self.l.text.layout.maxlen end
 terra Layer:set_text_maxlen(v: int)
-	self.text.layout.maxlen = v
+	self.l.text.layout.maxlen = v
 	self:text_layout_changed()
 end
 
-terra Layer:get_text_dir(): enum return self.text.layout.dir end
+terra Layer:get_text_dir(): enum return self.l.text.layout.dir end
 terra Layer:set_text_dir(v: enum)
-	self.text.layout.dir = v
+	self.l.text.layout.dir = v
 	self:text_layout_changed()
 end
 
-terra Layer:get_text_align_x(): enum return self.text.layout.align_x end
-terra Layer:get_text_align_y(): enum return self.text.layout.align_y end
-terra Layer:set_text_align_x(v: enum) self.text.layout.align_x = v; self:text_layout_changed() end
-terra Layer:set_text_align_y(v: enum) self.text.layout.align_y = v; self:text_layout_changed() end
+terra Layer:get_text_align_x(): enum return self.l.text.layout.align_x end
+terra Layer:get_text_align_y(): enum return self.l.text.layout.align_y end
+terra Layer:set_text_align_x(v: enum) self.l.text.layout.align_x = v; self:text_layout_changed() end
+terra Layer:set_text_align_y(v: enum) self.l.text.layout.align_y = v; self:text_layout_changed() end
 
-terra Layer:get_line_spacing      (): num return self.text.layout.line_spacing end
-terra Layer:get_hardline_spacing  (): num return self.text.layout.hardline_spacing end
-terra Layer:get_paragraph_spacing (): num return self.text.layout.paragraph_spacing end
+terra Layer:get_line_spacing      (): num return self.l.text.layout.line_spacing end
+terra Layer:get_hardline_spacing  (): num return self.l.text.layout.hardline_spacing end
+terra Layer:get_paragraph_spacing (): num return self.l.text.layout.paragraph_spacing end
 
-terra Layer:set_line_spacing      (v: num) self.text.layout.line_spacing      = clamp(v, -MAX_W, MAX_W); self:text_layout_changed() end
-terra Layer:set_hardline_spacing  (v: num) self.text.layout.hardline_spacing  = clamp(v, -MAX_W, MAX_W); self:text_layout_changed() end
-terra Layer:set_paragraph_spacing (v: num) self.text.layout.paragraph_spacing = clamp(v, -MAX_W, MAX_W); self:text_layout_changed() end
+terra Layer:set_line_spacing      (v: num) self.l.text.layout.line_spacing      = clamp(v, -MAX_OFFSET, MAX_OFFSET); self:text_layout_changed() end
+terra Layer:set_hardline_spacing  (v: num) self.l.text.layout.hardline_spacing  = clamp(v, -MAX_OFFSET, MAX_OFFSET); self:text_layout_changed() end
+terra Layer:set_paragraph_spacing (v: num) self.l.text.layout.paragraph_spacing = clamp(v, -MAX_OFFSET, MAX_OFFSET); self:text_layout_changed() end
 
 --text spans
 
 terra Layer:get_span_count(): int
-	return self.text.layout.span_count
+	return self.l.text.layout.span_count
 end
 
 terra Layer:set_span_count(n: int)
 	n = clamp(n, 0, MAX_SPAN_COUNT)
 	if self.span_count ~= n then
-		self.text.layout.span_count = n
+		self.l.text.layout.span_count = n
 		self:text_layout_changed()
 	end
 end
 
 local prefixed = {
+	offset  =1,
 	color   =1,
 	opacity =1,
 	operator=1,
@@ -501,39 +563,49 @@ for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
 
 	Layer.methods['get_'..PFIELD] = terra(self: &Layer, i: int, j: int, out_v: &API_T)
 		var v: T
-		var has_value = self.text.layout:['get_'..FIELD](i, j, &v)
+		var has_value = self.l.text.layout:['get_'..FIELD](i, j, &v)
 		@out_v = v
 		return has_value
 	end
 
-	Layer.methods['set_'..PFIELD] = terra(self: &Layer, i: int, j: int, v: T)
-		self.text.layout:['set_'..FIELD](i, j, v)
+	Layer.methods['set_'..PFIELD] = terra(self: &Layer, i: int, j: int, v: API_T)
+		self.l.text.layout:['set_'..FIELD](i, j, v)
 		self:text_layout_changed()
 	end
 
-	Layer.methods['get_span_'..PFIELD] = terra(self: &Layer, span_i: int)
-		return self.text.layout:['get_span_'..FIELD](span_i)
+	Layer.methods['get_span_'..PFIELD] = terra(self: &Layer, span_i: int): API_T
+		return self.l.text.layout:['get_span_'..FIELD](span_i)
 	end
 
-	Layer.methods['set_span_'..PFIELD] = terra(self: &Layer, span_i: int, v: T)
-		self.text.layout:['set_span_'..FIELD](span_i, v)
-		self:text_layout_changed()
+	Layer.methods['set_span_'..PFIELD] = terra(self: &Layer, span_i: int, v: API_T)
+		if span_i < MAX_SPAN_COUNT then
+			self.l.text.layout:['set_span_'..FIELD](span_i, v)
+			self:text_layout_changed()
+		end
 	end
 
+end
+
+terra Layer:get_span_offset(span_i: int): int
+	return self.l.text.layout:get_span_offset(span_i)
+end
+
+terra Layer:set_span_offset(span_i: int, v: int)
+	return self.l.text.layout:set_span_offset(span_i, v)
 end
 
 --text measuring and hit-testing
 
 terra Layer:text_cursor_xs(line_i: int, outlen: &int)
 	self:sync()
-	var xs = self.text.layout:cursor_xs(line_i)
+	var xs = self.l.text.layout:cursor_xs(line_i)
 	@outlen = xs.len
 	return xs.elements
 end
 
 --text cursor & selection
 
-terra Layer:get_cursor_offset()
+terra Layer:get_cursor_offset(): int
 	self:sync()
 	return iif(self.caret_created, self.caret.p.offset, 0)
 end
@@ -560,96 +632,164 @@ do end --layouts
 
 terra Layer:get_visible(): bool return self.visible end
 terra Layer:set_visible(v: bool)
-	if self.visible ~= v then
-		self.visible = v
-		self:minsize_changed()
+	self:change(self.l, 'visible', v, 'minsize')
+end
+
+terra Layer:get_align_items_x (): enum return self.align_items_x end
+terra Layer:get_align_items_y (): enum return self.align_items_y end
+terra Layer:get_item_align_x  (): enum return self.item_align_x  end
+terra Layer:get_item_align_y  (): enum return self.item_align_y  end
+terra Layer:get_align_x       (): enum return self.align_x end
+terra Layer:get_align_y       (): enum return self.align_y end
+
+local is_align = macro(function(v)
+	return `
+		   v == ALIGN_LEFT  --also ALIGN_TOP
+		or v == ALIGN_RIGHT --also ALIGN_RIGHT
+		or v == ALIGN_CENTER
+		or v == ALIGN_STRETCH
+		or v == ALIGN_START
+		or v == ALIGN_END
+end)
+
+local is_align_items = macro(function(v)
+	return `
+		   is_align(v)
+		or v == ALIGN_SPACE_EVENLY
+		or v == ALIGN_SPACE_AROUND
+		or v == ALIGN_SPACE_BETWEEN
+end)
+
+terra Layer:set_align_items_x(v: enum)
+	assert(is_align_items(v))
+	self:change(self.l, 'align_items_x', v, 'layout')
+end
+terra Layer:set_align_items_y(v: enum)
+	assert(is_align_items(v))
+	self:change(self.l, 'align_items_y', v, 'layout')
+end
+terra Layer:set_item_align_x(v: enum)
+	assert(is_align(v))
+	self:change(self.l, 'item_align_x', v, 'layout')
+end
+terra Layer:set_item_align_y(v: enum)
+	assert(is_align(v) or v == ALIGN_BASELINE)
+	self:change(self.l, 'item_align_y', v, 'layout')
+end
+
+terra Layer:set_align_x(v: enum)
+	assert(v == ALIGN_DEFAULT or is_align(v))
+	self:change(self.l, 'align_x', v, 'layout')
+end
+terra Layer:set_align_y(v: enum)
+	assert(v == ALIGN_DEFAULT or is_align(v))
+	self:change(self.l, 'align_y', v, 'layout')
+end
+
+terra Layer:get_flex_flow(): enum return self.flex.flow end
+terra Layer:set_flex_flow(v: enum)
+	assert(v == FLEX_FLOW_X or v == FLEX_FLOW_Y)
+	self:change(self.flex, 'flow', v, 'layout')
+end
+
+terra Layer:get_flex_wrap(): bool return self.flex.wrap end
+terra Layer:set_flex_wrap(v: bool) self:change(self.flex, 'wrap', v, 'layout') end
+
+terra Layer:get_fr(): num return self.fr end
+terra Layer:set_fr(v: num) self:change(self.l, 'fr', max(v, 0), 'layout') end
+
+terra Layer:get_break_before (): bool return self.break_before end
+terra Layer:get_break_after  (): bool return self.break_after  end
+
+terra Layer:set_break_before (v: bool) self:change(self.l, 'break_before', v, 'layout') end
+terra Layer:set_break_after  (v: bool) self:change(self.l, 'break_after' , v, 'layout') end
+
+terra Layer:get_grid_col_fr_count(): num return self.grid.col_frs.len end
+terra Layer:get_grid_row_fr_count(): num return self.grid.row_frs.len end
+
+terra Layer:set_grid_col_fr_count(n: int)
+	n = min(n, MAX_GRID_ITEM_COUNT)
+	if self.grid.col_frs.len ~= n then
+		self.grid.col_frs:setlen(n, 1)
+		self:layout_changed()
+	end
+end
+terra Layer:set_grid_row_fr_count(n: int)
+	n = min(n, MAX_GRID_ITEM_COUNT)
+	if self.grid.row_frs.len ~= n then
+		self.grid.row_frs:setlen(n, 1)
+		self:layout_changed()
 	end
 end
 
-terra Layer:get_align_items_x () return self.align_items_x end
-terra Layer:get_align_items_y () return self.align_items_y end
-terra Layer:get_item_align_x  () return self.item_align_x  end
-terra Layer:get_item_align_y  () return self.item_align_y  end
+terra Layer:get_grid_col_fr(i: int): num return self.grid.col_frs(i, 1) end
+terra Layer:get_grid_row_fr(i: int): num return self.grid.row_frs(i, 1) end
 
-terra Layer:set_align_items_x (v: enum) self.align_items_x = v end
-terra Layer:set_align_items_y (v: enum) self.align_items_y = v end
-terra Layer:set_item_align_x  (v: enum) self.item_align_x  = v end
-terra Layer:set_item_align_y  (v: enum) self.item_align_y  = v end
+terra Layer:set_grid_col_fr(i: int, v: num)
+	if i < MAX_GRID_ITEM_COUNT then
+		if self:get_grid_col_fr(i) ~= v then
+			self.grid.col_frs:set(i, v, 1)
+			self:layout_changed()
+		end
+	end
+end
+terra Layer:set_grid_row_fr(i: int, v: num)
+	if i < MAX_GRID_ITEM_COUNT then
+		if self:get_grid_row_fr(i) ~= v then
+			self.grid.row_frs:set(i, v, 1)
+			self:layout_changed()
+		end
+	end
+end
 
-terra Layer:get_flex_flow() return self.flex.flow end
-terra Layer:set_flex_flow(v: enum) self.flex.flow = v end
+terra Layer:get_grid_col_gap(): num return self.grid.col_gap end
+terra Layer:get_grid_row_gap(): num return self.grid.row_gap end
 
-terra Layer:get_flex_wrap() return self.flex.wrap end
-terra Layer:set_flex_wrap(v: bool) self.flex.wrap = v end
+terra Layer:set_grid_col_gap(v: num) self.grid.col_gap = clamp(v, -MAX_W, MAX_W) end
+terra Layer:set_grid_row_gap(v: num) self.grid.row_gap = clamp(v, -MAX_W, MAX_W) end
 
-terra Layer:get_fr() return self.fr end
-terra Layer:set_fr(v: num) self.fr = max(v, 0) end
+terra Layer:get_grid_flow(): enum return self.grid.flow end
+terra Layer:set_grid_flow(v: enum)
+	assert(v >= 0 and v <= GRID_FLOW_MAX)
+	self:change(self.grid, 'flow', v, 'layout')
+end
 
-terra Layer:get_break_before () return self.break_before end
-terra Layer:get_break_after  () return self.break_after  end
+terra Layer:get_grid_wrap(): int return self.grid.wrap end
+terra Layer:set_grid_wrap(v: int)
+	self:change(self.grid, 'wrap', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout')
+end
 
-terra Layer:set_break_before (v: bool) self.break_before = v end
-terra Layer:set_break_after  (v: bool) self.break_after  = v end
+terra Layer:get_grid_min_lines(): int return self.grid.min_lines end
+terra Layer:set_grid_min_lines(v: int)
+	self:change(self.grid, 'min_lines', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout')
+end
 
-terra Layer:get_grid_col_fr_count() return self.grid.col_frs.len end
-terra Layer:get_grid_row_fr_count() return self.grid.row_frs.len end
+terra Layer:get_min_cw(): num return self.min_cw end
+terra Layer:get_min_ch(): num return self.min_ch end
 
-terra Layer:set_grid_col_fr_count(n: int) self.grid.col_frs:setlen(n, 1) end
-terra Layer:set_grid_row_fr_count(n: int) self.grid.row_frs:setlen(n, 1) end
+terra Layer:set_min_cw(v: num) self:change(self.l, 'min_cw', clamp(v, 0, MAX_W), 'minsize') end
+terra Layer:set_min_ch(v: num) self:change(self.l, 'min_ch', clamp(v, 0, MAX_W), 'minsize') end
 
-terra Layer:get_grid_col_fr(i: int) return self.grid.col_frs(i, 1) end
-terra Layer:get_grid_row_fr(i: int) return self.grid.row_frs(i, 1) end
+terra Layer:get_grid_col(): int return self.grid_col end
+terra Layer:get_grid_row(): int return self.grid_row end
 
-terra Layer:set_grid_col_fr(i: int, v: num) self.grid.col_frs:set(i, v, 1) end
-terra Layer:set_grid_row_fr(i: int, v: num) self.grid.row_frs:set(i, v, 1) end
+terra Layer:set_grid_col(v: int) self:change(self.l, 'grid_col', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'layout') end
+terra Layer:set_grid_row(v: int) self:change(self.l, 'grid_row', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'layout') end
 
-terra Layer:get_grid_col_gap() return self.grid.col_gap end
-terra Layer:get_grid_row_gap() return self.grid.row_gap end
+terra Layer:get_grid_col_span(): int return self.grid_col_span end
+terra Layer:get_grid_row_span(): int return self.grid_row_span end
 
-terra Layer:set_grid_col_gap(v: num) self.grid.col_gap = v end
-terra Layer:set_grid_row_gap(v: num) self.grid.row_gap = v end
-
-terra Layer:get_grid_flow() return self.grid.flow end
-terra Layer:set_grid_flow(v: enum) self.grid.flow = v end
-
-terra Layer:get_grid_wrap() return self.grid.wrap end
-terra Layer:set_grid_wrap(v: int) self.grid.wrap = v end
-
-terra Layer:get_grid_min_lines() return self.grid.min_lines end
-terra Layer:set_grid_min_lines(v: int) self.grid.min_lines = v end
-
-terra Layer:get_min_cw() return self.min_cw end
-terra Layer:get_min_ch() return self.min_ch end
-
-terra Layer:set_min_cw(v: num) self.min_cw = max(v, 0) end
-terra Layer:set_min_ch(v: num) self.min_ch = max(v, 0) end
-
-terra Layer:get_align_x() return self.align_x end
-terra Layer:get_align_y() return self.align_y end
-
-terra Layer:set_align_x(v: enum) self.align_x = v end
-terra Layer:set_align_y(v: enum) self.align_y = v end
-
-terra Layer:get_grid_col() return self.grid_col end
-terra Layer:get_grid_row() return self.grid_row end
-
-terra Layer:set_grid_col(v: int) self.grid_col = v end
-terra Layer:set_grid_row(v: int) self.grid_row = v end
-
-terra Layer:get_grid_col_span() return self.grid_col_span end
-terra Layer:get_grid_row_span() return self.grid_row_span end
-
-terra Layer:set_grid_col_span(v: int) self.grid_col_span = v end
-terra Layer:set_grid_row_span(v: int) self.grid_row_span = v end
+terra Layer:set_grid_col_span(v: int) self:change(self.l, 'grid_col_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout') end
+terra Layer:set_grid_row_span(v: int) self:change(self.l, 'grid_row_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout') end
 
 --drawing & hit testing
 
-terra Layer:get_hit_test_mask() return self.hit_test_mask end
-terra Layer:set_hit_test_mask(v: enum) self.hit_test_mask = v end
+terra Layer:get_hit_test_mask(): enum return self.l.hit_test_mask end
+terra Layer:set_hit_test_mask(v: enum) self.l.hit_test_mask = v end
 
-terra Layer:hit_test_c(cr: &context, x: num, y: num, reason: int, out: &&Layer)
+terra Layer:hit_test_c(cr: &context, x: num, y: num, reason: int, out: &&Layer): enum
 	var layer, area = self:hit_test(cr, x, y, reason)
-	@out = layer
+	@out = [&Layer](layer)
 	return area
 end
 
@@ -725,17 +865,15 @@ function build()
 		set_w=1,
 		set_h=1,
 
+		get_cx=1,
+		get_cy=1,
 		get_cw=1,
 		get_ch=1,
 
-		set_cw=1,
-		set_ch=1,
-
-		get_cx=1,
-		get_cy=1,
-
 		set_cx=1,
 		set_cy=1,
+		set_cw=1,
+		set_ch=1,
 
 		get_min_cw=1,
 		get_min_ch=1,
@@ -1029,6 +1167,9 @@ function build()
 		set_span_text_color        =1,
 		set_span_text_opacity      =1,
 		set_span_text_operator     =1,
+
+		get_span_offset=1,
+		set_span_offset=1,
 
 		get_text_selectable=1,
 		set_text_selectable=1,

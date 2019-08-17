@@ -2,6 +2,7 @@ return {
 	root={
 		align_items_x=8,
 		align_items_y=8,
+		background_color=4294967057,
 		background_color_stop_count=2,
 		background_color_stops={
 			{
@@ -37,7 +38,6 @@ return {
 		border_width_top=6,
 		children={
 			{
-				background_color=4294967057,
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
@@ -80,10 +80,9 @@ return {
 		},
 		clip_content=true,
 		flex_flow=1,
-		grid_min_lines=0,
 		grid_wrap=4,
 		h=406.5,
-		item_align_y=10,
+		item_align_y=1,
 		layout_type=2,
 		min_ch=394.5,
 		min_cw=790,
@@ -103,10 +102,9 @@ return {
 			}
 		},
 		w=802,
-		x=890,
-		y=257
+		x=960,
+		y=229
 	},
 	selected_layer_path={
-		0
 	}
 }

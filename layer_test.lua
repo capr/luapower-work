@@ -200,6 +200,7 @@ local function serialize_layer(e)
 	t.hardline_spacing  = e.hardline_spacing
 	t.span_count = e.span_count
 	t.text_spans = list(e, e.span_count, {
+		span_offset            =1,
 		span_font_id           =1,
 		span_font_size         =1,
 		span_features          =cstring,
@@ -812,7 +813,6 @@ function testui:repaint()
 	})
 	choose('item_align_x', 'align_', {
 		'left', 'right', 'center', 'stretch', 'start', 'end',
-
 	})
 	choose('item_align_y', 'align_', {
 		'top', 'bottom', 'center', 'stretch', 'start', 'end',

@@ -57,8 +57,8 @@ return {
 				min_ch=47,
 				min_cw=50.5,
 				w=50.5,
-				x=22.3125,
-				y=125.625
+				x=35.700000000000003,
+				y=167.5
 			},
 			{
 				background_color_stop_count=2,
@@ -82,8 +82,8 @@ return {
 				min_ch=18,
 				min_cw=50.5,
 				w=50.5,
-				x=117.4375,
-				y=125.625
+				x=121.90000000000001,
+				y=167.5
 			},
 			{
 				border_width_bottom=1,
@@ -105,8 +105,8 @@ return {
 					}
 				},
 				w=216,
-				x=212.5625,
-				y=125.625
+				x=208.10000000000002,
+				y=167.5
 			},
 			{
 				align_items_y=8,
@@ -122,11 +122,11 @@ return {
 						border_width_top=1,
 						grid_col=1,
 						grid_col_span=3,
-						h=61,
+						h=61.000000000000007,
 						min_ch=61,
 						min_cw=50.5,
-						w=339.5,
-						y=8.375
+						w=339.49999999999994,
+						y=13.4
 					},
 					{
 						border_width_bottom=5.5,
@@ -139,8 +139,8 @@ return {
 						corner_radius_top_right=19,
 						h=61,
 						min_ch=61,
-						w=113.16666666666667,
-						y=86.125
+						w=113.16666666666664,
+						y=87.800000000000011
 					},
 					{
 						border_width_bottom=1,
@@ -151,15 +151,14 @@ return {
 						grid_col_span=2,
 						grid_row=2,
 						grid_row_span=3,
-						h=125,
+						h=118.30000000000001,
 						min_ch=61,
 						min_cw=50.5,
 						w=226.33333333333331,
-						x=113.16666666666667,
-						y=86.125
+						x=113.16666666666664,
+						y=87.800000000000011
 					}
 				},
-				grid_min_lines=0,
 				grid_wrap=3,
 				h=251.5,
 				layout_type=3,
@@ -170,9 +169,9 @@ return {
 				padding_right=16,
 				padding_top=16,
 				rotation=-6,
-				w=371.5,
-				x=473.1875,
-				y=125.625
+				w=371.49999999999994,
+				x=459.80000000000001,
+				y=167.5
 			},
 			{
 				border_width_bottom=1,
@@ -181,8 +180,8 @@ return {
 				border_width_top=1,
 				h=192,
 				w=50.5,
-				x=22.3125,
-				y=628.375
+				x=35.700000000000003,
+				y=586.5
 			},
 			{
 				border_width_bottom=1,
@@ -191,8 +190,8 @@ return {
 				border_width_top=1,
 				h=192,
 				w=50.5,
-				x=117.4375,
-				y=628.375
+				x=121.90000000000001,
+				y=586.5
 			},
 			{
 				border_width_bottom=1,
@@ -212,8 +211,8 @@ return {
 				},
 				text_utf8='Hello World!',
 				w=216,
-				x=212.5625,
-				y=628.375
+				x=208.10000000000002,
+				y=586.5
 			},
 			{
 				background_type=8,
@@ -231,9 +230,9 @@ return {
 						span_font_size=14.796875
 					}
 				},
-				w=371.5,
-				x=473.1875,
-				y=628.375
+				w=371.49999999999994,
+				x=459.80000000000001,
+				y=586.5
 			}
 		},
 		clip_content=true,
@@ -241,7 +240,6 @@ return {
 		corner_radius_top_left=30,
 		corner_radius_top_right=31,
 		flex_flow=1,
-		grid_min_lines=0,
 		grid_wrap=4,
 		h=996,
 		layout_type=3,
