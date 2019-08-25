@@ -1,3 +1,8 @@
+local xx = require'low'.module'xx'
+local xx2 = require'low'.module'xx'
+assert(xx == xx2)
+os.exit()
+
 setfenv(1, require'low')
 
 local assign = macro(function(lvalue, v)

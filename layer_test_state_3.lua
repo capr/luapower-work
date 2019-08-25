@@ -1,6 +1,13 @@
 return {
 	root={
 		background_color=4294967057,
+		background_color_stop_count=1,
+		background_color_stops={
+			{
+				background_color_stop_color=4294967234
+			}
+		},
+		background_type=6,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
@@ -15,34 +22,32 @@ return {
 			}
 		},
 		clip_content=true,
-		h=894,
-		hardline_spacing=0.68300002813339233,
-		line_spacing=0.78299999237060547,
+		h=484,
+		hardline_spacing=0.98299998044967651,
+		line_spacing=0.94999998807907104,
 		min_cw=737,
 		rotation_cx=251,
 		rotation_cy=213.5,
 		shadow_count=1,
 		shadows={
 			{
-				shadow_blur=6,
-				shadow_inset=true,
-				shadow_x=4.5,
-				shadow_y=4
+				shadow_blur=4,
+				shadow_content=true,
+				shadow_x=1.5,
+				shadow_y=0.5
 			}
 		},
-		text_align_x=4,
-		text_align_y=1,
 		text_spans={
 			{
-				span_font_id=1,
-				span_font_size=22.09375,
-				span_paragraph_dir=64,
-				span_text_color=4211042303
+				span_font_id=0,
+				span_font_size=100,
+				span_paragraph_dir=64
 			}
 		},
-		w=964,
-		x=899,
-		y=100
+		text_utf8='Hello World!',
+		w=619.5,
+		x=255,
+		y=196
 	},
 	selected_layer_path={
 	}

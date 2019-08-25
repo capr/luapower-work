@@ -4,7 +4,7 @@
 
 if not ... then require'terra/tr_test'; return end
 
-setfenv(1, require'terra/tr_module')
+setfenv(1, require'terra/low'.module'terra/tr_module')
 require'terra/cairo'
 color = cairo_argb32_color_t
 surface = cairo_surface_t

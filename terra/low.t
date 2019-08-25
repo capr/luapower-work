@@ -17,16 +17,32 @@
 
 if not ... then require'terra/low_test'; return; end
 
+--remove current directory from package path to avoid duplicate requires.
+--eg require'low' and require'terra/low' is a common mistake I make.
+package.path = package.path:gsub('^%.[/\\]%?%.lua%;', '')
+
 --dependencies ---------------------------------------------------------------
 
 local _M --this module, set below
 
---create a module table that dynamically inherits from _M.
-local function module(parent)
+--create a module table that dynamically inherits from _M or other module.
+--naming the module returns the same module table for the same name which is
+--useful for making shared namespaces without creating those one-line Lua files.
+local function module(name, parent)
+	if type(name) ~= 'string' then
+		name, parent = nil, name
+	end
 	parent = parent or _M
-	local M = {__index = parent}
-	M._M = M
-	return setmetatable(M, M)
+	local M = package.loaded[name]
+	if not M then
+		M = {__index = parent}
+		M._M = M
+		setmetatable(M, M)
+		if name then
+			package.loaded[name] = M
+		end
+	end
+	return M
 end
 
 local C = module(_G) --the C namespace: include() and extern() dump symbols here.
@@ -1511,7 +1527,7 @@ end)
 -- * the same tuple definition can appear in multiple modules without error.
 -- * auto-assign methods to types via ffi.metatype.
 -- * enable getters and setters via ffi.metatype.
--- * type name override with `name` option.
+-- * type name override with `cname` option.
 -- * deciding which methods to publish via `public_methods` table.
 -- * publishing enum and bitmask values.
 -- * diff-friendly deterministic output.

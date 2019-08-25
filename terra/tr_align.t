@@ -160,7 +160,7 @@ terra Layout:_align()
 		--compute line's aligned x position relative to the textbox origin.
 		if align_x == ALIGN_JUSTIFY then
 			line.x = 0
-			if line.linebreak == BREAK_NONE then
+			if line.linebreak == BREAK_NONE and line_i < self.lines.len-1 then
 				self:justify(line)
 			else
 				self:unjustify(line)

@@ -8,6 +8,7 @@ local layer = require'layer'
 local color = require'color'
 local pp = require'pp'
 local u = require'utf8quot'
+local cairo = require'cairo'
 local push, pop = table.insert, table.remove
 
 --utils ----------------------------------------------------------------------
@@ -72,8 +73,10 @@ local e, hit_e, hit_area
 local sessions = {}
 local session_number
 local continuous_repaint
-local layer_changed, layer_changed_dt = false, 0
-local layer_fps_t, layer_fps_dt
+local layer_changed = false
+local draw_changed_dt = 0
+local draw_fps_t, draw_fps_dt = 0, 0
+local repaint_fps_t, repaint_fps_dt = 0, 0
 
 --layer tree (de)serialization -----------------------------------------------
 
@@ -293,7 +296,7 @@ local function create_top_e()
 		top_e:free()
 	end
 	top_e = lib:layer()
-	top_e.x = 1100
+	top_e.x = 100
 	top_e.y = 100
 	top_e.w = 500
 	top_e.h = 300
@@ -378,8 +381,8 @@ local function slide(prop, min, max, step, ...)
 		return v
 	end
 end
-local function slidex(prop, ...) return slide(prop, -testui.win_w/2, testui.win_w/2, .5, ...) end
-local function slidey(prop, ...) return slide(prop, -testui.win_h/2, testui.win_h/2, .5, ...) end
+local function slidex(prop, ...) return slide(prop, -testui.win_w/2, testui.win_w, .5, ...) end
+local function slidey(prop, ...) return slide(prop, -testui.win_h/2, testui.win_h, .5, ...) end
 local function slidew(prop, ...) return slide(prop, -100, 100, .5, ...) end
 local function slidea(prop, ...) return slide(prop, -360, 360, .5, ...) end
 local function sliden(prop, ...) return slide(prop, -10, 10, .1, ...) end
@@ -677,7 +680,7 @@ function testui:repaint()
 		slidew('shadow_y', i)
 		self:popgroup()
 		self:pushgroup('right', 1/2)
-		slide ('shadow_blur',   -500, 500, 1, i)
+		slide ('shadow_blur',   -300, 300, 1, i)
 		slide ('shadow_passes',  -20,  20, 1, i)
 		self:nextgroup()
 		toggle('shadow_inset', i)
@@ -881,57 +884,98 @@ function testui:repaint()
 	self:popgroup()
 	self:popgroup()
 
-	--sync'ing & drawing ------------------------------------------------------
+	--sync'ing, drawing and hit-testing ---------------------------------------
 
-	local t0 = time.clock()
-	top_e:top_layer_draw(self.cr)
-	local t = time.clock()
-	local dt = t - t0
+	local repaint
 
-	if layer_changed then
-		layer_changed_dt = dt
-		layer_changed = false
+	if not self.ewindow then
+
+		local d = self.app:active_display()
+		self.ewindow = self.app:window{
+			x = d.cw - 1000,
+			y = 100,
+			w = 1000,
+			h = d.ch - 100,
+			parent = self.window,
+		}
+
+		function self.ewindow:repaint()
+			local cr = self:bitmap():cairo()
+			local repaint_t0 = time.clock()
+			cr:operator'source'
+			cr:rgba(0, 0, 0, 0)
+			cr:paint()
+			cr:operator'over'
+			local draw_t0 = time.clock()
+			top_e:draw(cr)
+			local draw_t = time.clock()
+			local repaint_t = draw_t
+			local draw_dt    = draw_t    - draw_t0
+			local repaint_dt = repaint_t - repaint_t0
+
+			if layer_changed then
+				draw_changed_dt = draw_dt
+				draw_changed = false
+			end
+
+			if draw_t - (draw_fps_t or 0) > 0.5 then
+				draw_fps_t  = t
+				draw_fps_dt = draw_dt
+			end
+			if draw_t - (repaint_fps_t or 0) > 0.5 then
+				repaint_fps_t = t
+				repaint_fps_dt = repaint_dt
+			end
+		end
+
+		function self.ewindow:keyup(key)
+			if key == 'esc' then
+				self:parent():close()
+			end
+		end
+
+		--hit-testing
+
+		local lbuf = ffi.new'layer_t*[1]'
+		function self.ewindow:mousemove(mx, my)
+			local cr = self:bitmap():cairo()
+			hit_area = top_e:hit_test(cr, mx, my, 0, lbuf)
+			hit_e = lbuf[0]
+			if hit_e == nil then hit_e = nil end
+			if hit_area == 0 then hit_area = nil end
+		end
+
+		function self.ewindow:mousedown(button)
+			if hit_e and button == 'left' then
+				selected_layer_path = {}
+				local e = hit_e
+				while e ~= top_e do
+					table.insert(selected_layer_path, 1, e.index)
+					e = e.parent
+				end
+			end
+		end
+
 	end
 
-	if t - (self.layer_fps_t or 0) > 0.5 then
-		self.layer_fps_t = t
-		self.layer_fps_dt = dt
+	if top_e:sync() then
+		self.ewindow:invalidate()
+	else
+		--TODO: remove this after pixel invalidation code is finished.
+		self.ewindow:invalidate()
 	end
 
 	self.x = self.win_w - 1200
 	self.y = 10
 	self:heading(string.format(
-		'Draw layer:                                %.1f fps, %.1f ms',
-		1 / self.layer_fps_dt, self.layer_fps_dt * 1000))
+		'Draw layers:                              %.1f fps, %.1f ms',
+		1 / draw_fps_dt, draw_fps_dt * 1000))
 	self:heading(string.format(
 		'Draw layers after change:     %.1f fps, %.1f ms',
-		1 / layer_changed_dt, layer_changed_dt * 1000))
-
-	if continuous_repaint then
-		local fps = self.app:fps()
-		self:heading(string.format(
-			'Overall framerate:                   %.1f fps, %.1f ms',
-			fps, 1000 / fps))
-	end
-
-	--hit-testing -------------------------------------------------------------
-
-	if self.mx then
-		local lbuf = ffi.new'layer_t*[1]'
-		hit_area = top_e:hit_test(self.cr, self.mx, self.my, 0, lbuf)
-		hit_e = lbuf[0]
-		if hit_e == nil then hit_e = nil end
-		if hit_area == 0 then hit_area = nil end
-
-		if hit_e and self.mouse.left then
-			selected_layer_path = {}
-			local e = hit_e
-			while e ~= top_e do
-				table.insert(selected_layer_path, 1, e.index)
-				e = e.parent
-			end
-		end
-	end
+		1 / draw_changed_dt, draw_changed_dt * 1000))
+	self:heading(string.format(
+		'Repaint:                                      %.1f fps, %.1f ms',
+		1 / repaint_fps_dt, repaint_fps_dt * 1000))
 
 end
 
@@ -942,7 +986,8 @@ save_session()
 save_state()
 
 --free everything and check for leaks.
-top_e:free()
-default_e:free()
-lib:free()
+top_e:release()
+default_e:release()
+lib:release()
 layer.memreport()
+

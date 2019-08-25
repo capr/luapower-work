@@ -40,10 +40,9 @@ matrix = cairo_matrix_t
 pattern = cairo_pattern_t
 context = cairo_t
 surface = cairo_surface_t
-
 rect = rect(num)
-
 Bitmap = bitmap.Bitmap
+FontLoadFunc = tr.FontLoadFunc
 
 --common enums ---------------------------------------------------------------
 
@@ -105,6 +104,27 @@ change = macro(function(self, FIELD, v)
 	end
 end)
 
+struct Layer;
+
+Layer.methods.change = macro(function(self, target, FIELD, v, WHAT)
+	if WHAT then
+		if type(WHAT) == 'terraquote' then WHAT = WHAT:asvalue() end
+		return quote
+			var changed = change(target, FIELD, v)
+			if changed then
+				escape
+					local s = WHAT
+					for s in s:gmatch'[^%s]+' do
+						emit quote self:[s..'_changed']() end
+					end
+				end
+			end
+		end
+	else
+		return quote change(target, FIELD, v) end
+	end
+end)
+
 --bool bitmap ----------------------------------------------------------------
 
 struct BoolBitmap {
@@ -145,10 +165,7 @@ end
 
 --border ---------------------------------------------------------------------
 
-struct Layer;
-
 BorderLineToFunc = {&Layer, &context, num, num, num} -> {}
-BorderLineToFunc.cname = 'll_border_lineto_func'
 
 struct Border (gettersandsetters) {
 
@@ -454,7 +471,6 @@ end
 struct Lib (gettersandsetters) {
 	text_renderer: tr.Renderer;
 	grid_occupied: BoolBitmap;
-	default_text_span: tr.Span;
 	default_shadow: Shadow;
 	default_layout_solver: &LayoutSolver;
 }
@@ -510,7 +526,11 @@ struct Layer (gettersandsetters) {
 	--layouting and before redrawing.
 	in_transition: bool;
 
+	--clearing this flag makes this layer invisible as far as layouting goes.
+	in_layout: bool;
+
 	layout_valid: bool;
+	pixels_valid: bool;
 
 	--flex & grid layout
 	align_items_x: enum;  --ALIGN_*
@@ -550,11 +570,12 @@ struct Layer (gettersandsetters) {
 }
 
 terra Layer.methods.content_shape_changed :: {&Layer} -> {}
-terra Layer.methods.minsize_changed :: {&Layer} -> {}
 terra Layer.methods.layout_changed :: {&Layer} -> {}
 terra Layer.methods.size_changed :: {&Layer} -> {}
 terra Layer.methods.border_shape_changed :: {&Layer} -> {}
 terra Layer.methods.background_changed :: {&Layer} -> {}
+terra Layer.methods.pixels_changed :: {&Layer} -> {}
+terra Layer.methods.text_layout_changed :: {&Layer} -> {}
 
 terra Layer.methods.init_layout :: {&Layer} -> {}
 terra Layer.methods.content_bbox :: {&Layer, bool} -> {num, num, num, num}
@@ -577,6 +598,7 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 	self.background:init()
 	self.text:init(&lib.text_renderer)
 
+	self.in_layout = true
 	self.align_items_x = ALIGN_STRETCH
 	self.align_items_y = ALIGN_STRETCH
  	self.item_align_x  = ALIGN_STRETCH
@@ -590,6 +612,8 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 	self:init_layout()
 end
 
+--a layer's parent children array is the owner of its child layers so this
+--is called automatically when a layer is removed from that array by any means.
 terra Layer:free()
 	self.children:free()
 	self.border:free()
@@ -607,34 +631,34 @@ terra Layer:get_index()
 	return iif(self.parent ~= nil, self.parent.children:find(self), 0)
 end
 
-terra Layer:release()
-	if self.parent ~= nil then
-		self.parent.children:remove(self.index)
-		self.parent:minsize_changed()
-	else
-		self:free()
-	end
-end
-
 terra Layer:move(parent: &Layer, i: int)
 	if parent == self.parent then
 		if parent ~= nil then
 			i = parent.children:clamp(i)
-			parent.children:move(self.index, i)
-			self:minsize_changed()
+			var i0 = self.index
+			if i0 == i then
+				return
+			end
+			parent.children:move(i0, i)
 		end
 	else
 		if self.parent ~= nil then
 			self.parent.children:leak(self.index)
+			self._parent = nil
+			self.top_layer = self
 		end
 		if parent ~= nil then
 			i = clamp(i, 0, parent.children.len)
 			parent.children:insert(i, self)
 			self._parent = parent
+			self.top_layer = parent.top_layer
 		end
-		self._parent = parent
-		self.top_layer = iif(parent ~= nil, parent.top_layer, self)
-		self:minsize_changed()
+	end
+	if self.visible then
+		if self.in_layout then
+			self:layout_changed()
+		end
+		self:pixels_changed()
 	end
 end
 
@@ -646,16 +670,6 @@ terra Layer:set_index(i: int)
 	self:move(self.parent, i)
 end
 
-terra Lib:layer()
-	return new(Layer, self, nil)
-end
-
-terra Layer:layer()
-	var e = self.lib:layer()
-	e.parent = self
-	return e
-end
-
 Layer.metamethods.__for = function(self, body)
 	return quote
 		var children = self.children --workaround for terra issue #368
@@ -663,20 +677,6 @@ Layer.metamethods.__for = function(self, body)
 			[ body(`children(i)) ]
 		end
 	end
-end
-
-terra Layer:get_child_count()
-	return self.children.len
-end
-
-terra Layer:set_child_count(n: int)
-	var new_elements = self.children:setlen(n)
-	for _,e in new_elements do
-		@e = self.lib:layer()
-		(@e)._parent = self
-		(@e).top_layer = self.top_layer
-	end
-	self:minsize_changed()
 end
 
 terra Layer:child(i: int)
@@ -695,23 +695,35 @@ terra Layer:get_y() return self._y end
 terra Layer:get_w() return self._w end
 terra Layer:get_h() return self._h end
 
-terra Layer:set_x(x: num) if self.in_transition then self.final_x = x else self._x = x end end
-terra Layer:set_y(y: num) if self.in_transition then self.final_y = y else self._y = y end end
+terra Layer:set_x(x: num)
+	if self.in_transition then
+		self.final_x = x
+	else
+		self:change(self, '_x', x, 'pixels')
+	end
+end
+terra Layer:set_y(y: num)
+	if self.in_transition then
+		self.final_y = y
+	else
+		self:change(self, '_y', y, 'pixels')
+	end
+end
 
 terra Layer:set_w(w: num)
 	w = max(w, 0)
 	if self.in_transition then
 		self.final_w = w
-	elseif change(self, '_w', w) then
-		self:size_changed()
+	else
+		self:change(self, '_w', w, 'size pixels')
 	end
 end
 terra Layer:set_h(h: num)
 	h = max(h, 0)
 	if self.in_transition then
 		self.final_h = h
-	elseif change(self, '_h', h) then
-		self:size_changed()
+	else
+		self:change(self, '_h', h, 'size pixels')
 	end
 end
 
@@ -1347,6 +1359,14 @@ end
 
 --text drawing & hit testing -------------------------------------------------
 
+terra Layer:text_layout_changed()
+	if not self.text.layout.min_size_valid then
+		self:layout_changed()
+	elseif self.text.layout.state == tr.STATE_ALIGNED-1 then
+		self.text.layout:align()
+	end
+end
+
 terra Layer:get_caret_created()
 	return self.text.layout.cursors.len > 0
 end
@@ -1681,23 +1701,10 @@ terra Layer:invalidate_layout()
 	self.top_layer.layout_valid = false
 end
 
-terra Layer.methods.sync_layout :: {&Layer} -> {}
-
-terra Layer:top_layer_sync()
-	assert(self.parent == nil)
-	if not self.visible then return end
-	if self.layout_valid then return end
-	self:sync_layout()
-	self.layout_valid = true
-end
-
-terra Layer:sync()
-	self.top_layer:top_layer_sync()
-end
-
-terra Layer:top_layer_draw(cr: &context)
-	self:top_layer_sync()
-	self:draw(cr)
+terra Layer:invalidate_pixels()
+	if self.visible then
+		self.top_layer.pixels_valid = false
+	end
 end
 
 --layout plugin interface ----------------------------------------------------
@@ -1874,7 +1881,7 @@ local text_layout = constant(`LayoutSolver {
 --stuff common to flex & grid layouts ----------------------------------------
 
 terra Layer:get_inlayout()
-	return self.visible
+	return self.visible and self.in_layout
 end
 
 local function stretch_items_main_axis_func(items_T, GET_ITEM, T, X, W)
@@ -2880,7 +2887,6 @@ terra Layer:get_layout_type() return self.layout_solver.type end
 
 terra Layer:set_layout_type(type: enum)
 	self.layout_solver = &layouts[type]
-	self:layout_changed()
 end
 
 terra Layer:init_layout()
@@ -2905,21 +2911,20 @@ terra Layer:content_shape_changed()
 	self:invalidate_parent_content_shadows()
 end
 
-terra Layer:minsize_changed()
-	self:invalidate_layout()
-end
-
 terra Layer:layout_changed()
 	self:invalidate_layout()
 end
 
+terra Layer:pixels_changed()
+	self:invalidate_pixels()
+end
+
 --lib ------------------------------------------------------------------------
 
-terra Lib:init(load_font: tr.FontLoadFunc, unload_font: tr.FontLoadFunc)
+terra Lib:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	self.text_renderer:init(load_font, unload_font)
 	self.grid_occupied:init()
 	self.default_layout_solver = &null_layout
-	self.default_text_span:init()
 	self.default_shadow:init(nil)
 end
 
