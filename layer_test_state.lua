@@ -1,4 +1,4 @@
 return {
 	continuous_repaint=true,
-	session_number=1
+	session_number=2
 }

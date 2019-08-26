@@ -960,9 +960,6 @@ function testui:repaint()
 
 	if top_e:sync() then
 		self.ewindow:invalidate()
-	else
-		--TODO: remove this after pixel invalidation code is finished.
-		self.ewindow:invalidate()
 	end
 
 	self.x = self.win_w - 1200

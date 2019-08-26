@@ -39,37 +39,36 @@ double layer_get_child_count(layer_t*);
 void layer_set_child_count(layer_t*, double);
 bool layer_sync(layer_t*);
 void layer_draw(layer_t*, _cairo*);
-bool layer_get_pixels_valid(layer_t*);
-double layer_get_cy(layer_t*);
 double layer_get_y(layer_t*);
 double layer_get_cx(layer_t*);
 double layer_get_x(layer_t*);
-void layer_set_y(layer_t*, double);
+double layer_get_cy(layer_t*);
+void layer_set_cx(layer_t*, double);
 void layer_set_x(layer_t*, double);
 void layer_set_cy(layer_t*, double);
-void layer_set_cx(layer_t*, double);
-double layer_get_ch(layer_t*);
-double layer_get_cw(layer_t*);
+void layer_set_y(layer_t*, double);
 double layer_get_w(layer_t*);
 double layer_get_h(layer_t*);
+double layer_get_cw(layer_t*);
+double layer_get_ch(layer_t*);
+void layer_set_h(layer_t*, double);
 void layer_set_cw(layer_t*, double);
 void layer_set_ch(layer_t*, double);
 void layer_set_w(layer_t*, double);
-void layer_set_h(layer_t*, double);
 bool layer_get_in_transition(layer_t*);
 void layer_set_in_transition(layer_t*, bool);
 double layer_get_final_x(layer_t*);
 double layer_get_final_y(layer_t*);
 double layer_get_final_w(layer_t*);
 double layer_get_final_h(layer_t*);
+double layer_get_padding_top(layer_t*);
 double layer_get_padding_right(layer_t*);
 double layer_get_padding_bottom(layer_t*);
 double layer_get_padding_left(layer_t*);
-double layer_get_padding_top(layer_t*);
-void layer_set_padding_top(layer_t*, double);
 void layer_set_padding_right(layer_t*, double);
 void layer_set_padding_left(layer_t*, double);
 void layer_set_padding_bottom(layer_t*, double);
+void layer_set_padding_top(layer_t*, double);
 double layer_get_padding(layer_t*);
 void layer_set_padding(layer_t*, double);
 double layer_get_operator(layer_t*);
@@ -96,32 +95,32 @@ void layer_set_scale_cx(layer_t*, double);
 void layer_set_scale_cy(layer_t*, double);
 double layer_get_border_width_right(layer_t*);
 double layer_get_border_width_left(layer_t*);
-double layer_get_border_width_top(layer_t*);
 double layer_get_border_width_bottom(layer_t*);
-void layer_set_border_width_right(layer_t*, double);
-void layer_set_border_width_top(layer_t*, double);
+double layer_get_border_width_top(layer_t*);
 void layer_set_border_width_left(layer_t*, double);
+void layer_set_border_width_top(layer_t*, double);
 void layer_set_border_width_bottom(layer_t*, double);
-double layer_get_border_color_left(layer_t*);
-double layer_get_border_color_top(layer_t*);
+void layer_set_border_width_right(layer_t*, double);
 double layer_get_border_color_right(layer_t*);
+double layer_get_border_color_top(layer_t*);
 double layer_get_border_color_bottom(layer_t*);
-void layer_set_border_color_bottom(layer_t*, double);
+double layer_get_border_color_left(layer_t*);
 void layer_set_border_color_top(layer_t*, double);
+void layer_set_border_color_bottom(layer_t*, double);
 void layer_set_border_color_left(layer_t*, double);
 void layer_set_border_color_right(layer_t*, double);
 double layer_get_border_width(layer_t*);
 void layer_set_border_width(layer_t*, double);
 double layer_get_border_color(layer_t*);
 void layer_set_border_color(layer_t*, double);
-double layer_get_corner_radius_top_left(layer_t*);
 double layer_get_corner_radius_top_right(layer_t*);
 double layer_get_corner_radius_bottom_right(layer_t*);
+double layer_get_corner_radius_top_left(layer_t*);
 double layer_get_corner_radius_bottom_left(layer_t*);
-void layer_set_corner_radius_bottom_left(layer_t*, double);
+void layer_set_corner_radius_bottom_right(layer_t*, double);
 void layer_set_corner_radius_top_right(layer_t*, double);
 void layer_set_corner_radius_top_left(layer_t*, double);
-void layer_set_corner_radius_bottom_right(layer_t*, double);
+void layer_set_corner_radius_bottom_left(layer_t*, double);
 double layer_get_corner_radius(layer_t*);
 void layer_set_corner_radius(layer_t*, double);
 double layer_get_border_dash_count(layer_t*);
@@ -145,18 +144,18 @@ double layer_get_background_color(layer_t*);
 void layer_set_background_color(layer_t*, double);
 bool layer_get_background_color_set(layer_t*);
 void layer_set_background_color_set(layer_t*, bool);
-double layer_get_background_r2(layer_t*);
-double layer_get_background_r1(layer_t*);
-double layer_get_background_x2(layer_t*);
 double layer_get_background_y2(layer_t*);
 double layer_get_background_x1(layer_t*);
+double layer_get_background_x2(layer_t*);
 double layer_get_background_y1(layer_t*);
-void layer_set_background_x2(layer_t*, double);
-void layer_set_background_r1(layer_t*, double);
-void layer_set_background_y2(layer_t*, double);
-void layer_set_background_x1(layer_t*, double);
-void layer_set_background_r2(layer_t*, double);
+double layer_get_background_r1(layer_t*);
+double layer_get_background_r2(layer_t*);
 void layer_set_background_y1(layer_t*, double);
+void layer_set_background_r1(layer_t*, double);
+void layer_set_background_x1(layer_t*, double);
+void layer_set_background_y2(layer_t*, double);
+void layer_set_background_x2(layer_t*, double);
+void layer_set_background_r2(layer_t*, double);
 double layer_get_background_color_stop_count(layer_t*);
 void layer_set_background_color_stop_count(layer_t*, double);
 double layer_get_background_color_stop_color(layer_t*, double);
@@ -227,46 +226,46 @@ void layer_set_hardline_spacing(layer_t*, double);
 void layer_set_paragraph_spacing(layer_t*, double);
 double layer_get_span_count(layer_t*);
 void layer_set_span_count(layer_t*, double);
-bool layer_get_text_opacity(layer_t*, double, double, double*);
-bool layer_get_text_operator(layer_t*, double, double, double*);
-bool layer_get_font_id(layer_t*, double, double, double*);
-bool layer_get_text_color(layer_t*, double, double, double*);
-bool layer_get_lang(layer_t*, double, double, const char **);
-bool layer_get_nowrap(layer_t*, double, double, bool*);
-bool layer_get_features(layer_t*, double, double, const char **);
 bool layer_get_script(layer_t*, double, double, const char **);
 bool layer_get_paragraph_dir(layer_t*, double, double, double*);
 bool layer_get_font_size(layer_t*, double, double, double*);
-void layer_set_text_opacity(layer_t*, double, double, double);
-void layer_set_font_id(layer_t*, double, double, double);
-void layer_set_text_operator(layer_t*, double, double, double);
+bool layer_get_features(layer_t*, double, double, const char **);
+bool layer_get_lang(layer_t*, double, double, const char **);
+bool layer_get_text_color(layer_t*, double, double, double*);
+bool layer_get_text_operator(layer_t*, double, double, double*);
+bool layer_get_font_id(layer_t*, double, double, double*);
+bool layer_get_nowrap(layer_t*, double, double, bool*);
+bool layer_get_text_opacity(layer_t*, double, double, double*);
 void layer_set_nowrap(layer_t*, double, double, bool);
+void layer_set_text_operator(layer_t*, double, double, double);
+void layer_set_lang(layer_t*, double, double, const char *);
+void layer_set_text_color(layer_t*, double, double, double);
 void layer_set_features(layer_t*, double, double, const char *);
 void layer_set_paragraph_dir(layer_t*, double, double, double);
-void layer_set_text_color(layer_t*, double, double, double);
+void layer_set_text_opacity(layer_t*, double, double, double);
+void layer_set_font_id(layer_t*, double, double, double);
 void layer_set_font_size(layer_t*, double, double, double);
 void layer_set_script(layer_t*, double, double, const char *);
-void layer_set_lang(layer_t*, double, double, const char *);
-const char * layer_get_span_script(layer_t*, double);
-double layer_get_span_font_id(layer_t*, double);
-double layer_get_span_paragraph_dir(layer_t*, double);
 double layer_get_span_text_opacity(layer_t*, double);
 double layer_get_span_text_operator(layer_t*, double);
-bool layer_get_span_nowrap(layer_t*, double);
 const char * layer_get_span_features(layer_t*, double);
-double layer_get_span_text_color(layer_t*, double);
+double layer_get_span_paragraph_dir(layer_t*, double);
 const char * layer_get_span_lang(layer_t*, double);
+double layer_get_span_text_color(layer_t*, double);
 double layer_get_span_font_size(layer_t*, double);
-void layer_set_span_font_id(layer_t*, double, double);
-void layer_set_span_script(layer_t*, double, const char *);
-void layer_set_span_paragraph_dir(layer_t*, double, double);
-void layer_set_span_text_operator(layer_t*, double, double);
-void layer_set_span_nowrap(layer_t*, double, bool);
-void layer_set_span_lang(layer_t*, double, const char *);
-void layer_set_span_font_size(layer_t*, double, double);
+double layer_get_span_font_id(layer_t*, double);
+bool layer_get_span_nowrap(layer_t*, double);
+const char * layer_get_span_script(layer_t*, double);
 void layer_set_span_text_opacity(layer_t*, double, double);
-void layer_set_span_text_color(layer_t*, double, double);
 void layer_set_span_features(layer_t*, double, const char *);
+void layer_set_span_paragraph_dir(layer_t*, double, double);
+void layer_set_span_font_size(layer_t*, double, double);
+void layer_set_span_text_operator(layer_t*, double, double);
+void layer_set_span_text_color(layer_t*, double, double);
+void layer_set_span_lang(layer_t*, double, const char *);
+void layer_set_span_font_id(layer_t*, double, double);
+void layer_set_span_nowrap(layer_t*, double, bool);
+void layer_set_span_script(layer_t*, double, const char *);
 double layer_get_span_offset(layer_t*, double);
 void layer_set_span_offset(layer_t*, double, double);
 double* layer_text_cursor_xs(layer_t*, double, double*);
@@ -379,24 +378,23 @@ local getters = {
 	top_layer = C.layer_get_top_layer,
 	index = C.layer_get_index,
 	child_count = C.layer_get_child_count,
-	pixels_valid = C.layer_get_pixels_valid,
-	cy = C.layer_get_cy,
 	y = C.layer_get_y,
 	cx = C.layer_get_cx,
 	x = C.layer_get_x,
-	ch = C.layer_get_ch,
-	cw = C.layer_get_cw,
+	cy = C.layer_get_cy,
 	w = C.layer_get_w,
 	h = C.layer_get_h,
+	cw = C.layer_get_cw,
+	ch = C.layer_get_ch,
 	in_transition = C.layer_get_in_transition,
 	final_x = C.layer_get_final_x,
 	final_y = C.layer_get_final_y,
 	final_w = C.layer_get_final_w,
 	final_h = C.layer_get_final_h,
+	padding_top = C.layer_get_padding_top,
 	padding_right = C.layer_get_padding_right,
 	padding_bottom = C.layer_get_padding_bottom,
 	padding_left = C.layer_get_padding_left,
-	padding_top = C.layer_get_padding_top,
 	padding = C.layer_get_padding,
 	operator = C.layer_get_operator,
 	clip_content = C.layer_get_clip_content,
@@ -411,17 +409,17 @@ local getters = {
 	scale_cy = C.layer_get_scale_cy,
 	border_width_right = C.layer_get_border_width_right,
 	border_width_left = C.layer_get_border_width_left,
-	border_width_top = C.layer_get_border_width_top,
 	border_width_bottom = C.layer_get_border_width_bottom,
-	border_color_left = C.layer_get_border_color_left,
-	border_color_top = C.layer_get_border_color_top,
+	border_width_top = C.layer_get_border_width_top,
 	border_color_right = C.layer_get_border_color_right,
+	border_color_top = C.layer_get_border_color_top,
 	border_color_bottom = C.layer_get_border_color_bottom,
+	border_color_left = C.layer_get_border_color_left,
 	border_width = C.layer_get_border_width,
 	border_color = C.layer_get_border_color,
-	corner_radius_top_left = C.layer_get_corner_radius_top_left,
 	corner_radius_top_right = C.layer_get_corner_radius_top_right,
 	corner_radius_bottom_right = C.layer_get_corner_radius_bottom_right,
+	corner_radius_top_left = C.layer_get_corner_radius_top_left,
 	corner_radius_bottom_left = C.layer_get_corner_radius_bottom_left,
 	corner_radius = C.layer_get_corner_radius,
 	border_dash_count = C.layer_get_border_dash_count,
@@ -433,12 +431,12 @@ local getters = {
 	background_clip_border_offset = C.layer_get_background_clip_border_offset,
 	background_color = C.layer_get_background_color,
 	background_color_set = C.layer_get_background_color_set,
-	background_r2 = C.layer_get_background_r2,
-	background_r1 = C.layer_get_background_r1,
-	background_x2 = C.layer_get_background_x2,
 	background_y2 = C.layer_get_background_y2,
 	background_x1 = C.layer_get_background_x1,
+	background_x2 = C.layer_get_background_x2,
 	background_y1 = C.layer_get_background_y1,
+	background_r1 = C.layer_get_background_r1,
+	background_r2 = C.layer_get_background_r2,
 	background_color_stop_count = C.layer_get_background_color_stop_count,
 	background_image_w = C.layer_get_background_image_w,
 	background_image_h = C.layer_get_background_image_h,
@@ -502,19 +500,19 @@ local setters = {
 	parent = C.layer_set_parent,
 	index = C.layer_set_index,
 	child_count = C.layer_set_child_count,
-	y = C.layer_set_y,
+	cx = C.layer_set_cx,
 	x = C.layer_set_x,
 	cy = C.layer_set_cy,
-	cx = C.layer_set_cx,
+	y = C.layer_set_y,
+	h = C.layer_set_h,
 	cw = C.layer_set_cw,
 	ch = C.layer_set_ch,
 	w = C.layer_set_w,
-	h = C.layer_set_h,
 	in_transition = C.layer_set_in_transition,
-	padding_top = C.layer_set_padding_top,
 	padding_right = C.layer_set_padding_right,
 	padding_left = C.layer_set_padding_left,
 	padding_bottom = C.layer_set_padding_bottom,
+	padding_top = C.layer_set_padding_top,
 	padding = C.layer_set_padding,
 	operator = C.layer_set_operator,
 	clip_content = C.layer_set_clip_content,
@@ -527,20 +525,20 @@ local setters = {
 	scale = C.layer_set_scale,
 	scale_cx = C.layer_set_scale_cx,
 	scale_cy = C.layer_set_scale_cy,
-	border_width_right = C.layer_set_border_width_right,
-	border_width_top = C.layer_set_border_width_top,
 	border_width_left = C.layer_set_border_width_left,
+	border_width_top = C.layer_set_border_width_top,
 	border_width_bottom = C.layer_set_border_width_bottom,
-	border_color_bottom = C.layer_set_border_color_bottom,
+	border_width_right = C.layer_set_border_width_right,
 	border_color_top = C.layer_set_border_color_top,
+	border_color_bottom = C.layer_set_border_color_bottom,
 	border_color_left = C.layer_set_border_color_left,
 	border_color_right = C.layer_set_border_color_right,
 	border_width = C.layer_set_border_width,
 	border_color = C.layer_set_border_color,
-	corner_radius_bottom_left = C.layer_set_corner_radius_bottom_left,
+	corner_radius_bottom_right = C.layer_set_corner_radius_bottom_right,
 	corner_radius_top_right = C.layer_set_corner_radius_top_right,
 	corner_radius_top_left = C.layer_set_corner_radius_top_left,
-	corner_radius_bottom_right = C.layer_set_corner_radius_bottom_right,
+	corner_radius_bottom_left = C.layer_set_corner_radius_bottom_left,
 	corner_radius = C.layer_set_corner_radius,
 	border_dash_count = C.layer_set_border_dash_count,
 	border_dash_offset = C.layer_set_border_dash_offset,
@@ -552,12 +550,12 @@ local setters = {
 	background_clip_border_offset = C.layer_set_background_clip_border_offset,
 	background_color = C.layer_set_background_color,
 	background_color_set = C.layer_set_background_color_set,
-	background_x2 = C.layer_set_background_x2,
-	background_r1 = C.layer_set_background_r1,
-	background_y2 = C.layer_set_background_y2,
-	background_x1 = C.layer_set_background_x1,
-	background_r2 = C.layer_set_background_r2,
 	background_y1 = C.layer_set_background_y1,
+	background_r1 = C.layer_set_background_r1,
+	background_x1 = C.layer_set_background_x1,
+	background_y2 = C.layer_set_background_y2,
+	background_x2 = C.layer_set_background_x2,
+	background_r2 = C.layer_set_background_r2,
 	background_color_stop_count = C.layer_set_background_color_stop_count,
 	background_x = C.layer_set_background_x,
 	background_y = C.layer_set_background_y,
@@ -642,46 +640,46 @@ local methods = {
 	set_text = C.layer_set_text,
 	set_text_utf8 = C.layer_set_text_utf8,
 	get_text_utf8 = C.layer_get_text_utf8,
-	get_text_opacity = C.layer_get_text_opacity,
-	get_text_operator = C.layer_get_text_operator,
-	get_font_id = C.layer_get_font_id,
-	get_text_color = C.layer_get_text_color,
-	get_lang = C.layer_get_lang,
-	get_nowrap = C.layer_get_nowrap,
-	get_features = C.layer_get_features,
 	get_script = C.layer_get_script,
 	get_paragraph_dir = C.layer_get_paragraph_dir,
 	get_font_size = C.layer_get_font_size,
-	set_text_opacity = C.layer_set_text_opacity,
-	set_font_id = C.layer_set_font_id,
-	set_text_operator = C.layer_set_text_operator,
+	get_features = C.layer_get_features,
+	get_lang = C.layer_get_lang,
+	get_text_color = C.layer_get_text_color,
+	get_text_operator = C.layer_get_text_operator,
+	get_font_id = C.layer_get_font_id,
+	get_nowrap = C.layer_get_nowrap,
+	get_text_opacity = C.layer_get_text_opacity,
 	set_nowrap = C.layer_set_nowrap,
+	set_text_operator = C.layer_set_text_operator,
+	set_lang = C.layer_set_lang,
+	set_text_color = C.layer_set_text_color,
 	set_features = C.layer_set_features,
 	set_paragraph_dir = C.layer_set_paragraph_dir,
-	set_text_color = C.layer_set_text_color,
+	set_text_opacity = C.layer_set_text_opacity,
+	set_font_id = C.layer_set_font_id,
 	set_font_size = C.layer_set_font_size,
 	set_script = C.layer_set_script,
-	set_lang = C.layer_set_lang,
-	get_span_script = C.layer_get_span_script,
-	get_span_font_id = C.layer_get_span_font_id,
-	get_span_paragraph_dir = C.layer_get_span_paragraph_dir,
 	get_span_text_opacity = C.layer_get_span_text_opacity,
 	get_span_text_operator = C.layer_get_span_text_operator,
-	get_span_nowrap = C.layer_get_span_nowrap,
 	get_span_features = C.layer_get_span_features,
-	get_span_text_color = C.layer_get_span_text_color,
+	get_span_paragraph_dir = C.layer_get_span_paragraph_dir,
 	get_span_lang = C.layer_get_span_lang,
+	get_span_text_color = C.layer_get_span_text_color,
 	get_span_font_size = C.layer_get_span_font_size,
-	set_span_font_id = C.layer_set_span_font_id,
-	set_span_script = C.layer_set_span_script,
-	set_span_paragraph_dir = C.layer_set_span_paragraph_dir,
-	set_span_text_operator = C.layer_set_span_text_operator,
-	set_span_nowrap = C.layer_set_span_nowrap,
-	set_span_lang = C.layer_set_span_lang,
-	set_span_font_size = C.layer_set_span_font_size,
+	get_span_font_id = C.layer_get_span_font_id,
+	get_span_nowrap = C.layer_get_span_nowrap,
+	get_span_script = C.layer_get_span_script,
 	set_span_text_opacity = C.layer_set_span_text_opacity,
-	set_span_text_color = C.layer_set_span_text_color,
 	set_span_features = C.layer_set_span_features,
+	set_span_paragraph_dir = C.layer_set_span_paragraph_dir,
+	set_span_font_size = C.layer_set_span_font_size,
+	set_span_text_operator = C.layer_set_span_text_operator,
+	set_span_text_color = C.layer_set_span_text_color,
+	set_span_lang = C.layer_set_span_lang,
+	set_span_font_id = C.layer_set_span_font_id,
+	set_span_nowrap = C.layer_set_span_nowrap,
+	set_span_script = C.layer_set_span_script,
 	get_span_offset = C.layer_get_span_offset,
 	set_span_offset = C.layer_set_span_offset,
 	text_cursor_xs = C.layer_text_cursor_xs,

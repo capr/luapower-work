@@ -119,9 +119,10 @@ Layer.methods.change = macro(function(self, target, FIELD, v, WHAT)
 					end
 				end
 			end
+			in changed
 		end
 	else
-		return quote change(target, FIELD, v) end
+		return `change(target, FIELD, v)
 	end
 end)
 
@@ -575,7 +576,7 @@ terra Layer.methods.size_changed :: {&Layer} -> {}
 terra Layer.methods.border_shape_changed :: {&Layer} -> {}
 terra Layer.methods.background_changed :: {&Layer} -> {}
 terra Layer.methods.pixels_changed :: {&Layer} -> {}
-terra Layer.methods.text_layout_changed :: {&Layer} -> {}
+terra Layer.methods.text_changed :: {&Layer} -> {}
 
 terra Layer.methods.init_layout :: {&Layer} -> {}
 terra Layer.methods.content_bbox :: {&Layer, bool} -> {num, num, num, num}
@@ -1359,11 +1360,13 @@ end
 
 --text drawing & hit testing -------------------------------------------------
 
-terra Layer:text_layout_changed()
+terra Layer:text_changed()
 	if not self.text.layout.min_size_valid then
 		self:layout_changed()
+		self:pixels_changed()
 	elseif self.text.layout.state == tr.STATE_ALIGNED-1 then
 		self.text.layout:align()
+		self:pixels_changed()
 	end
 end
 

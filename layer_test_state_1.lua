@@ -2,6 +2,7 @@ return {
 	root={
 		align_items_x=8,
 		align_items_y=8,
+		background_color=4294967057,
 		background_color_stop_count=2,
 		background_color_stops={
 			{
@@ -196,7 +197,16 @@ return {
 				y=147.83333333333334
 			},
 			{
-				background_color=4294967057,
+				border_width_bottom=1,
+				border_width_left=1,
+				border_width_right=1,
+				border_width_top=1,
+				h=168,
+				w=50.500000000000007,
+				x=40.899999999999999,
+				y=547.16666666666674
+			},
+			{
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
@@ -209,16 +219,6 @@ return {
 						shadow_color=3066617087
 					}
 				},
-				w=50.500000000000007,
-				x=40.899999999999999,
-				y=547.16666666666674
-			},
-			{
-				border_width_bottom=1,
-				border_width_left=1,
-				border_width_right=1,
-				border_width_top=1,
-				h=168,
 				w=50.5,
 				x=132.30000000000001,
 				y=547.16666666666674
@@ -310,6 +310,5 @@ return {
 		y=13
 	},
 	selected_layer_path={
-		4
 	}
 }
