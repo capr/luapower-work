@@ -1,6 +1,7 @@
 
 local ffi = require'ffi'
 local time = require'time'
+local fs = require'fs'
 local testui = require'testui'
 local glue = require'glue'
 local bundle = require'bundle'
@@ -66,13 +67,12 @@ end
 
 --global state ---------------------------------------------------------------
 
-local top_e
+local top_e, sel_e
 local selected_layer_path = {}
 local e, hit_e, hit_area
 
 local sessions = {}
-local session_number
-local continuous_repaint
+local session = '1'
 local layer_changed = false
 local draw_changed_dt = 0
 local draw_fps_t, draw_fps_dt = 0, 0
@@ -158,7 +158,7 @@ local function serialize_layer(e)
 	t.border_dash_offset  = e.border_dash_offset
 	t.border_offset = e.border_offset
 	t.background_type = e.background_type
-	t.background_color = e.background_color_set and e.background_color or nil
+	t.background_color = e.background_color
 	t.background_x1 = e.background_x1
 	t.background_y1 = e.background_y1
 	t.background_x2 = e.background_x2
@@ -173,6 +173,7 @@ local function serialize_layer(e)
 	--TODO: background_image = e.background_image
 	t.background_hittable            = e.background_hittable
 	t.background_operator            = e.background_operator
+	t.background_opacity             = e.background_opacity
 	t.background_clip_border_offset  = e.background_clip_border_offset
 	t.background_x                   = e.background_x
 	t.background_y                   = e.background_y
@@ -301,59 +302,67 @@ local function create_top_e()
 	top_e.w = 500
 	top_e.h = 300
 	top_e.border_width = 1
+
+	if not sel_e then
+		sel_e = lib:layer()
+		sel_e.background_color = 0xffffff22
+	end
 end
 
 --session management ---------------------------------------------------------
 
-local function session_file(i)
-	return string.format('layer_test_state_%d.lua', i)
+local function session_file(sn)
+	return string.format('layer_test_state_%s.lua', sn)
 end
 
 local function state_file()
 	return 'layer_test_state.lua'
 end
 
+local function session_list()
+	local t = {}
+	for s,d in fs.dir'.' do
+		if s then
+			local sn = d:is'file' and s:match'^layer_test_state_(.-)%.lua'
+			if sn then
+				push(t, sn)
+			end
+		end
+	end
+	table.sort(t)
+	if #t == 0 then t[1] = '1' end
+	return t
+end
+
 local function save_session()
-	if not session_number then return end
 	local t = serialize_layer(top_e)
-	local file = session_file(session_number)
+	local file = session_file(session)
 	save_table(file, {root = t, selected_layer_path = selected_layer_path})
 end
 
-local function load_session(sn)
+local function load_session(name)
 	create_top_e()
-	local t = load_table(session_file(sn))
+	local t = load_table(session_file(name))
 	if t then
 		selected_layer_path = t.selected_layer_path
 		deserialize_layer(top_e, t.root)
 	end
-	session_number = sn
+	session = name
 end
 
 local function load_sessions()
-	sessions = {}
-	local i = 1
-	while glue.canopen(session_file(i)) do
-		sessions[i] = i
-		i = i + 1
-	end
+	sessions = session_list()
 end
 
 local function load_state()
 	local state = load_table(state_file())
-	if state then
-		load_session(state.session_number)
-		testui:continuous_repaint(state.continuous_repaint)
-		continuous_repaint = state.continuous_repaint
-	else
-		create_top_e()
-	end
+	local sn = state and state.session or '1'
+	load_session(glue.indexof(sn, sessions) and sn or '1')
 end
 
 local function save_state()
 	save_table(state_file(), {
-		session_number = session_number,
-		continuous_repaint = continuous_repaint,
+		session = session,
 	})
 end
 
@@ -518,33 +527,28 @@ function testui:repaint()
 
 	local y = self.y
 	self:pushgroup'right'
-	self.x = self.win_w - 80 * #sessions - 20 - 30 * 2 - 80
-	self.min_w = 80
-	local sn = self:choose('session', sessions, session_number, 'session %d')
+	self.x = self.win_w - 40 * #sessions - 20 - 30 * 2
+	self.min_w = 40
+	local sn = self:choose('session', sessions, session)
 	if sn then
 		save_session()
 		load_session(sn)
 	end
 	self.min_w = 30
 	if self:button'+' then
-		push(sessions, #sessions + 1)
+		push(sessions, tostring(#sessions + 1))
 	end
 	if self:button'-' then
-		os.remove(session_file(pop(sessions)))
-	end
-
-	self.x = self.x + 20
-	if self:button('CRP', nil, continuous_repaint) then
-		continuous_repaint = not continuous_repaint
-		testui:continuous_repaint(continuous_repaint)
+		local i = glue.indexof(session, sessions)
+		os.remove(session_file(table.remove(sessions, i)))
+		if #sessions == 0 then sessions[1] = '1' end
+		load_session(sessions[math.min(i, #sessions)] or '1')
 	end
 
 	self:popgroup()
 	self.y = y
 
 	--layer tree editor / layer selector --------------------------------------
-
-	local e0 = e
 
 	e = top_e
 	local path_i = 1
@@ -577,8 +581,17 @@ function testui:repaint()
 		id = id..'/'..child_i
 	end
 
-	if e0 then e0.background_color_set = false end
-	if e then e.background_color = 0xffffff11 end
+	sel_e.pos_parent = e.parent
+	sel_e.x = e.x
+	sel_e.y = e.y
+	sel_e.w = e.w
+	sel_e.h = e.h
+	sel_e.rotation = e.rotation
+	sel_e.rotation_cx = e.rotation_cx
+	sel_e.rotation_cy = e.rotation_cy
+	sel_e.scale    = e.scale
+	sel_e.scale_cx = e.scale_cx
+	sel_e.scale_cy = e.scale_cy
 
 	--layer property editors --------------------------------------------------
 
@@ -692,9 +705,8 @@ function testui:repaint()
 
 	self:heading'Background'
 
-	choose('background_type', 'background_', {'color', 'linear_gradient', 'radial_gradient', 'image'})
+	choose('background_type', 'background_type_', {'none', 'color', 'linear_gradient', 'radial_gradient', 'image'})
 	pickcolor('background_color')
-	toggle('background_color_set')
 
 	self:pushgroup('right', 1/2)
 	slidex('background_x1')
@@ -727,6 +739,7 @@ function testui:repaint()
 
 	toggle('background_hittable')
 	choose('background_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'})
+	slideo'background_opacity'
 	slideo('background_clip_border_offset')
 
 	self:pushgroup('right', 1/2)
@@ -793,9 +806,9 @@ function testui:repaint()
 
 	self:heading'Layouting'
 
-	self.x = self.x + 40
+	self.x = self.x + 80
 	choose('layout_type', 'layout_', {'null', 'textbox', 'flexbox', 'grid'})
-	self.x = self.x - 40
+	self.x = self.x - 80
 
 	self:pushgroup('right', 1/2)
 	slidex('min_cw')
@@ -902,6 +915,7 @@ function testui:repaint()
 		function self.ewindow:repaint()
 			local cr = self:bitmap():cairo()
 			local repaint_t0 = time.clock()
+			cr:identity_matrix()
 			cr:operator'source'
 			cr:rgba(0, 0, 0, 0)
 			cr:paint()
@@ -909,6 +923,7 @@ function testui:repaint()
 			local draw_t0 = time.clock()
 			top_e:draw(cr)
 			local draw_t = time.clock()
+			sel_e:draw(cr)
 			local repaint_t = draw_t
 			local draw_dt    = draw_t    - draw_t0
 			local repaint_dt = repaint_t - repaint_t0
@@ -953,14 +968,14 @@ function testui:repaint()
 					table.insert(selected_layer_path, 1, e.index)
 					e = e.parent
 				end
+				self:parent():invalidate()
 			end
 		end
 
 	end
 
-	if top_e:sync() then
-		self.ewindow:invalidate()
-	end
+	if top_e:sync() then self.ewindow:invalidate() end
+	if sel_e:sync() then self.ewindow:invalidate() end
 
 	self.x = self.win_w - 1200
 	self.y = 10
@@ -984,6 +999,7 @@ save_state()
 
 --free everything and check for leaks.
 top_e:release()
+sel_e:release()
 default_e:release()
 lib:release()
 layer.memreport()

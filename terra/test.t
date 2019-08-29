@@ -1,3 +1,15 @@
+setfenv(1, require'terra/low')
+local color = require'terra/cairo'.cairo_argb32_color_t
+terra f()
+	var c1 = color{uint = 1}
+	var c2 = color{uint = 1}
+	print(c1 ~= c2)
+end
+f()
+
+
+do return end
+
 local xx = require'low'.module'xx'
 local xx2 = require'low'.module'xx'
 assert(xx == xx2)

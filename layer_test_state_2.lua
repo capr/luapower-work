@@ -3,6 +3,7 @@ return {
 		align_items_x=8,
 		align_items_y=8,
 		background_clip_border_offset=-1.2,
+		background_color=4294967057,
 		background_color_stop_count=2,
 		background_color_stops={
 			{
@@ -23,7 +24,7 @@ return {
 		background_scale=0.83299999999999996,
 		background_scale_cx=960,
 		background_scale_cy=-314,
-		background_type=7,
+		background_type=3,
 		background_x1=36.5,
 		background_x2=-61,
 		background_y1=196,
@@ -51,7 +52,6 @@ return {
 		border_width_top=6,
 		children={
 			{
-				background_color=4294967057,
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
@@ -76,7 +76,7 @@ return {
 				y=66.833333333333329
 			},
 			{
-				background_type=8,
+				background_type=4,
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
@@ -134,6 +134,5 @@ return {
 		y=229
 	},
 	selected_layer_path={
-		0
 	}
 }

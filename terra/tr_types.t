@@ -69,11 +69,11 @@ ALIGN_END     = 6 --based on bidi dir; only for align_x
 ALIGN_MAX     = 6
 
 --dir
-DIR_AUTO = FRIBIDI_PAR_ON; assert(DIR_AUTO ~= 0)
-DIR_LTR  = FRIBIDI_PAR_LTR
-DIR_RTL  = FRIBIDI_PAR_RTL
-DIR_WLTR = FRIBIDI_PAR_WLTR
-DIR_WRTL = FRIBIDI_PAR_WRTL
+DIR_AUTO = 1 --starting at 1, see above.
+DIR_LTR  = 2
+DIR_RTL  = 3
+DIR_WLTR = 4
+DIR_WRTL = 5
 
 --linebreak codes
 BREAK_NONE = 0
@@ -85,8 +85,28 @@ BREAK_PARA = 2
 num = float
 rect = rect(num)
 font_id_t = int16
-bidi_dir_t = FriBidiParType
-bidi_level_t = FriBidiLevel
+bidi_dir_t = enum
+bidi_level_t = enum
+
+do
+	terra to_fribidi_dir(dir: bidi_dir_t): FriBidiParType
+		if dir == DIR_AUTO then return FRIBIDI_PAR_ON   end
+		if dir == DIR_LTR  then return FRIBIDI_PAR_LTR  end
+		if dir == DIR_RTL  then return FRIBIDI_PAR_RTL  end
+		if dir == DIR_WLTR then return FRIBIDI_PAR_WLTR end
+		if dir == DIR_WRTL then return FRIBIDI_PAR_WRTL end
+		assert(false)
+	end
+
+	terra from_fribidi_dir(dir: FriBidiParType): enum
+		if dir == FRIBIDI_PAR_ON   then return DIR_AUTO end
+		if dir == FRIBIDI_PAR_LTR  then return DIR_LTR  end
+		if dir == FRIBIDI_PAR_RTL  then return DIR_RTL  end
+		if dir == FRIBIDI_PAR_WLTR then return DIR_WLTR end
+		if dir == FRIBIDI_PAR_WRTL then return DIR_WRTL end
+		assert(false)
+	end
+end
 
 struct Renderer;
 struct Font;

@@ -49,7 +49,7 @@ cairo_argb32_color_t.metamethods.__eq = macro(function(c1, c2)
 end)
 
 cairo_argb32_color_t.metamethods.__ne = macro(function(c1, c2)
-	return not (c1 == c2)
+	return `not (c1 == c2)
 end)
 
 terra cairo_argb32_color_t:apply_alpha(a: num)

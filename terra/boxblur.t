@@ -189,6 +189,7 @@ terra Blur:blur()
 			end
 			self.src, self.dst = src, dst
 		end
+		self.valid = true
 	end
 	return self.dst
 end

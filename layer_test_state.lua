@@ -1,4 +1,3 @@
 return {
-	continuous_repaint=true,
-	session_number=2
+	session='1'
 }

@@ -387,7 +387,7 @@ end
 
 --args packing that don't allocate a table for zero args.
 local empty = {}
-local function args(...) return select('#',...) > 0 and {...} or empty end
+function args(...) return select('#',...) > 0 and {...} or empty end
 
 --ternary operator -----------------------------------------------------------
 
@@ -1058,11 +1058,12 @@ local function format_arg(arg, fmt, args, freelist, indent)
 	end
 end
 
+snprintf = Windows and _snprintf or snprintf
+
 tostring = macro(function(arg, outbuf, maxlen)
 	local fmt, args, freelist = {}, {}, {}
 	format_arg(arg, fmt, args, freelist, 0)
 	fmt = concat(fmt)
-	local snprintf = Windows and _snprintf or snprintf
 	if outbuf then
 		return quote
 			snprintf(outbuf, maxlen, fmt, [args])
@@ -1095,13 +1096,13 @@ end, tostring)
 --flushed printf -------------------------------------------------------------
 
 local fprintf = macro(function(_, ...)
-	local args = {...}
+	local args = args(...)
 	return quote printf([args]) end
 end)
 local fflush = macro(function(_) return quote end end)
 
 pfn = macro(function(...)
-	local args = {...}
+	local args = args(...)
 	return quote
 		var stdout = stdout()
 		fprintf(stdout, [args])
@@ -1114,7 +1115,7 @@ end, function(...)
 end)
 
 pf = macro(function(...)
-	local args = {...}
+	local args = args(...)
 	return quote
 		var stdout = stdout()
 		fprintf(stdout, [args])
@@ -1212,7 +1213,7 @@ clock = macro(function() return `tclock() end, terralib.currenttimeinseconds)
 
 local t0 = global(double, 0.0)
 local function probe_terra(...)
-	local args = {...}
+	local args = args(...)
 	return quote
 		var t = clock()
 		if t0 == 0 then t0 = t end

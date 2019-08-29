@@ -291,6 +291,7 @@ terra Layout:_shape()
 		span_index = self:_span_index_at_offset(offset, span_index)
 		var span = self.spans:at(span_index)
 		var dir = self:span_dir(span, offset)
+		var fb_dir = to_fribidi_dir(dir)
 
 		fribidi_get_bidi_types(str, len, r.bidi_types:at(offset))
 
@@ -302,11 +303,12 @@ terra Layout:_shape()
 			r.bidi_types:at(offset),
 			r.bracket_types:at(offset),
 			len,
-			&dir,
+			&fb_dir,
 			r.levels:at(offset)) - 1
 
 		assert(max_bidi_level >= 0)
 
+		dir = from_fribidi_dir(fb_dir)
 		self.bidi = self.bidi or max_bidi_level > iif(dir == DIR_RTL, 1, 0)
 
 		r.paragraph_dirs:add(dir)

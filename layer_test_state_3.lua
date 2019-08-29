@@ -7,7 +7,7 @@ return {
 				background_color_stop_color=4294967234
 			}
 		},
-		background_type=6,
+		background_type=2,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
@@ -40,8 +40,7 @@ return {
 		text_spans={
 			{
 				span_font_id=0,
-				span_font_size=100,
-				span_paragraph_dir=64
+				span_font_size=100
 			}
 		},
 		text_utf8='Hello World!',

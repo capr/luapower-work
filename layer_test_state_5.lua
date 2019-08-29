@@ -1,6 +1,7 @@
 return {
 	root={
 		background_color=4294967057,
+		background_type=1,
 		border_color_bottom=1737413119,
 		border_color_left=1798963199,
 		border_color_right=2392959743,

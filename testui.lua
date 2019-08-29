@@ -2,7 +2,8 @@
 --IMGUI for creating manual tests for UI libraries.
 --Written by Cosmin Apreutesei. Public Domain.
 
---This API is designed for stability so it is small and not very customizable.
+--This API is designed for stability so it is necessarily small and not very
+--customizable. If you change this API, text/fix the test UIs that use it.
 
 local nw = require'nw'
 local glue = require'glue'
