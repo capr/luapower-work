@@ -336,6 +336,6 @@ return {
 		y=13
 	},
 	selected_layer_path={
-		4
+		1
 	}
 }

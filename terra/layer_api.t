@@ -768,7 +768,12 @@ do end --layouts
 
 terra CLayer:get_visible(): bool return self.l.visible end
 terra CLayer:set_visible(v: bool)
-	self.l:change(self.l, 'visible', v, 'pixels parent_layout')
+	if self.l:change(self.l, 'visible', v) then
+		self.l.top_layer.pixels_valid = false
+		if self.l.pos_parent == nil then
+			self.l.top_layer.layout_valid = false
+		end
+	end
 end
 
 terra CLayer:get_layout_type(): enum return self.l.layout_type end

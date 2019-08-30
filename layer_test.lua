@@ -616,8 +616,10 @@ function testui:repaint()
 
 	choose('operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'})
 
-	self:pushgroup('right', 1/3)
+	self:pushgroup('right', 1/2)
+	toggle'visible'
 	toggle'clip_content'
+	self:nextgroup()
 	toggle'snap_x'
 	toggle'snap_y'
 	self:popgroup()
