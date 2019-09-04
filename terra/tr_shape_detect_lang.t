@@ -77,4 +77,3 @@ local lookup_lang = phf(lang_idx_map, hb_script_t, int8)
 terra lang_for_script(script: hb_script_t)
 	return langs[lookup_lang(script)]
 end
-

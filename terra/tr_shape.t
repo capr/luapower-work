@@ -188,7 +188,7 @@ end
 
 --the span that starts exactly where the paragraph starts can
 --set the paragraph base direction otherwise the layout's dir is used.
-terra Layout:span_dir(span: &Span, paragraph_offset: int)
+terra Layout:_span_dir(span: &Span, paragraph_offset: int)
 	return iif(span.offset == paragraph_offset and span.paragraph_dir ~= 0,
 		span.paragraph_dir, self.dir)
 end
@@ -223,7 +223,7 @@ terra Layout:shape()
 	--special-case empty text: we still want to set valid shaping output
 	--in order to properly display a cursor.
 	if self.text.len == 0 then
-		self.bidi = false
+		self.bidi = not (self.dir == DIR_RTL or self.dir == DIR_WRTL)
 		return
 	end
 
@@ -290,7 +290,7 @@ terra Layout:shape()
 
 		span_index = self:_span_index_at_offset_after_span(offset, span_index)
 		var span = self.spans:at(span_index)
-		var dir = self:span_dir(span, offset)
+		var dir = self:_span_dir(span, offset)
 		var fb_dir = to_fribidi_dir(dir)
 
 		fribidi_get_bidi_types(str, len, r.bidi_types:at(offset))

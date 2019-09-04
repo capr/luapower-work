@@ -1525,41 +1525,12 @@ terra Layer:invalidate_parent_content_shadows_force() self:invalidate_pcs(true) 
 terra Layer:invalidate_text()
 	if not self.text.layout.min_size_valid then
 		self:invalidate'parent_layout'
-	elseif not self.text.layout.layout_valid then
+	elseif not self.text.layout.align_valid then
 		self.text.layout:align()
-	end
-	self:invalidate'pixels content_shadows parent_content_shadows'
-end
-
---[[
-terra Layer:get_has_text_cursor()
-	return self.text.layout.cursors.len > 0
-end
-
-terra Layer:get_text_cursor()
-	return self.text.layout.cursors(0)
-end
-
-terra Layer:get_text_selection()
-	return self.text.layout.selections(0)
-end
-
-terra Layer:get_text_selectable()
-	return self.text.selectable
-end
-
-terra Layer:set_text_selectable(v: bool)
-	if change(self.text, 'selectable', v) then
-		if self.has_text_cursor and not v then
-			self.text_cursor:release()
-			self.text_selection:release()
-		elseif not self.has_text_cursor and v then
-			self.text.layout:cursor()
-			self.text.layout:selection()
-		end
+	elseif not self.text.layout.pixels_valid then
+		self:invalidate'pixels content_shadows parent_content_shadows'
 	end
 end
-]]
 
 terra Layer:sync_text_shape()
 	self.text.layout:shape()

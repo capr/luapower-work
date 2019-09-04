@@ -4,7 +4,6 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
-require'terra/tr_font'
 require'terra/tr_align'
 require'terra/tr_paint'
 
@@ -17,6 +16,7 @@ terra Layout:seg_line(seg: &Seg)
 	end
 end
 
+--returns -1 if segs.len == 0, otherwise returns a valid index.
 local terra cmp_offsets(seg1: &Seg, seg2: &Seg)
 	return seg1.offset <= seg2.offset -- < < = = [>] >
 end
@@ -32,7 +32,7 @@ terra Layout:cursor_at_offset(offset: int)
 		assert(i >= 0)
 		var run = self:glyph_run(seg)
 		i = run.cursor_offsets:clamp(i) --fix if inside inter-segment gap.
-		i = run.cursor_offsets(i) --normalize to the first cursor.
+		i = run.cursor_offsets(i) --fix if in-between navigable offsets.
 		return Pos{self, seg, i, offset}
 	else
 		return Pos{self, nil, 0, offset}
@@ -82,21 +82,6 @@ end
 
 terra Layout:pos(seg: &Seg, i: int)
 	return Pos{self, seg, i, self:cursor_offset(seg, i)}
-end
-
-terra Pos:invalidate()
-	self.seg = nil
-	self.i = 0
-end
-
-terra Pos:get_invalid()
-	return self.seg == nil and self.layout.segs.len > 0
-end
-
-terra Pos:validate()
-	if self.invalid then
-		@self = self.layout:cursor_at_offset(self.offset)
-	end
 end
 
 terra Pos:set(p: Pos)
@@ -339,15 +324,6 @@ terra Cursor:rect()
 	return x0 + x, y0 + y, w, h
 end
 
-terra Cursor:visibility_rect()
-	var x, y, w, h = self:rect()
-	--enlarge the caret rect to contain the line spacing.
-	var line = self.p.line
-	y = y + line.ascent - line.spaced_ascent
-	h = line.spaced_ascent - line.spaced_descent
-	return x, y, w, h
-end
-
 local terra valid(obj: &opaque, p: Pos, mode: enum)
 	var self = [&Cursor](obj)
 	return not (
@@ -406,9 +382,6 @@ terra Cursor:move_to_offset(offset: int, which: enum)
 	return self:set(self:find_at_offset(offset, which), nan)
 end
 
-terra Cursor:invalidate() self.p:invalidate() end
-terra Cursor:validate() self.p:validate() end
-
 terra Cursor:find_at_rel_cursor(dir: enum, mode: enum, which: enum, clamp: bool)
 	return self:find_at_cursor(self.p, dir, mode, which, clamp)
 end
@@ -439,18 +412,18 @@ terra Cursor:move_to_rel_line(delta_lines: int, x: num)
 	return self:set(self:find_at_rel_line(delta_lines, x), x)
 end
 
-terra Cursor:find_at_pos(x: num, y: num)
+terra Cursor:find_at_point(x: num, y: num)
 	var line_i = self.layout.lines:clamp(self.layout:hit_test_lines(y))
 	return self:find_at_line(line_i, x)
 end
-terra Cursor:move_to_pos(x: num, y: num)
-	return self:set(self:find_at_pos(x, y), x)
+terra Cursor:move_to_point(x: num, y: num)
+	return self:set(self:find_at_point(x, y), x)
 end
 
 terra Cursor:find_at_page(page: int, x: num)
 	var _, line1_y = self.layout:line_pos(self.layout.lines:at(0))
 	var y = line1_y + (page - 1) * self.layout.h
-	return self:find_at_pos(x, y)
+	return self:find_at_point(x, y)
 end
 terra Cursor:move_to_page(page: int, x: num)
 	return self:set(self:find_at_page(page, x), x)
@@ -459,7 +432,7 @@ end
 terra Cursor:find_at_rel_page(delta_pages: int, x: num)
 	var line_y = self.p.line_y
 	var y = line_y + (delta_pages or 0) * self.layout.h
-	return self:find_at_pos(x, y)
+	return self:find_at_point(x, y)
 end
 terra Cursor:move_to_rel_page(delta_pages: int, x: num)
 	return self:set(self:find_at_rel_page(delta_pages, x), x)

@@ -3,7 +3,7 @@
 	Text shaping & rendering engine in Terra with a C API.
 	Written by Cosmin Apreutesei. Public Domain.
 
-	This is a port of github.com/luapower/tr which was written in Lua.
+	A pure-Lua prototype of this library is at github.com/luapower/tr.
 
 	Leverages harfbuzz, freetype, fribidi and libunibreak for text shaping,
 	glyph rasterization, bidi reordering and line breaking respectively.
@@ -21,7 +21,6 @@ require'terra/tr_wrap'
 require'terra/tr_align'
 require'terra/tr_clip'
 require'terra/tr_paint'
-require'terra/tr_cursor'
 
 terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	fill(self) --this initializes all arr() types.

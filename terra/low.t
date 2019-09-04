@@ -13,6 +13,7 @@
 		obj:init(...)    --> obj:free()          initialize --> release contents
 		new(T, ...)      --> release(p[, len])   alloc+init --> free+dealloc
 		container:elem() --> elem:release()      alloc+init --> free+dealloc
+
 ]]
 
 if not ... then require'terra/low_test'; return; end
@@ -25,7 +26,7 @@ package.path = package.path:gsub('^%.[/\\]%?%.lua%;', '')
 
 local _M --this module, set below
 
---create a module table that dynamically inherits from _M or other module.
+--create a module table that dynamically inherits from other module or _M.
 --naming the module returns the same module table for the same name which is
 --useful for making shared namespaces without creating those one-line Lua files.
 local function module(name, parent)
@@ -883,7 +884,7 @@ nextpow2 = macro(function(x)
 			in x
 		end
 	end
-	error('unsupported type ', x:gettype())
+	error('unsupported type '..tostring(T))
 end, glue.nextpow2)
 
 --get the value of x's i'th bit as a bool.
@@ -1542,7 +1543,7 @@ function publish(modulename)
 	local enums = {}
 
 	function self:publish(T, ...)
-		if type(T) == 'terrafunction'
+		if type(T) == 'terrafunction' or type(T) == 'overloadedterrafunction'
 			or (type(T) == 'terratype' and T:isstruct() and not T:istuple())
 		then
 			local public_methods, opt = ...
@@ -1745,6 +1746,13 @@ function publish(modulename)
 
 		local function overloadname(fname, name, i)
 			if type(name) == 'table' and name[i] then return name[i] end
+			if (type(name) == 'terrafunction' or type(name) == 'overloadedterrafunction')
+				and fname:find'^_'
+			then
+				--functions starting with an underscore are private by default
+				--unless explicitly published.
+				return
+			end
 			return (type(name) == 'string' and name or fname)..(i ~= 1 and i or '')
 		end
 
@@ -1845,7 +1853,7 @@ ffi.metatype(']]..name..[[', {
 			elseif type(obj) == 'overloadedterrafunction' then
 				local name = obj.ffi_name or obj.name:gsub('%.', '_')
 				for i,obj in ipairs(obj.definitions) do
-					cdef_function(obj, type(name) == 'table' and name[i] or overloadname(name, i))
+					cdef_function(obj, overloadname(name, i))
 				end
 			elseif obj:isstruct() then
 				cdef_struct(obj)

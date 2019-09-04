@@ -40,9 +40,8 @@ terra Layout:clip()
 		var y = self.clip_y - self.y - self.baseline
 		var w = self.clip_w
 		var h = self.clip_h
-		var first_visible = max(self:line_at_y(y), 0)
-		var last_visible = iif(h == inf, self.lines.len-1,
-			min(self.lines.len-1, self:line_at_y(y + h - 1.0/256)))
+		var first_visible = self:line_at_y(y)
+		var last_visible  = self:line_at_y(y + h - 1.0/256)
 		var first = false
 		for line_i = first_visible, last_visible + 1 do
 			var line = self.lines:at(line_i)

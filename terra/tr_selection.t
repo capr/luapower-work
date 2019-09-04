@@ -14,19 +14,6 @@ terra Selection:init(layout: &Layout)
 	self.opacity = DEFAULT_SELECTION_OPACITY
 end
 
-terra Selection:invalidate()
-	self.p1:invalidate()
-	self.p2:invalidate()
-end
-
-terra Selection:validate()
-	self.p1:validate()
-	self.p2:validate()
-end
-
-terra Selection:set_p1(p: Pos) return self.p1:set(p) end
-terra Selection:set_p2(p: Pos) return self.p2:set(p) end
-
 --line-relative (x, w) of a selection rectangle on two cursor
 --positions in the same segment (in whatever order).
 terra Layout:segment_xw(seg: &Seg, i1: int, i2: int)
@@ -81,8 +68,8 @@ terra Selection:paint_rect(cr: &context, x: num, y: num, w: num, h: num)
 end
 
 terra Selection:paint(cr: &context, spaced: bool)
-	var p1 = self.p1
-	var p2 = self.p2
+	var p1 = self.p[0]
+	var p2 = self.p[1]
 	if p1.offset > p2.offset then
 		swap(p1, p2)
 	end
@@ -119,10 +106,6 @@ terra Selection:paint(cr: &context, spaced: bool)
 end
 
 terra Selection:get_empty()
-	return self.p1.offset == self.p2.offset
+	return self.p[0].offset == self.p[1].offset
 end
-
---terra Selection:offset_range()
---	return self.layout:offset_range(self.p1.offset, self.p2.offset)
---end
 

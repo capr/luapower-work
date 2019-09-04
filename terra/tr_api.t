@@ -24,10 +24,28 @@ require'terra/memcheck'
 require'terra/tr_paint_cairo'
 require'terra/utf8'
 require'terra/rawstringview'
+require'terra/tr_cursor'
+require'terra/tr_selection'
 local tr = require'terra/tr'
 setfenv(1, require'terra/low'.module(tr))
 
 num = double
+MAX_CURSOR_COUNT = 2^16
+
+struct Layout;
+struct Renderer;
+
+--cursor + selection combination ---------------------------------------------
+
+struct CurSel {
+	cursor: tr.Cursor;
+	selection: tr.Selection;
+}
+
+terra CurSel:init(layout: &tr.Layout)
+	self.cursor:init(layout)
+	self.selection:init(layout)
+end
 
 --Renderer & Layout wrappers and self-allocating constructors ----------------
 
@@ -67,6 +85,7 @@ end
 
 struct Layout (gettersandsetters) {
 	l: tr.Layout;
+	cursels: arr(CurSel);
 	_min_w: num;
 	_max_w: num;
 	_maxlen: int;
@@ -79,6 +98,7 @@ terra Layout:get_r() return [&Renderer](self.l.r) end
 
 terra Layout:init(r: &Renderer)
 	self.l:init(&r.r)
+	self.cursels:init()
 	self._min_w = -inf
 	self._max_w =  inf
 	self._maxlen = maxint
@@ -88,6 +108,7 @@ terra Layout:init(r: &Renderer)
 end
 
 terra Layout:free()
+	self.cursels:free()
 	self.l:free()
 end
 
@@ -105,14 +126,30 @@ end
 
 --Renderer config ------------------------------------------------------------
 
-terra Renderer:get_subpixel_x_resolution(): num return self.r.subpixel_x_resolution end
-terra Renderer:set_subpixel_x_resolution(v: num)       self.r.subpixel_x_resolution = v end
+local terra subpixel_resolution(v: num)
+	return 1.0 / nextpow2(int(1.0 / clamp(v, 1.0/64, 1.0)))
+end
 
-terra Renderer:get_word_subpixel_x_resolution(): num return self.r.word_subpixel_x_resolution end
-terra Renderer:set_word_subpixel_x_resolution(v: num)       self.r.word_subpixel_x_resolution = v end
+terra Renderer:get_subpixel_x_resolution(): num
+	return self.r.subpixel_x_resolution
+end
+terra Renderer:set_subpixel_x_resolution(v: num)
+	self.r.subpixel_x_resolution = subpixel_resolution(v)
+end
 
-terra Renderer:get_font_size_resolution(): num return self.r.font_size_resolution end
-terra Renderer:set_font_size_resolution(v: num)       self.r.font_size_resolution = v end
+terra Renderer:get_word_subpixel_x_resolution(): num
+	return self.r.word_subpixel_x_resolution
+end
+terra Renderer:set_word_subpixel_x_resolution(v: num)
+	self.r.word_subpixel_x_resolution = subpixel_resolution(v)
+end
+
+terra Renderer:get_font_size_resolution(): num
+	return self.r.font_size_resolution
+end
+terra Renderer:set_font_size_resolution(v: num)
+	self.r.font_size_resolution = subpixel_resolution(v)
+end
 
 terra Renderer:get_glyph_run_cache_max_size (): int return self.r.glyph_runs.max_size end
 terra Renderer:set_glyph_run_cache_max_size (size: int)    self.r.glyph_runs.max_size = size end
@@ -177,7 +214,7 @@ end)
 
 --macro to generate multiple invalidation calls in one go.
 Layout.methods.invalidate = macro(function(self, WHAT)
-	WHAT = WHAT and WHAT:asvalue() or '_validate min_w'
+	WHAT = WHAT and WHAT:asvalue() or 'spans'
 	return quote
 		escape
 			for s in WHAT:gmatch'[^%s]+' do
@@ -195,7 +232,42 @@ terra Layout:_invalidate_max_w()
 	self._max_w =  inf
 end
 
-terra Layout:__validate()
+terra Pos:invalidate()
+	self.seg = nil
+	self.i = 0
+end
+
+terra Pos:get_valid()
+	return self.seg ~= nil or self.layout.segs.len == 0
+end
+
+terra Pos:validate()
+	if not self.valid then
+		@self = self.layout:cursor_at_offset(self.offset)
+	end
+end
+
+terra CurSel:invalidate()
+	self.cursor.p:invalidate()
+	self.selection.p[0]:invalidate()
+	self.selection.p[1]:invalidate()
+end
+
+terra CurSel:validate()
+	self.cursor.p:validate()
+	self.selection.p[0]:validate()
+	self.selection.p[1] = self.cursor.p --this end follows the cursor.
+end
+
+terra Layout:_invalidate_cursels()
+	self.cursels:call'invalidate'
+end
+
+terra Layout:_before_invalidate_spans()
+	self:_invalidate_cursels()
+end
+
+terra Layout:_validate_spans()
 	if self.l.spans.len == 0 or self.l.spans:at(0).offset ~= 0 then
 		self._offsets_valid = false
 		self._values_valid = false
@@ -219,40 +291,50 @@ terra Layout:__validate()
 	end
 end
 
-for STATE, METHOD in ipairs{'_validate', 'shape', 'wrap', 'spaceout', 'align', 'clip'} do
+terra Layout:_before_invalidate_shape()
+	self:_invalidate_cursels()
+end
+
+terra Layout:_before_shape()
+	self:_invalidate_min_w()
+	self:_invalidate_max_w()
+	self:_invalidate_cursels()
+end
+
+for STATE, METHOD in ipairs{'spans', 'shape', 'wrap', 'spaceout', 'align', 'clip', 'paint'} do
 
 	_M['STATE_'..METHOD:upper()] = STATE --enum value
 
 	Layout.methods['_invalidate_'..METHOD] = terra(self: &Layout)
+		optcall(self, ['_before_invalidate_'..METHOD])
 		self.state = min(self.state, STATE - 1)
 	end
 
-	Layout.methods[METHOD] = terra(self: &Layout)
-		if self.state < STATE then
-			assert(self.state == STATE - 1)
-			escape
-				if cancall(Layout, '_'..METHOD) then --overrided
-					emit quote self:['_'..METHOD]() end
-				else
-					emit quote self.l:[METHOD]() end
-				end
+	if METHOD ~= 'spans' and METHOD ~= 'paint' then
+
+		Layout.methods[METHOD] = terra(self: &Layout)
+			if self.state < STATE then
+				assert(self.state == STATE - 1)
+				optcall(self, ['_before_'..METHOD])
+				optcall(self.l, METHOD)
+				self.state = STATE
+				return true
+			else
+				return false
 			end
-			self.state = STATE
-			return true
-		else
-			return false
 		end
+
 	end
 
 end
 
 terra Layout:get_offsets_valid()
-	self:_validate()
+	self:_validate_spans()
 	return self._offsets_valid
 end
 
 terra Layout:get_valid()
-	self:_validate()
+	self:_validate_spans()
 	return self._offsets_valid and self._values_valid
 end
 
@@ -272,7 +354,15 @@ end
 terra Layout:paint(cr: &context)
 	if self.valid then
 		assert(self.state >= STATE_CLIP)
+		for i,cs in self.cursels do
+			cs:validate()
+			cs.selection:paint(cr, true)
+		end
 		self.l:paint_text(cr)
+		for i,cs in self.cursels do
+			cs.cursor:paint(cr)
+		end
+		self.state = STATE_PAINT
 	end
 end
 
@@ -540,14 +630,14 @@ terra Layout:remove_trailing_spans()
 end
 
 --get a bitmask showing which span values are the same for an offset range
---and the span id at offset1 for which to get the actual values.
-terra tr.Layout:get_span_same_mask(offset1: int, offset2: int)
-	offset1, offset2 = self:offset_range(offset1, offset2)
+--and the span id at o1 for which to get the actual values.
+terra tr.Layout:get_span_same_mask(o1: int, o2: int)
+	o1, o2 = self:offset_range(o1, o2)
 	var mask: uint32 = BIT_ALL --presume all field values are the same.
-	var i = self:span_at_offset(offset1)
+	var i = self:span_at_offset(o1)
 	var s = self.spans:at(i)
-	if offset2 > offset1 then
-		var i2 = self:span_at_offset(offset2-1)+1
+	if o2 > o1 then
+		var i2 = self:span_at_offset(o2-1)+1
 		for i = i+1, i2 do
 			var d = self.spans:at(i)
 			mask = mask and compare_spans(s, d)
@@ -630,32 +720,34 @@ SPAN_FIELD_TYPES = {
 }
 
 local SPAN_FIELD_INVALIDATE = {
-	nowrap            = 'shape min_w',
-	paragraph_dir     = 'shape',
-	color             = 'align',
-	opacity           = 'align',
-	operator          = 'align',
+	features          = 'shape',
+	script            = 'shape',
+	lang              = 'shape',
+	paragraph_dir     = 'wrap',
+	nowrap            = 'wrap min_w',
+	color             = 'paint',
+	opacity           = 'paint',
+	operator          = 'paint',
 }
 
 --Generate getters and setters for each text attr that can be set on an offset range.
 --Uses Layout:save_<field>() and Layout:load_<field> methods if available.
 for _,FIELD in ipairs(SPAN_FIELDS) do
 
-	local T = SPAN_FIELD_TYPES[FIELD]
+	local T = SPAN_FIELD_TYPES[FIELD] or Span:getfield(FIELD).type
 	local INVALIDATE = SPAN_FIELD_INVALIDATE[FIELD] or `nil
-	T = T or Span:getfield(FIELD).type
 
 	local SAVE = Span:getmethod('save_'..FIELD)
 		or macro(function(self) return `self.[FIELD] end)
 
 	--API for getting/setting span properties on a text offset range.
 
-	Layout.methods['has_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int)
+	Layout.methods['has_'..FIELD] = terra(self: &Layout, o1: int, o2: int)
 		if self.offsets_valid then
-			var mask, span_i = self.l:get_span_same_mask(offset1, offset2)
+			var mask, span_i = self.l:get_span_same_mask(o1, o2)
 			return span_mask_has_bit(mask, FIELD)
 		else
-			self.r:error('has_%s() error: spans invalid', FIELD)
+			self.r:error('has_%s() error: invalid span offsets', FIELD)
 			return false
 		end
 	end
@@ -663,11 +755,11 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 	local LOAD = Span:getmethod('load_'..FIELD)
 		or macro(function(self, layout, val) return quote self.[FIELD] = val end end)
 
-	Layout.methods['set_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: T)
+	Layout.methods['set_'..FIELD] = terra(self: &Layout, o1: int, o2: int, val: T)
 		if self.l.spans.len == 0 or self.offsets_valid then
-			offset1, offset2 = self.l:offset_range(offset1, offset2)
-			var i1 = self:split_spans(offset1, true)
-			var i2 = self:split_spans(offset2, false)
+			o1, o2 = self.l:offset_range(o1, o2)
+			var i1 = self:split_spans(o1, true)
+			var i2 = self:split_spans(o2, false)
 			for i = i1, i2 do
 				var span = self.l.spans:at(i)
 				LOAD(span, &self.l, val)
@@ -675,7 +767,7 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 			self:remove_duplicate_spans(i1-1, i2+1)
 			self:invalidate(INVALIDATE)
 		else
-			self.r:error('set_%s() error: spans invalid', FIELD)
+			self.r:error('set_%s() error: invalid span offsets', FIELD)
 		end
 	end
 
@@ -713,6 +805,11 @@ terra Layout:set_span_count(n: int)
 		self.l.spans:setlen(n, [Span.empty])
 		self:invalidate()
 	end
+end
+
+terra Layout:span_at_offset(offset: int): int
+	assert(self.offsets_valid)
+	return self.l:span_at_offset(offset)
 end
 
 --text editing ---------------------------------------------------------------
@@ -904,19 +1001,23 @@ terra Layout:get_seg_next_vis  (seg_i: int) end
 
 --layouting helper APIs ------------------------------------------------------
 
-terra Layout:get_min_size_valid() --to decide to re-layout
+terra Layout:get_min_size_valid() --text box might need re-layouting.
 	return self.state >= STATE_SPACEOUT
 end
 
-terra Layout:get_layout_valid() --to decide to re-align
+terra Layout:get_align_valid() --text needs re-aligning.
 	return self.state >= STATE_ALIGN
 end
 
-terra Layout:get_text_visible() --to decide to paint
+terra Layout:get_pixels_valid() --text needs repainting.
+	return self.state >= STATE_PAINT
+end
+
+terra Layout:get_text_visible() --to decide whether to clip & paint the text.
 	return self.l.text.len > 0 and self.valid
 end
 
-terra Layout:get_min_w(): num --for page layouting min-size constraints
+terra Layout:get_min_w(): num --for page layouting min-size constraints.
 	assert(self.state >= STATE_SHAPE)
 	if self._min_w == -inf then
 		self._min_w = self.l:min_w()
@@ -932,12 +1033,12 @@ terra Layout:get_max_w(): num --not used yet
 	return self._max_w
 end
 
-terra Layout:get_baseline(): num --for page layouting baseline alignment
+terra Layout:get_baseline(): num --for page layouting baseline alignment.
 	assert(self.state >= STATE_ALIGN)
 	return self.l.baseline
 end
 
-terra Layout:get_spaced_h(): num --for page layouting min-size constraints
+terra Layout:get_spaced_h(): num --for page layouting min-size constraints.
 	assert(self.state >= STATE_SPACEOUT)
 	return self.l.spaced_h
 end
@@ -946,13 +1047,140 @@ terra Layout:bbox(): {num, num, num, num}
 	return self.l:bbox()
 end
 
---cursor & selection helper APIs ---------------------------------------------
+--cursor & selection API -----------------------------------------------------
 
---terra Layout:cursor_at_offset(offset: int): int
---	return self.l:cursor_at_offset(offset)
---end
+terra Layout:get_cursor_count(): int
+	return self.cursels.len
+end
+terra Layout:set_cursor_count(n: int): int
+	n = clamp(n, 0, MAX_CURSOR_COUNT)
+	if self.cursels.len ~= n then
+		for _,cs in self.cursels:setlen(n) do
+			(@cs):init(&self.l)
+		end
+		self:invalidate'paint'
+	end
+end
 
---publish and build
+terra Layout:_cursel(cs_i: int)
+	cs_i = clamp(cs_i, 0, MAX_CURSOR_COUNT-1)
+	var cs, new_cursels = self.cursels:getat(cs_i)
+	for _,cs in new_cursels do
+		(@cs):init(&self.l)
+		self:invalidate'paint'
+	end
+	return cs
+end
+
+terra Layout:get_cursor_offset(cs_i: int, at_sel_end: bool)
+	var cs = self.cursels:at(cs_i, nil)
+	if cs == nil then return 0 end
+	return iif(at_sel_end, cs.selection.p[0].offset, cs.cursor.p.offset)
+end
+
+terra Layout:set_cursor_offset(cs_i: int, at_sel_end: bool, offset: int)
+	var cs = self:_cursel(cs_i)
+	if at_sel_end then
+		if self:change(cs.selection.p[0], 'offset', offset, 'paint') then
+			cs:invalidate()
+		end
+	else
+		if self:change(cs.cursor.p, 'offset', offset, 'paint') then
+			cs:invalidate()
+		end
+	end
+end
+
+terra CurSel:sync_selection(select: bool)
+	if select then
+		self.selection.p[1] = self.cursor.p
+		return false
+	else
+		var wasnt_empty = not self.selection.empty
+		self.selection.p[0] = self.cursor.p
+		self.selection.p[1] = self.cursor.p
+		return wasnt_empty
+	end
+end
+
+terra Layout:cursor_move_to_offset(cs_i: int, offset: int, which: enum, select: bool)
+	assert(self.state >= STATE_SHAPE)
+	var cs = self:_cursel(cs_i)
+	cs.cursor.p:validate()
+	if cs.cursor:move_to_offset(offset, which) then
+		self:invalidate'paint'
+	end
+	if cs:sync_selection(select) then
+		self:invalidate'paint'
+	end
+end
+
+terra Layout:cursor_move_to_point(cs_i: int, x: num, y: num, select: bool)
+	assert(self.state >= STATE_ALIGN)
+	var cs = self:_cursel(cs_i)
+	cs.cursor.p:validate()
+	if cs.cursor:move_to_point(x, y) then
+		self:invalidate'paint'
+	end
+	if cs:sync_selection(select) then
+		self:invalidate'paint'
+	end
+end
+
+terra Layout:get_cursor_visible(cs_i: int)
+	var cs = self.cursels:at(cs_i, nil)
+	return iif(cs ~= nil, cs.cursor.visible, false)
+end
+
+terra Layout:get_selection_visible(cs_i: int)
+	var cs = self.cursels:at(cs_i, nil)
+	return iif(cs ~= nil, cs.selection.visible, false)
+end
+
+terra Layout:set_cursor_visible(cs_i: int, v: bool)
+	self:change(self:_cursel(cs_i).cursor, 'visible', v, 'paint')
+end
+
+terra Layout:set_selection_visible(cs_i: int, v: bool)
+	self:change(self:_cursel(cs_i).selection, 'visible', v, 'paint')
+end
+
+terra Selection:get_is_forward()
+	return self.p[0].offset < self.p[1].offset
+end
+
+terra Selection:get_smaller_offset()
+	return iif(self.is_forward, self.p[0].offset, self.p[1].offset)
+end
+
+terra Selection:get_smaller_seg()
+	return iif(self.is_forward, self.p[0].seg, self.p[1].seg)
+end
+
+terra Selection:get_span_index()
+	if self.p[0].valid then
+		return self.layout.spans:index(self.smaller_seg.span)
+	else
+		return self.layout:span_at_offset(self.smaller_offset)
+	end
+end
+
+terra Layout:get_selection_first_span(cs_i: int): int
+	assert(self.state >= STATE_SHAPE)
+	var cs = self.cursels:at(cs_i, nil)
+	if cs ~= nil then
+		cs:validate()
+		return cs.selection.span_index
+	else
+		return 0
+	end
+end
+
+terra Layout:cursor_xs(line_i: int)
+	return self.l:cursor_xs(line_i)
+end
+
+--publish and build ----------------------------------------------------------
 
 function build(optimize)
 	local trlib = publish'tr'

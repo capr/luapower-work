@@ -1,5 +1,5 @@
 
---Module table with dependencies, enums and types.
+--tr's base module with dependencies, enums and types.
 
 if not ... then require'terra/tr_test'; return end
 
@@ -86,7 +86,7 @@ BREAK_PARA = 2 --explicit paragraph break (PS).
 
 --base types -----------------------------------------------------------------
 
-num = float --using floats for better cache utilization.
+num = float --using floats on the glyph runs saves 25% memory.
 rect = rect(num)
 font_id_t = int16 --max 64k fonts can be used at the same time.
 
@@ -122,7 +122,7 @@ hb_feature_arr_t = arr(hb_feature_t)
 
 --a span is a set of rendering properties for a specific part of the text.
 --spans are kept in an array and cover the whole text without holes by virtue
---of their `offset` field alone: a span ends where the next span begins.
+--of their `offset` field alone: a span ends where the next one begins.
 struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
 	font_id: font_id_t;
@@ -160,7 +160,7 @@ terra Span:free()
 	self.features:free()
 end
 
-terra Span:copy()
+terra Span:copy() --for splitting spans
 	var s = @self
 	s.features = self.features:copy()
 	return s
@@ -245,7 +245,7 @@ Line.metamethods.__for = function(self, body)
 end
 
 --a layout is a unit of multi-paragraph rich text to be shaped, layouted,
---rendered, navigated, hit-tested, edited, updated and re-rendered.
+--rendered, navigated, hit-tested, edited, updated, re-rendered and so on.
 struct Layout (gettersandsetters) {
 	r: &Renderer;
 	spans: arr(Span);       --shape/in
@@ -304,8 +304,15 @@ end
 
 --glyph runs hold the results of shaping individual words and are kept in a
 --special LRU cache that can also ref-count its objects so that they're not
---evicted from the cache when its memory size limit is reached. segs keep
---their glyph run alive by holding a ref to it while they're alive.
+--evicted from the cache when the cache memory size limit is reached. segs
+--keep their glyph run alive by holding a ref to it while they're alive.
+
+--glyph runs are rasterized on-demand and the images are cached in the
+--`images` array, one image for each subpixel offset, so for a 1/4 subpixel
+--resolution the array will hold at most 4 images at indices 0, 1, 2, 3
+--corresponding to subpixel offsets 0, 1/4, 2/4, 3/4 respectively.
+--glyph runs are rasterized because cairo is too slow at blitting glyphs
+--individually from their individual image surfaces.
 
 struct GlyphInfo (gettersandsetters) {
 	glyph_index: int; --in the font's charmap
@@ -345,7 +352,8 @@ struct GlyphRun (gettersandsetters) {
 	images          : arr{T = GlyphImage, context_t = &Renderer};
 	images_memsize  : int;
 	--for cursor positioning and hit testing.
-	--these arrays hold exactly text.len+1 items, one for each codepoint.
+	--these arrays hold exactly text.len+1 items, one for each position in
+	--front of each codepoint plus the position after the last codepoint.
 	cursor_offsets  : arr(uint16); --navigable offsets, so some are duplicates.
 	cursor_xs       : arr(num); --x-coords, so some are duplicates.
 	trailing_space  : bool; --the text includes a trailing space (for wrapping).
@@ -385,11 +393,13 @@ terra GlyphRun.methods.free :: {&GlyphRun, &Renderer} -> {}
 
 --glyph type -----------------------------------------------------------------
 
---rasterized glyphs are also cached, this time in a cache without ref counting
---since rasterization is done on-demand on paint().
+--besides glyph runs, rasterized glyphs are also cached individually,
+--this time without ref counting since rasterization is done on-demand
+--on paint(). the same glyph might end up being rasterized multiple times
+--once for each subpixel offset encountered.
 
 struct Glyph (gettersandsetters) {
-	--cache key: no alignment holes allowed between fields `font_id` and `subpixel_offset` !!!
+	--cache key fields: no alignment holes allowed between cache key fields !!!
 	font_id         : font_id_t;   --2
 	font_size_16_6  : uint16;      --2
 	glyph_index     : uint;        --4
@@ -439,23 +449,34 @@ struct Pos (gettersandsetters) {
 
 struct Cursor (gettersandsetters) {
 	p: Pos;
-	x: num; --x-coord to try to go to when navigating up and down.
-	--park cursor to home or end if vertical navigation goes above or beyond
-	--available text lines.
+
+	--x-coord to try to go to when navigating vertically.
+	x: num;
+
+	--park cursor to start or end of text if vertical navigation goes above
+	--or beyond available text lines.
 	park_home: bool;
 	park_end: bool;
+
 	--jump-through same-text-offset cursors: most text editors remove duplicate
 	--cursors to keep a 1:1 relationship between text positions and cursor
 	--positions, which gets funny with BiDi and you also can't tell if there's
-	--a space at the end of a wrapped line or not.
+	--a space at the end of a wrapped line or not. OTOH, having two visual
+	--positions for the same position in logical text can be confusing too.
+	--a third, better way is needed but I haven't found it yet.
 	unique_offsets: bool;
-	--keep a cursor after the last space char on a wrapped line: this cursor can
-	--be trouble because it is outside the textbox and if there's not enough room
-	--on the wrap-side of the textbox it can get clipped out.
+
+	--keep a cursor after the last space char on a wrapped line: this cursor
+	--position can be trouble because it is outside the textbox and if there's
+	--not enough room on the wrap-side of the textbox it can get clipped out.
 	wrapped_space: bool;
+
+	--typing inserts text at cursor rather than writing over the text in front
+	--of the cursor (most people don't even know the second way).
 	insert_mode: bool;
+
 	--drawing attributes
-	visible: bool;
+	visible: bool; --alternate this for blinking.
 	color: color;
 	opacity: num;
 	w: num;
@@ -465,27 +486,31 @@ terra Cursor:get_layout() return self.p.layout end
 terra Cursor:set_layout(p: &Layout) self.p.layout = p end
 
 struct Selection (gettersandsetters) {
-	p1: Pos;
-	p2: Pos;
+	p: Pos[2];
+	visible: bool; --make invisible selections to change text properties through.
 	color: color;
 	opacity: num;
 }
 
-terra Selection:get_layout() return self.p1.layout end
+terra Selection:get_layout() return self.p[0].layout end
 terra Selection:set_layout(p: &Layout)
-	self.p1.layout = p
-	self.p2.layout = p
+	self.p[0].layout = p
+	self.p[0].layout = p
 end
 
 --renderer type --------------------------------------------------------------
 
+--the renderer manages shared resource like fonts and caches.
+--there's usually no point in making more than one of these per thread,
+--but using one from multiple threads won't work either.
+
+--seg range, a special type used only by tr_wrap_reorder.t.
 struct SegRange {
 	left: &Seg;
 	right: &Seg;
 	prev: &SegRange;
 	bidi_level: int8;
 }
-
 RangesFreelist = fixedfreelist(SegRange)
 
 GlyphRunCache = lrucache {key_t = GlyphRun, context_t = &Renderer}
