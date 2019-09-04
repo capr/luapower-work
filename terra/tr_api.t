@@ -1,346 +1,996 @@
+--[[
 
---C/ffi API.
+	Text Renderer C/Terra API.
+	Implements a flat API tailored for C or Terra use.
+
+	- self-allocating constructors.
+	- non-fatal error checking and reporting.
+	- enum validation, number clamping to range.
+	- state invalidation when input values are changed.
+	- state checking when computed values are read.
+	- utf8 text in/out for: text, features, lang, script.
+	- checking if a span property has the same value across an offset range.
+	- updating a span property for an offset range with auto-collapsing
+	  of duplicate spans.
+
+	- simplified and enlarged number types for forward ABI compatibility.
+	- consecutive enum values for forward ABI compatibility.
+	- functions and types are renamed and prefixed to C conventions.
+	- methods and virtual properties are bound back to types via ffi.metatype.
+
+]]
 
 require'terra/memcheck'
 require'terra/tr_paint_cairo'
-setfenv(1, require'terra/tr')
+require'terra/utf8'
+require'terra/rawstringview'
+local tr = require'terra/tr'
+setfenv(1, require'terra/low'.module(tr))
 
---Renderer API
+num = double
+
+--Renderer & Layout wrappers and self-allocating constructors ----------------
+
+ErrorFunction = {rawstring} -> {}
+ErrorFunction.cname = 'error_function_t'
+
+terra default_error_function(message: rawstring)
+	fprintf(stderr(), message)
+	fprintf(stderr(), '%s', '\n')
+end
+
+struct Renderer (gettersandsetters) {
+	r: tr.Renderer;
+	error_function: ErrorFunction;
+}
+
+terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+	self.r:init(load_font, unload_font)
+	self.error_function = default_error_function
+end
+
+terra Renderer:free()
+	self.r:free()
+end
 
 terra tr_renderer_sizeof()
 	return [int](sizeof(Renderer))
 end
-terra tr_renderer_new(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+
+terra tr_renderer(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	return new(Renderer, load_font, unload_font)
 end
+
 terra Renderer:release()
 	release(self)
 end
 
---Layout API
+struct Layout (gettersandsetters) {
+	l: tr.Layout;
+	_min_w: num;
+	_max_w: num;
+	_maxlen: int;
+	state: enum; --STATE_*
+	_offsets_valid: bool; --span offsets are good so spans can be split/merged.
+	_values_valid: bool;  --span values are good so shaping won't crash.
+}
+
+terra Layout:get_r() return [&Renderer](self.l.r) end
+
+terra Layout:init(r: &Renderer)
+	self.l:init(&r.r)
+	self._min_w = -inf
+	self._max_w =  inf
+	self._maxlen = maxint
+	self.state = 0
+	self._offsets_valid = false
+	self._values_valid = false
+end
+
+terra Layout:free()
+	self.l:free()
+end
 
 terra tr_layout_sizeof()
 	return [int](sizeof(Layout))
 end
+
 terra Renderer:layout()
 	return new(Layout, self)
 end
+
 terra Layout:release()
 	release(self)
 end
 
-terra Layout:cursor_xs_c(line_i: int, outlen: &int)
-	var xs = self:cursor_xs(line_i)
-	@outlen = xs.len
-	return xs.elements
+--Renderer config ------------------------------------------------------------
+
+terra Renderer:get_subpixel_x_resolution(): num return self.r.subpixel_x_resolution end
+terra Renderer:set_subpixel_x_resolution(v: num)       self.r.subpixel_x_resolution = v end
+
+terra Renderer:get_word_subpixel_x_resolution(): num return self.r.word_subpixel_x_resolution end
+terra Renderer:set_word_subpixel_x_resolution(v: num)       self.r.word_subpixel_x_resolution = v end
+
+terra Renderer:get_font_size_resolution(): num return self.r.font_size_resolution end
+terra Renderer:set_font_size_resolution(v: num)       self.r.font_size_resolution = v end
+
+terra Renderer:get_glyph_run_cache_max_size (): int return self.r.glyph_runs.max_size end
+terra Renderer:set_glyph_run_cache_max_size (size: int)    self.r.glyph_runs.max_size = size end
+
+terra Renderer:get_glyph_cache_max_size(): int return self.r.glyphs.max_size end
+terra Renderer:set_glyph_cache_max_size(size: int)    self.r.glyphs.max_size = size end
+
+--Renderer statistics API ----------------------------------------------------
+
+terra Renderer:get_glyph_run_cache_size (): int return self.r.glyph_runs.size end
+terra Renderer:get_glyph_run_cache_count(): int return self.r.glyph_runs.count end
+terra Renderer:get_glyph_cache_size     (): int return self.r.glyphs.size end
+terra Renderer:get_glyph_cache_count    (): int return self.r.glyphs.count end
+
+terra Renderer:get_paint_glyph_num(): int return self.r.paint_glyph_num end
+terra Renderer:set_paint_glyph_num(n: int)       self.r.paint_glyph_num = n end
+
+--Renderer font API ----------------------------------------------------------
+
+terra Renderer:font() return self.r:font() end
+terra Renderer:free_font(font_id: int) self.r:free_font(font_id) end
+
+--non-fatal error checking and reporting -------------------------------------
+
+Renderer.methods.error = macro(function(self, ...)
+	local args = args(...)
+	return quote
+		if self.error_function ~= nil then
+			var s = arrayof(char, 256)
+			snprintf(s, 256, [args])
+			self.error_function(s)
+		end
+	end
+end)
+
+Layout.methods.check = macro(function(self, NAME, v, valid)
+	NAME = NAME:asvalue()
+	FORMAT = 'invalid '..NAME..': %d'
+	return quote
+		if not valid then
+			self.r:error(FORMAT, v)
+		end
+		in valid
+	end
+end)
+
+Layout.methods.checkrange = macro(function(self, NAME, v, MIN_V, MAX_V)
+	NAME = NAME:asvalue()
+	MIN_V = MIN_V:asvalue()
+	MAX_V = MAX_V:asvalue()
+	FORMAT = 'invalid '..NAME..': %d (range: '..MIN_V..'..'..MAX_V..')'
+	return quote
+		var ok = v >= MIN_V and v <= MAX_V
+		if not ok then
+			self.r:error(FORMAT, v)
+		end
+		in ok
+	end
+end)
+
+--state validation and invalidation ------------------------------------------
+
+--macro to generate multiple invalidation calls in one go.
+Layout.methods.invalidate = macro(function(self, WHAT)
+	WHAT = WHAT and WHAT:asvalue() or '_validate min_w'
+	return quote
+		escape
+			for s in WHAT:gmatch'[^%s]+' do
+				emit quote self:['_invalidate_'..s]() end
+			end
+		end
+	end
+end)
+
+terra Layout:_invalidate_min_w()
+	self._min_w = -inf
 end
+
+terra Layout:_invalidate_max_w()
+	self._max_w =  inf
+end
+
+terra Layout:__validate()
+	if self.l.spans.len == 0 or self.l.spans:at(0).offset ~= 0 then
+		self._offsets_valid = false
+		self._values_valid = false
+	else
+		self._offsets_valid = true
+		self._values_valid = true
+		var prev_offset = -1
+		for _,s in self.l.spans do
+			if s.offset <= prev_offset         --offset overlapping
+				or s.offset >= self.l.text.len  --offset out-of-range
+			then
+				self._offsets_valid = false
+			end
+			if s.font_id == -1      --font not set
+				or s.font_size <= 0  --font size not set
+			then
+				self._values_valid = false
+			end
+			prev_offset = s.offset
+		end
+	end
+end
+
+for STATE, METHOD in ipairs{'_validate', 'shape', 'wrap', 'spaceout', 'align', 'clip'} do
+
+	_M['STATE_'..METHOD:upper()] = STATE --enum value
+
+	Layout.methods['_invalidate_'..METHOD] = terra(self: &Layout)
+		self.state = min(self.state, STATE - 1)
+	end
+
+	Layout.methods[METHOD] = terra(self: &Layout)
+		if self.state < STATE then
+			assert(self.state == STATE - 1)
+			escape
+				if cancall(Layout, '_'..METHOD) then --overrided
+					emit quote self:['_'..METHOD]() end
+				else
+					emit quote self.l:[METHOD]() end
+				end
+			end
+			self.state = STATE
+			return true
+		else
+			return false
+		end
+	end
+
+end
+
+terra Layout:get_offsets_valid()
+	self:_validate()
+	return self._offsets_valid
+end
+
+terra Layout:get_valid()
+	self:_validate()
+	return self._offsets_valid and self._values_valid
+end
+
+terra Layout:layout()
+	if self.valid then
+		self:shape()
+		self:wrap()
+		self:spaceout()
+		self:align()
+		self:clip()
+		return true
+	else
+		return false
+	end
+end
+
+terra Layout:paint(cr: &context)
+	if self.valid then
+		assert(self.state >= STATE_CLIP)
+		self.l:paint_text(cr)
+	end
+end
+
+--macros to a update value when changed and invalidate state -----------------
+
+local change = macro(function(self, FIELD, v)
+	FIELD = FIELD:asvalue()
+	return quote
+		var changed = (self.[FIELD] ~= v)
+		if changed then
+			self.[FIELD] = v
+		end
+		in changed
+	end
+end)
+
+Layout.methods.change = macro(function(self, target, FIELD, v, WHAT)
+	WHAT = WHAT or `nil
+	return quote
+		var changed = change(target, FIELD, v)
+		if changed then
+			self:invalidate(WHAT)
+		end
+		in changed
+	end
+end)
+
+--layout editing -------------------------------------------------------------
+
+terra Layout:get_maxlen(): int return self._maxlen end
+
+terra Layout:set_maxlen(v: int)
+	if self:change(self, '_maxlen', max(v, 0)) then
+		if self.l.text.len > self.maxlen then --truncate the text
+			self.l.text.len = v
+			self:invalidate()
+		end
+	end
+end
+
+terra Layout:get_text_len(): int return self.l.text.len end
+terra Layout:get_text() return self.l.text.elements end
+
+terra Layout:set_text(s: &codepoint, len: int)
+	if s == nil then
+		assert(len == 0)
+		self.l.text.len = 0
+	else
+		self.l.text.len = 0
+		self.l.text:add(s, min(self.maxlen, len))
+	end
+	self:invalidate()
+end
+
+terra Layout:get_text_utf8(out: rawstring, max_outlen: int)
+	if max_outlen < 0 then
+		max_outlen = maxint
+	end
+	if out == nil then --out buffer size requested
+		return utf8.encode.count(self.l.text.elements, self.l.text.len,
+			max_outlen, utf8.REPLACE, utf8.INVALID)._0
+	else
+		return utf8.encode.tobuffer(self.l.text.elements, self.l.text.len, out,
+			max_outlen, utf8.REPLACE, utf8.INVALID)._0
+	end
+end
+
+terra Layout:get_text_utf8_len(): int
+	return self:get_text_utf8(nil, -1)
+end
+
+terra Layout:set_text_utf8(s: rawstring, len: int)
+	if s == nil then
+		assert(len == 0)
+		self.l.text.len = 0
+	else
+		if len < 0 then
+			len = strnlen(s, self.maxlen)
+		end
+		utf8.decode.toarr(s, len, &self.l.text,
+			self.maxlen, utf8.REPLACE, utf8.INVALID)
+	end
+	self:invalidate()
+end
+
+terra Layout:get_dir(): enum return self.l.dir end
+
+terra Layout:set_dir(v: enum)
+	if self:checkrange('dir', v, DIR_MIN, DIR_MAX) then
+		self:change(self.l, 'dir', v, 'shape')
+	end
+end
+
+terra Layout:get_align_w(): num return self.l.align_w end
+terra Layout:get_align_h(): num return self.l.align_h end
+
+terra Layout:set_align_w(v: num) self:change(self.l, 'align_w', v, 'wrap') end
+terra Layout:set_align_h(v: num) self:change(self.l, 'align_h', v, 'wrap') end
+
+terra Layout:get_align_x(): enum return self.l.align_x end
+terra Layout:get_align_y(): enum return self.l.align_y end
+
+terra Layout:set_align_x(v: enum)
+	if self:check('align_x', v,
+			   v == ALIGN_LEFT
+			or v == ALIGN_RIGHT
+			or v == ALIGN_CENTER
+			or v == ALIGN_JUSTIFY
+			or v == ALIGN_START
+			or v == ALIGN_END
+	) then
+		self:change(self.l, 'align_x', v, 'align')
+	end
+end
+
+terra Layout:set_align_y(v: enum)
+	if self:check('align_y', v,
+			   v == ALIGN_TOP
+			or v == ALIGN_BOTTOM
+			or v == ALIGN_CENTER
+	) then
+		self:change(self.l, 'align_y', v, 'align')
+	end
+end
+
+terra Layout:get_line_spacing      (): num return self.l.line_spacing      end
+terra Layout:get_hardline_spacing  (): num return self.l.hardline_spacing  end
+terra Layout:get_paragraph_spacing (): num return self.l.paragraph_spacing end
+
+terra Layout:set_line_spacing      (v: num) self:change(self.l, 'line_spacing'     , v, 'spaceout') end
+terra Layout:set_hardline_spacing  (v: num) self:change(self.l, 'hardline_spacing' , v, 'spaceout') end
+terra Layout:set_paragraph_spacing (v: num) self:change(self.l, 'paragraph_spacing', v, 'spaceout') end
+
+terra Layout:get_clip_x(): num return self.l.clip_x end
+terra Layout:get_clip_y(): num return self.l.clip_y end
+terra Layout:get_clip_w(): num return self.l.clip_w end
+terra Layout:get_clip_h(): num return self.l.clip_h end
+
+terra Layout:set_clip_x(v: num) self:change(self.l, 'clip_x', v, 'clip') end
+terra Layout:set_clip_y(v: num) self:change(self.l, 'clip_y', v, 'clip') end
+terra Layout:set_clip_w(v: num) self:change(self.l, 'clip_w', v, 'clip') end
+terra Layout:set_clip_h(v: num) self:change(self.l, 'clip_h', v, 'clip') end
+
+terra Layout:set_clip_extents(x1: num, y1: num, x2: num, y2: num)
+	self.clip_x = x1
+	self.clip_y = y1
+	self.clip_w = x2-x1
+	self.clip_h = y2-y1
+end
+
+terra Layout:get_x(): num return self.l.x end
+terra Layout:get_y(): num return self.l.y end
+
+terra Layout:set_x(v: num) self:change(self.l, 'x', v, 'clip') end
+terra Layout:set_y(v: num) self:change(self.l, 'y', v, 'clip') end
+
+--span editing ---------------------------------------------------------------
+
+SPAN_FIELDS = {
+	'font_id',
+	'font_size',
+	'features',
+	'script',
+	'lang',
+	'paragraph_dir',
+	'nowrap',
+	'color',
+	'opacity',
+	'operator',
+}
+local SPAN_FIELD_INDICES = index(SPAN_FIELDS)
+
+local BIT = function(field)
+	local i = SPAN_FIELD_INDICES[field]
+	return 2^(i-1)
+end
+local BIT_ALL = 2^(#SPAN_FIELDS)-1
+
+local span_mask_has_bit = macro(function(mask, FIELD)
+	local bit = BIT(FIELD:asvalue())
+	return `(mask and bit) ~= 0
+end)
+
+--compare s<->d and return a bitmask showing which field values are the same.
+local terra compare_spans(d: &Span, s: &Span)
+	var mask = 0
+	escape
+		for _,FIELD in ipairs(SPAN_FIELDS) do
+			emit quote
+				if d.[FIELD] == s.[FIELD] then
+					mask = mask or [BIT(FIELD)]
+				end
+			end
+		end
+	end
+	return mask
+end
+
+--always returns a valid span index except it returns -1 when spans.len == 0.
+local terra cmp_spans(s1: &Span, s2: &Span)
+	return s1.offset <= s2.offset  -- < < = = [>] >
+end
+terra tr.Layout:span_at_offset(offset: int)
+	offset = max(0, offset)
+	return self.spans:binsearch(Span{offset = offset}, cmp_spans) - 1
+end
+
+--NOTE: -1 is two positions outside the text, not one. This allows
+--range (0, -1) on empty text to have length 1 otherwise setting span
+--attributes on range (0, -1) would not have any effect on empty text.
+terra tr.Layout:offset_range(o1: int, o2: int)
+	if o1 < 0 then o1 = self.text.len + o1 + 2 end
+	if o2 < 0 then o2 = self.text.len + o2 + 2 end
+	if o2 < o1 then o1, o2 = o2, o1 end
+	return o1, o2
+end
+
+terra Layout:split_spans(offset: int, allow_add: bool)
+	if allow_add and self.l.spans.len == 0 then
+		self.l.spans:add([Span.empty])
+		self:invalidate()
+	end
+	if not allow_add and self.l.spans:at(self.l.spans.len-1).offset < offset then
+		return self.l.spans.len --return that span that would have been added
+	end
+	var i = self.l:span_at_offset(offset)
+	var s = self.l.spans:at(i)
+	if s.offset < offset then
+		inc(i)
+		var s1 = s:copy()
+		s1.offset = offset
+		self.l.spans:insert(i, s1)
+		self:invalidate()
+	else
+		assert(s.offset == offset)
+	end
+	return i
+end
+
+terra Layout:remove_duplicate_spans(i1: int, i2: int)
+	i1 = self.l.spans:clamp(i1)
+	i2 = self.l.spans:clamp(i2)
+	var s = self.l.spans:at(i2)
+	var i = i2 - 1
+	while i >= i1 do
+		var d = self.l.spans:at(i)
+		if compare_spans(d, s) == BIT_ALL then
+			self.l.spans:remove(i+1) --TODO: remove in chunks to avoid O(n^2)
+			self:invalidate()
+		end
+		s = d
+		dec(i)
+	end
+end
+
+--remove all spans that are out of the text range.
+terra Layout:remove_trailing_spans()
+	for i,s in self.l.spans:backwards() do
+		if s.offset < self.l.text.len then
+			self.l.spans:remove(i+1, maxint)
+			self:invalidate()
+			break
+		end
+	end
+end
+
+--get a bitmask showing which span values are the same for an offset range
+--and the span id at offset1 for which to get the actual values.
+terra tr.Layout:get_span_same_mask(offset1: int, offset2: int)
+	offset1, offset2 = self:offset_range(offset1, offset2)
+	var mask: uint32 = BIT_ALL --presume all field values are the same.
+	var i = self:span_at_offset(offset1)
+	var s = self.spans:at(i)
+	if offset2 > offset1 then
+		var i2 = self:span_at_offset(offset2-1)+1
+		for i = i+1, i2 do
+			var d = self.spans:at(i)
+			mask = mask and compare_spans(s, d)
+			if mask == 0 then break end --all field values are different.
+		end
+	end
+	return mask, i
+end
+
+terra Span:load_features(layout: &tr.Layout, s: rawstring)
+	self.features.len = 0
+	var sview = rawstringview(s)
+	var j = 0
+	var gs = sview:gsplit' '
+	for i,len in gs do
+		var feat: hb_feature_t
+		if hb_feature_from_string(sview:at(i), len, &feat) ~= 0 then
+			self.features:add(feat)
+		end
+	end
+end
+
+terra Span:save_features(layout: &tr.Layout)
+	var sbuf = &layout.r.sbuf
+	sbuf.len = 0
+	for i,feat in self.features do
+		sbuf.min_capacity = sbuf.len + 128
+		var p = sbuf:at(sbuf.len)
+		hb_feature_to_string(feat, p, 128)
+		var n = strnlen(p, 128)
+		sbuf.len = sbuf.len + n
+		if i < self.features.len-1 then
+			sbuf:add(32) --space char
+		end
+	end
+	sbuf:add(0) --null-terminate
+	return iif(sbuf.len > 1, sbuf.elements, nil)
+end
+
+terra Span:load_lang(layout: &tr.Layout, s: rawstring)
+	self.lang = hb_language_from_string(s, -1)
+end
+
+terra Span:save_lang(layout: &tr.Layout)
+	return hb_language_to_string(self.lang)
+end
+
+terra Span:load_script(layout: &tr.Layout, s: rawstring)
+	self.script = hb_script_from_string(s, -1)
+end
+
+terra Span:save_script(layout: &tr.Layout)
+	var sbuf = &layout.r.sbuf
+	sbuf.len = 5
+	var tag = hb_script_to_iso15924_tag(self.script)
+	hb_tag_to_string(tag, sbuf.elements)
+	return iif(sbuf(0) ~= 0, sbuf.elements, nil)
+end
+
+terra Span:load_font_id(layout: &tr.Layout, font_id: font_id_t)
+	var cur_font = layout.r.fonts:at(self.font_id, nil)
+	if cur_font ~= nil then
+		cur_font:unref()
+	end
+	var font = layout.r.fonts:at(font_id, nil)
+	self.font_id = iif(font ~= nil, iif(font:ref(), font_id, -1), -1)
+end
+
+SPAN_FIELD_TYPES = {
+	font_id           = int       ,
+	font_size         = double    ,
+	features          = rawstring ,
+	script            = rawstring ,
+	lang              = rawstring ,
+	paragraph_dir     = int       ,
+	nowrap            = bool      ,
+	color             = uint32    ,
+	opacity           = double    ,
+	operator          = enum      ,
+}
+
+local SPAN_FIELD_INVALIDATE = {
+	nowrap            = 'shape min_w',
+	paragraph_dir     = 'shape',
+	color             = 'align',
+	opacity           = 'align',
+	operator          = 'align',
+}
+
+--Generate getters and setters for each text attr that can be set on an offset range.
+--Uses Layout:save_<field>() and Layout:load_<field> methods if available.
+for _,FIELD in ipairs(SPAN_FIELDS) do
+
+	local T = SPAN_FIELD_TYPES[FIELD]
+	local INVALIDATE = SPAN_FIELD_INVALIDATE[FIELD] or `nil
+	T = T or Span:getfield(FIELD).type
+
+	local SAVE = Span:getmethod('save_'..FIELD)
+		or macro(function(self) return `self.[FIELD] end)
+
+	--API for getting/setting span properties on a text offset range.
+
+	Layout.methods['has_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int)
+		if self.offsets_valid then
+			var mask, span_i = self.l:get_span_same_mask(offset1, offset2)
+			return span_mask_has_bit(mask, FIELD)
+		else
+			self.r:error('has_%s() error: spans invalid', FIELD)
+			return false
+		end
+	end
+
+	local LOAD = Span:getmethod('load_'..FIELD)
+		or macro(function(self, layout, val) return quote self.[FIELD] = val end end)
+
+	Layout.methods['set_'..FIELD] = terra(self: &Layout, offset1: int, offset2: int, val: T)
+		if self.l.spans.len == 0 or self.offsets_valid then
+			offset1, offset2 = self.l:offset_range(offset1, offset2)
+			var i1 = self:split_spans(offset1, true)
+			var i2 = self:split_spans(offset2, false)
+			for i = i1, i2 do
+				var span = self.l.spans:at(i)
+				LOAD(span, &self.l, val)
+			end
+			self:remove_duplicate_spans(i1-1, i2+1)
+			self:invalidate(INVALIDATE)
+		else
+			self.r:error('set_%s() error: spans invalid', FIELD)
+		end
+	end
+
+	--API for getting/setting spans directly as an array (for (de)serialization).
+
+	Layout.methods['get_span_'..FIELD] = terra(self: &Layout, span_i: int): T
+		var span = self.l.spans:at(span_i, &[Span.empty])
+		return SAVE(span, &self.l)
+	end
+
+	Layout.methods['set_span_'..FIELD] = terra(self: &Layout, span_i: int, val: T)
+		var span = self.l.spans:getat(span_i, [Span.empty])
+		LOAD(span, &self.l, val)
+		self:invalidate(INVALIDATE)
+	end
+
+end
+
+terra Layout:get_span_offset(span_i: int): int
+	return self.l.spans:at(span_i, &[Span.empty]).offset
+end
+
+terra Layout:set_span_offset(span_i: int, val: int)
+	self.l.spans:getat(span_i, [Span.empty]).offset = val
+	self:invalidate()
+end
+
+terra Layout:get_span_count(): int
+	return self.l.spans.len
+end
+
+terra Layout:set_span_count(n: int)
+	n = max(n, 0)
+	if self.l.spans.len ~= n then
+		self.l.spans:setlen(n, [Span.empty])
+		self:invalidate()
+	end
+end
+
+--text editing ---------------------------------------------------------------
 
 --[[
+--remove text between two offsets. return offset at removal point.
+local terra cmp_remove_first(s1: &Span, s2: &Span)
+	return s1.offset < s2.offset  -- < < [=] = > >
+end
+local terra cmp_remove_last(s1: &Span, s2: &Span)
+	return s1.offset <= s2.offset  -- < < = = [>] >
+end
+terra Layout:remove(i1: int, i2: int)
+	i1 = self.spans:clamp(i1)
+	i2 = self.spans:clamp(i2)
+	self.text:remove(i1, i2-i1)
+	--adjust/remove affected spans.
+	--NOTE: this includes all zero-length text runs at both ends.
+
+	--1. find the first and last text runs which need to be entirely removed.
+	local tr_i1 = self.spans:binsearch(Span{offset = i1}, cmp_remove_first) or #self + 1
+	local tr_i2 = self.spans:binsearch(Span{offset = i2}, cmp_remove_last) or #self + 1) - 1
+	--NOTE: clamping to #self-1 so that the last text run cannot be removed.
+	local tr_remove_count = clamp(tr_i2 - tr_i1 + 1, 0, #self-1)
+
+	local offset = 0
+
+	--2. adjust the length of the run before the first run that needs removing.
+	if tr_i1 > 1 then
+		local run = self[tr_i1-1]
+		local part_before_i1 = i1 - run.offset
+		local part_after_i2 = max(run.offset + run.len - i2, 0)
+		local new_len = part_before_i1 + part_after_i2
+		changed = changed or run.len ~= new_len
+		run.len = new_len
+		offset = run.offset + run.len
+	end
+
+	if tr_remove_count > 0 then
+
+		--3. adjust the offset of all runs after the last run that needs removing.
+		for tr_i = tr_i2+1, #self do
+			self[tr_i].offset = offset
+			offset = offset + self[tr_i].len
+		end
+
+		--4. remove all text runs that need removing from the text run list.
+		shift(self, tr_i1, -tr_remove_count)
+		for tr_i = #self, tr_i1 + tr_remove_count, -1 do
+			self[tr_i] = nil
+		end
+
+		changed = true
+	end
+
+	return i1, changed
+end
+]]
+
+--[[
+--insert text at offset. return offset after inserted text.
+local function cmp_insert(text_runs, i, offset)
+	return text_runs[i].offset <= offset -- < < = = [>] >
+end
+function text_runs:insert(i, s, sz, charset, maxlen)
+	sz = sz or #s
+	charset = charset or 'utf8'
+	if sz <= 0 then return i, false end
+
+	--get the length of the inserted text in codepoints.
+	local len
+	if charset == 'utf8' then
+		maxlen = maxlen and max(0, floor(maxlen))
+		len = utf8.decode(s, sz, false, maxlen) or maxlen
+	elseif charset == 'utf32' then
+		len = sz
+	else
+		assert(false, 'Invalid charset: %s', charset)
+	end
+	if len <= 0 then return i, false end
+
+	--reallocate the codepoints buffer and copy over the existing codepoints
+	--and copy/convert the new codepoints at the insert point.
+	local old_len = self.len
+	local old_str = self.codepoints
+	local new_len = old_len + len
+	local new_str = self.alloc_codepoints(new_len + 1)
+	i = clamp(i, 0, old_len)
+	ffi.copy(new_str, old_str, i * 4)
+	ffi.copy(new_str + i + len, old_str + i, (old_len - i) * 4)
+	if charset == 'utf8' then
+		utf8.decode(s, sz, new_str + i, len)
+	else
+		ffi.copy(new_str + i, ffi.cast(const_char_ct, s), len * 4)
+	end
+	self.len = new_len
+	self.codepoints = new_str
+
+	--adjust affected text runs.
+
+	--1. find the text run which needs to be extended to include the new text.
+	local tr_i = (binsearch(i, self, cmp_insert) or #self + 1) - 1
+	assert(tr_i >= 0)
+
+	--2. adjust the length of that run to include the length of the new text.
+	self[tr_i].len = self[tr_i].len + len
+
+	--3. adjust offset for all runs after the extended run.
+	for tr_i = tr_i+1, #self do
+		self[tr_i].offset = self[tr_i].offset + len
+	end
+
+	return i+len, true
+end
+]]
+
+--[[
+
+--Layout API
+
 terra Layout:get_bidi()
-	assert(self.state >= STATE_SHAPED)
-	return self.bidi
+	assert(self.state >= STATE_SHAPE)
+	return self.l.bidi
 end
 
-terra Layout:get_base_dir()
-	assert(self.state >= STATE_SHAPED)
-	return self.base_dir
+terra Layout:get_dir(): enum
+	assert(self.state >= STATE_SHAPE)
+	return self.l.dir
 end
 
-terra Layout:get_line_count()
-	assert(self.state >= STATE_WRAPPED)
-	return self.lines.len
+terra Layout:get_line_count(): int
+	assert(self.state >= STATE_WRAP)
+	return self.l.lines.len
 end
 
-terra Layout:get_line(line_i: int)
-	assert(self.state >= STATE_WRAPPED)
-	return self.lines:at(line_i)
+terra Layout:get_max_ax(): num
+	assert(self.state >= STATE_WRAP)
+	return self.l.max_ax
 end
 
-terra Layout:get_max_ax()
-	assert(self.state >= STATE_WRAPPED)
-	return self.max_ax
+terra Layout:get_h(): num
+	assert(self.state >= STATE_WRAP)
+	return self.l.h
 end
 
-terra Layout:get_h()
-	assert(self.state >= STATE_WRAPPED)
-	return self.h
+terra Layout:get_min_x(): num
+	assert(self.state >= STATE_WRAP)
+	return self.l.min_x
 end
 
-terra Layout:get_spaced_h()
-	assert(self.state >= STATE_WRAPPED)
-	return self.spaced_h
+terra Layout:get_first_visible_line(): int
+	assert(self.state >= STATE_CLIP)
+	return self.l.first_visible_line
 end
 
-terra Layout:get_baseline()
-	assert(self.state >= STATE_ALIGNED)
-	return self.baseline
-end
-
-terra Layout:get_min_x()
-	assert(self.state >= STATE_WRAPPED)
-	return self.min_x
-end
-
-terra Layout:get_first_visible_line()
-	assert(self.clip_valid)
-	return self.first_visible_line
-end
-
-terra Layout:get_last_visible_line()
-	assert(self.clip_valid)
-	return self.last_visible_line
+terra Layout:get_last_visible_line(): int
+	assert(self.state >= STATE_CLIP)
+	return self.l.last_visible_line
 end
 
 --line API
 
-terra Line:get_x() return self.x end
-terra Line:get_y() return self.y end
-terra Line:get_advance_x() return self.advance_x end
-terra Line:get_ascent() return self.ascent end
-terra Line:get_descent() return self.descent end
-terra Line:get_spaced_ascent() return self.spaced_ascent end
-terra Line:get_spaced_descent() return self.spaced_descent end
-terra Line:get_spacing() return self.spacing end
+terra Layout:cursor_xs(line_i: int)
+	var xs = self.l:cursor_xs(line_i)
+	return xs.elements, xs.len
+end
+
+terra Layout:get_line_x             (line_i: int): num return self.l.lines:at(line_i).x end
+terra Layout:get_line_y             (line_i: int): num return self.l.lines:at(line_i).y end
+terra Layout:get_line_advance_x     (line_i: int): num return self.l.lines:at(line_i).advance_x end
+terra Layout:get_line_ascent        (line_i: int): num return self.l.lines:at(line_i).ascent end
+terra Layout:get_line_descent       (line_i: int): num return self.l.lines:at(line_i).descent end
+terra Layout:get_line_spaced_ascent (line_i: int): num return self.l.lines:at(line_i).spaced_ascent end
+terra Layout:get_line_spaced_descent(line_i: int): num return self.l.lines:at(line_i).spaced_descent end
 
 --segment API
 
-	line_num: int; --physical line number
-	--for line breaking
-	linebreak: enum;
-	--for bidi reordering
-	bidi_level: FriBidiLevel;
-	--for cursor positioning
-	span: &Span; --span of the first sub-segment
-	offset: int; --codepoint offset into the text
-	line_index: int;
-	--slots filled by layouting
-	x: num;
-	advance_x: num; --segment's x-axis boundaries
-	next_vis: &Seg; --next segment on the same line in visual order
-	wrapped: bool; --segment is the last on a wrapped line
-	visible: bool; --segment is not entirely clipped
-	subsegs: arr(SubSeg);
-
-	first: &Seg; --first segment in text order
-	first_vis: &Seg; --first segment in visual order
-
+terra Layout:get_seg_line_num  (seg_i: int) end
+terra Layout:get_seg_linebreak (seg_i: int) end
+terra Layout:get_seg_span      (seg_i: int) end
+terra Layout:get_seg_offset    (seg_i: int) end
+terra Layout:get_seg_line      (seg_i: int) end
+terra Layout:get_seg_x         (seg_i: int) end
+terra Layout:get_seg_advance_x (seg_i: int) end
+terra Layout:get_seg_wrapped   (seg_i: int) end
+terra Layout:get_seg_visible   (seg_i: int) end
+terra Layout:get_seg_next_vis  (seg_i: int) end
 ]]
 
---cursor API
+--layouting helper APIs ------------------------------------------------------
 
-terra Cursor:rect_c(x: &num, y: &num, w: &num, h: &num)
-	@x, @y, @w, @h = self:rect()
+terra Layout:get_min_size_valid() --to decide to re-layout
+	return self.state >= STATE_SPACEOUT
 end
 
-terra Cursor:get_visible() return self.visible end
-terra Cursor:set_visible(v: bool) self.visible = v end
+terra Layout:get_layout_valid() --to decide to re-align
+	return self.state >= STATE_ALIGN
+end
 
-function build()
+terra Layout:get_text_visible() --to decide to paint
+	return self.l.text.len > 0 and self.valid
+end
+
+terra Layout:get_min_w(): num --for page layouting min-size constraints
+	assert(self.state >= STATE_SHAPE)
+	if self._min_w == -inf then
+		self._min_w = self.l:min_w()
+	end
+	return self._min_w
+end
+
+terra Layout:get_max_w(): num --not used yet
+	assert(self.state >= STATE_SHAPE)
+	if self._max_w == -inf then
+		self._max_w = self.l:max_w()
+	end
+	return self._max_w
+end
+
+terra Layout:get_baseline(): num --for page layouting baseline alignment
+	assert(self.state >= STATE_ALIGN)
+	return self.l.baseline
+end
+
+terra Layout:get_spaced_h(): num --for page layouting min-size constraints
+	assert(self.state >= STATE_SPACEOUT)
+	return self.l.spaced_h
+end
+
+terra Layout:bbox(): {num, num, num, num}
+	return self.l:bbox()
+end
+
+--cursor & selection helper APIs ---------------------------------------------
+
+--terra Layout:cursor_at_offset(offset: int): int
+--	return self.l:cursor_at_offset(offset)
+--end
+
+--publish and build
+
+function build(optimize)
 	local trlib = publish'tr'
-
-	trlib(tr_renderer_sizeof)
-	trlib(tr_renderer_new)
 
 	if memtotal then
 		trlib(memtotal)
 		trlib(memreport)
 	end
 
-	trlib(Renderer, {
-		init=1,
-		free=1,
-		release=1,
+	trlib(tr, '^ALIGN_')
+	trlib(tr, '^DIR_')
 
-		get_glyph_run_cache_max_size=1,
-		set_glyph_run_cache_max_size=1,
-		get_glyph_run_cache_size=1,
-		get_glyph_run_cache_count=1,
-
-		get_glyph_cache_max_size=1,
-		set_glyph_cache_max_size=1,
-		get_glyph_cache_size=1,
-		get_glyph_cache_count=1,
-
-		font=1,
-		free_font=1,
-
-		layout=1, --must call layout:release() if created this way!
-
-		get_paint_glyph_num=1,
-		set_paint_glyph_num=1,
-
-	}, {
-		cname = 'tr_renderer_t',
-		cprefix = 'tr_renderer_',
-		opaque = true,
-	})
-
+	trlib(tr_renderer_sizeof)
 	trlib(tr_layout_sizeof)
+	trlib(tr_renderer)
 
-	trlib(Layout, {
-		init=1,
-		free=1,
-		release=1,
-
-		get_text=1,
-		get_text_len=1,
-		set_text=1,
-
-		get_text_utf8=1,
-		set_text_utf8=1,
-
-		get_maxlen=1,
-		set_maxlen=1,
-
-		get_dir=1,
-		set_dir=1,
-
-		get_align_w=1,
-		get_align_h=1,
-		get_align_x=1,
-		get_align_y=1,
-
-		set_align_w=1,
-		set_align_h=1,
-		set_align_x=1,
-		set_align_y=1,
-
-		get_clip_x=1,
-		get_clip_y=1,
-		get_clip_w=1,
-		get_clip_h=1,
-
-		set_clip_x=1,
-		set_clip_y=1,
-		set_clip_w=1,
-		set_clip_h=1,
-		set_clip_extents=1,
-
-		get_x=1,
-		get_y=1,
-		set_x=1,
-		set_y=1,
-
-		get_font_id           =1,
-		get_font_size         =1,
-		get_features          =1,
-		get_script            =1,
-		get_lang              =1,
-		get_paragraph_dir     =1,
-		get_line_spacing      =1,
-		get_hardline_spacing  =1,
-		get_paragraph_spacing =1,
-		get_nowrap            =1,
-		get_color             =1,
-		get_opacity           =1,
-		get_operator          =1,
-
-		set_font_id           =1,
-		set_font_size         =1,
-		set_features          =1,
-		set_script            =1,
-		set_lang              =1,
-		set_paragraph_dir     =1,
-		set_line_spacing      =1,
-		set_hardline_spacing  =1,
-		set_paragraph_spacing =1,
-		set_nowrap            =1,
-		set_color             =1,
-		set_opacity           =1,
-		set_operator          =1,
-
-		get_visible=1,
-		get_clipped=1,
-
-		shape=1,
-		wrap=1,
-		spaceout=1,
-		align=1,
-		clip=1,
-		layout=1,
-		paint=1,
-
-		--get_bidi=1,
-		--get_base_dir=1,
-		--get_line_count=1,
-		--get_line=1,
-		--get_max_ax=1,
-		--get_h=1,
-		--get_spaced_h=1,
-		--get_baseline=1,
-		--get_min_x=1,
-		--get_first_visible_line=1,
-		--get_last_visible_line=1,
-
-		get_line_count=1,
-		get_line=1,
-
-		selection=1,
-
-	}, {
-		cname = 'tr_layout_t',
-		cprefix = 'tr_layout_',
+	trlib(Renderer, nil, {
+		cname = 'renderer_t',
+		cprefix = 'tr_',
 		opaque = true,
 	})
 
-	trlib(Line, {
-
-
-	}, {
-		cname = 'tr_line_t',
-		cprefix = 'tr_line_',
+	trlib(Layout, nil, {
+		cname = 'layout_t',
+		cprefix = 'tr_',
 		opaque = true,
 	})
-
-
-	trlib(Cursor, {
-
-		get_visible=1,
-		set_visible=1,
-
-		get_offset=1,
-		get_rtl=1,
-
-		rect_c='rect',
-
-		move_to_offset=1,
-		move_to_rel_cursor=1,
-		move_to_line=1,
-		move_to_pos=1,
-		move_to_page=1,
-		move_to_rel_page=1,
-
-		paint=1,
-
-		insert=1,
-		remove=1,
-
-	}, {
-		cname = 'tr_cursor_t',
-		cprefix = 'tr_cursor_',
-		opaque = true,
-	})
-
-	trlib(Selection, {
-		release=1,
-
-	}, {
-		cname = 'tr_selection_t',
-		cprefix = 'tr_selection_',
-		opaque = true,
-	})
-
-	trlib:getenums(_M, nil, 'TR_')
 
 	trlib:build{
 		linkto = {'cairo', 'freetype', 'harfbuzz', 'fribidi', 'unibreak', 'xxhash'},
-		--optimize = false,
+		optimize = optimize,
 	}
-
 end
 
 if not ... then
-	build()
+	print'Building non-optimized...'
+	build(false)
+	print('sizeof Layout', sizeof(Layout))
 end
 
 return _M

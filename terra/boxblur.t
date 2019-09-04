@@ -199,13 +199,13 @@ terra Blur:release()
 end
 
 function Blur:build()
-	local public = publish'boxblurlib'
-	public(Bitmap, {
+	local lib = publish'boxblurlib'
+	lib(Bitmap, {
 		--
 	})
-	public(bitmap.new, 'bitmap')
-	public:getenums(bitmap, '^FORMAT_', 'BLUR_')
-	public(Blur, {
+	lib(bitmap.new, 'bitmap')
+	lib(bitmap, '^FORMAT_', 'BLUR_')
+	lib(Blur, {
 		release='free',
 		invalidate = {'invalidate', 'invalidate_rect'},
 		blur=1,
@@ -216,8 +216,8 @@ function Blur:build()
 		b:init(format)
 		return b
 	end
-	public(blur)
-	public:build{
+	lib(blur)
+	lib:build{
 		linkto = {'boxblur'},
 	}
 end

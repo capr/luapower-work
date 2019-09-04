@@ -91,7 +91,7 @@ iter.for_variables = {span0, level0, script0, lang0}
 iter.declare_variables = function(self)
 	return quote
 		var [span_index] = -1
-		var [span_eof] = 0
+		var [span_eof] = 0 --load the first span on the first iteration.
 		var [span_diff] = false
 		var [span0], [level0], [script0], [lang0]
 		var [span1], [level1], [script1], [lang1]
@@ -176,8 +176,8 @@ terra ub_lang(hb_lang: hb_language_t): rawstring
 	else return nil end
 end
 
---search for the span that covers a specific text position.
-terra Layout:_span_index_at_offset(offset: int, i0: int)
+--search for a following span that covers a certain text position.
+terra Layout:_span_index_at_offset_after_span(offset: int, i0: int)
 	for i = i0 + 1, self.spans.len do
 		if self.spans:at(i).offset > offset then
 			return i-1
@@ -193,23 +193,25 @@ terra Layout:span_dir(span: &Span, paragraph_offset: int)
 		span.paragraph_dir, self.dir)
 end
 
-terra Layout:invalidate_min_w()
-	if self.text.len == 0 then
-		self._min_w = 0
-	else
-		self._min_w = -inf
-	end
+local terra to_fribidi_dir(dir: enum): FriBidiParType
+	if dir == DIR_AUTO then return FRIBIDI_PAR_ON   end
+	if dir == DIR_LTR  then return FRIBIDI_PAR_LTR  end
+	if dir == DIR_RTL  then return FRIBIDI_PAR_RTL  end
+	if dir == DIR_WLTR then return FRIBIDI_PAR_WLTR end
+	if dir == DIR_WRTL then return FRIBIDI_PAR_WRTL end
+	assert(false)
 end
 
-terra Layout:invalidate_max_w()
-	if self.text.len == 0 then
-		self._max_w = 0
-	else
-		self._max_w =  inf
-	end
+local terra from_fribidi_dir(dir: FriBidiParType): enum
+	if dir == FRIBIDI_PAR_ON   then return DIR_AUTO end
+	if dir == FRIBIDI_PAR_LTR  then return DIR_LTR  end
+	if dir == FRIBIDI_PAR_RTL  then return DIR_RTL  end
+	if dir == FRIBIDI_PAR_WLTR then return DIR_WLTR end
+	if dir == FRIBIDI_PAR_WRTL then return DIR_WRTL end
+	assert(false)
 end
 
-terra Layout:_shape()
+terra Layout:shape()
 
 	var r = self.r
 	var segs = &self.segs
@@ -217,8 +219,6 @@ terra Layout:_shape()
 	--reset output
 	segs.len = 0
 	self.lines.len = 0
-	self:invalidate_min_w()
-	self:invalidate_max_w()
 
 	--special-case empty text: we still want to set valid shaping output
 	--in order to properly display a cursor.
@@ -288,7 +288,7 @@ terra Layout:_shape()
 	for offset, len in self:paragraphs() do
 		var str = self.text:at(offset)
 
-		span_index = self:_span_index_at_offset(offset, span_index)
+		span_index = self:_span_index_at_offset_after_span(offset, span_index)
 		var span = self.spans:at(span_index)
 		var dir = self:span_dir(span, offset)
 		var fb_dir = to_fribidi_dir(dir)
@@ -378,25 +378,23 @@ terra Layout:_shape()
 		gr.text.view = self.text:sub(offset, offset + len)
 		--^^fake a dynarray to avoid copying.
 
-		var glyph_run_id, glyph_run = r:shape_word(gr)
+		var glyph_run_id = r:shape_word(gr)
 
-		if glyph_run ~= nil then --font loaded successfully
-			var seg = segs:add()
-			seg.glyph_run_id = glyph_run_id
-			seg.line_num = line_num --physical line number (for code editors)
-			seg.linebreak = linebreak --means this segment _ends_ a line
-			seg.bidi_level = level --for bidi reordering
-			seg.paragraph_dir = para_dir --for ALIGN_AUTO
-			--for cursor positioning
-			seg.span = span --span of the first sub-seg
-			seg.offset = offset
-			--slots filled by layouting
-			seg.x = 0; seg.advance_x = 0 --seg's x-axis boundaries
-			seg.next_vis = nil --next seg on the same line in visual order
-			seg.wrapped = false --seg is the last on a wrapped line
-			seg.visible = true --seg is not entirely clipped
-			seg.subsegs:init()
-		end
+		var seg = segs:add()
+		seg.glyph_run_id = glyph_run_id
+		seg.line_num = line_num --physical line number (for code editors)
+		seg.linebreak = linebreak --means this segment _ends_ a line
+		seg.bidi_level = level --for bidi reordering
+		seg.paragraph_dir = para_dir --for ALIGN_AUTO
+		--for cursor positioning
+		seg.span = span --span of the first sub-seg
+		seg.offset = offset
+		--slots filled by layouting
+		seg.x = 0; seg.advance_x = 0 --seg's x-axis boundaries
+		seg.next_vis = nil --next seg on the same line in visual order
+		seg.wrapped = false --seg is the last on a wrapped line
+		seg.visible = true --seg is not entirely clipped
+		seg.subsegs:init()
 
 		if linebreak ~= BREAK_NONE then
 			inc(line_num)

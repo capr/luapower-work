@@ -1494,7 +1494,7 @@ function window:mouse(var)
 		or self._mouse.x1
 		or self._mouse.x2
 	) then
-		return
+		return --can only get mouse state when inside or captured
 	elseif var == 'pos' then
 		return self._mouse.x, self._mouse.y
 	else

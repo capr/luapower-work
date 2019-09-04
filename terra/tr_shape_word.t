@@ -16,7 +16,6 @@ end
 terra GlyphRun:free(r: &Renderer)
 	self.cursor_xs:free()
 	self.cursor_offsets:free()
-	var font = r.fonts:at(self.font_id)
 	self.text:free()
 	self.features:free()
 	self.glyphs:free()
@@ -27,10 +26,10 @@ end
 terra GlyphRun.methods.compute_cursors :: {&GlyphRun, &Renderer, &Font} -> {}
 
 terra GlyphRun:shape(r: &Renderer)
-	var font = r.fonts:at(self.font_id, nil)
-	if font == nil then
+	if self.font_size <= 0 then
 		return false
 	end
+	var font = r.fonts:at(self.font_id)
 	font:setsize(self.font_size)
 	self.text = self.text:copy()
 	self.features = self.features:copy()
@@ -80,8 +79,6 @@ terra GlyphRun:shape(r: &Renderer)
 	self.images_memsize = 0
 
 	self:compute_cursors(r, font)
-
-	return true
 end
 
 --iterate clusters in RLE-compressed form.
@@ -219,9 +216,7 @@ terra GlyphRun:compute_cursors(r: &Renderer, f: &Font)
 	self.cursor_offsets.len = self.text.len + 1
 	self.cursor_xs:init()
 	self.cursor_xs.len = self.text.len + 1
-	for i,offset in self.cursor_offsets do
-		@offset = -1 --invalid offset, fixed later
-	end
+	self.cursor_offsets:fill(-1) --set all to invalid offset, fixed later
 
 	if self.rtl then
 		--add last logical (first visual), after-the-text cursor
@@ -298,10 +293,9 @@ terra Renderer:shape_word(glyph_run: GlyphRun)
 	--get the shaped run from cache or shape it and cache it.
 	var glyph_run_id, pair = self.glyph_runs:get(glyph_run)
 	if pair == nil then
-		if glyph_run:shape(self) then
-			glyph_run_id, pair = self.glyph_runs:put(glyph_run, {})
-			assert(pair ~= nil)
-		end
+		glyph_run:shape(self)
+		glyph_run_id, pair = self.glyph_runs:put(glyph_run, {})
+		assert(pair ~= nil)
 	end
-	return glyph_run_id, &pair.key
+	return glyph_run_id
 end

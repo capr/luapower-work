@@ -3,8 +3,6 @@ setfenv(1, require'terra/low'.module())
 require'terra/memcheck'
 require'terra/tr_paint_cairo'
 setfenv(1, require'terra/tr_api')
-local strlen = includecstring'unsigned long long strlen (const char *str);'.strlen
-local sprintf = includecstring'int sprintf(char* str, const char* format, ...);'.sprintf
 
 local font_paths_list = {
 	'../media/fonts/OpenSans-Regular.ttf',
@@ -46,7 +44,7 @@ local paint_times = 1
 terra test()
 	var sr = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1920, 1080)
 	var cr = sr:context()
-	var r = tr_renderer_new(load_font, unload_font)
+	var r = tr_renderer(load_font, unload_font)
 
 	r.glyph_cache_max_size = 1024*1024
 	r.glyph_run_cache_max_size = 1024*1024
@@ -121,7 +119,7 @@ terra test()
 				100 * glyphs_per_frame * wanted_fps * dt / r.paint_glyph_num)
 
 			var s: char[200]
-			sprintf(s, 'out%d.png', layouts.len)
+			snprintf(s, 200, 'out%d.png', layouts.len)
 			--sr:save_png(s)
 
 		end
@@ -136,10 +134,10 @@ terra test()
 	end
 	layouts:free()
 
-	pfn('Glyph cache size     : %7.2fmB', r.glyphs.size / 1024.0 / 1024.0)
-	pfn('Glyph cache count    : %7d', r.glyphs.count)
-	pfn('GlyphRun cache size  : %7.2fmB', r.glyph_runs.size / 1024.0 / 1024.0)
-	pfn('GlyphRun cache count : %7d', r.glyph_runs.count)
+	pfn('Glyph cache size     : %7.2fmB', r.glyph_cache_size / 1024.0 / 1024.0)
+	pfn('Glyph cache count    : %7d', r.glyph_cache_count)
+	pfn('GlyphRun cache size  : %7.2fmB', r.glyph_run_cache_size / 1024.0 / 1024.0)
+	pfn('GlyphRun cache count : %7d', r.glyph_run_cache_count)
 
 	r:release()
 	cr:free()

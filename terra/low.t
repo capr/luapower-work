@@ -706,9 +706,9 @@ function C:__call(cstring, ...)
 	return update(self, terralib.includecstring(cstring, ...))
 end
 
---forward ffi.cdef() calls to includecstring() so that Terra can use ffi
---cdefs from LuaJIT C bindings instead of loading original header files
---which can load up to 10x slower.
+--forward ffi.cdef() calls to includecstring() so that Terra can use
+--preprocessed ffi cdefs from LuaJIT ffi bindings instead of loading
+--original header files which can load up to 10x slower.
 builtin_ctypes = [[
 typedef          char      int8_t;
 typedef unsigned char      uint8_t;
@@ -1541,10 +1541,11 @@ function publish(modulename)
 	local objects = {}
 	local enums = {}
 
-	function self:publish(T, public_methods, opt)
+	function self:publish(T, ...)
 		if type(T) == 'terrafunction'
 			or (type(T) == 'terratype' and T:isstruct() and not T:istuple())
 		then
+			local public_methods, opt = ...
 			T.opaque = opt and opt.opaque
 			T.cname = opt and opt.cname
 			T.cprefix = opt and opt.cprefix
@@ -1561,8 +1562,17 @@ function publish(modulename)
 				end
 			end
 			add(objects, T)
-		elseif type(T) == 'table' and not getmetatable(T) then --plain table: enums
-			update(enums, T)
+		elseif type(T) == 'table' then --plain table: enums
+			local match, prefix = ...
+			prefix = prefix or ''
+			for k,v in pairs(T) do
+				if type(k) == 'string' and type(v) == 'number' and k:upper() == k
+					and (not match or k:find(match))
+				then
+					enums[prefix..k] = v
+				end
+			end
+
 		else
 			assert(false, 'expected terra function, struct or enum table, got ', T)
 		end
@@ -1570,17 +1580,6 @@ function publish(modulename)
 	end
 
 	self.__call = self.publish
-
-	function self:getenums(moduletable, match, prefix)
-		prefix = prefix or ''
-		for k,v in pairs(moduletable) do
-			if type(k) == 'string' and type(v) == 'number' and k:upper() == k
-				and (not match or k:find(match))
-			then
-				enums[prefix..k] = v
-			end
-		end
-	end
 
 	local saveobj_table = {}
 

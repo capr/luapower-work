@@ -37,49 +37,39 @@ terra Layout:nowrap_segments(seg_i: int)
 end
 
 --minimum width that the text can wrap into without overflowing.
-terra Layout:get_min_w()
-	assert(self.state >= STATE_SHAPED)
-	var min_w = self._min_w
-	if min_w == -inf then
-		min_w = 0
-		var seg_i, n = 0, self.segs.len
-		while seg_i < n do
-			var segs_wx, _, next_seg_i = self:nowrap_segments(seg_i)
-			min_w = max(min_w, segs_wx)
-			seg_i = next_seg_i
-		end
-		self._min_w = min_w
+terra Layout:min_w()
+	var min_w: num = 0
+	var seg_i, n = 0, self.segs.len
+	while seg_i < n do
+		var segs_wx, _, next_seg_i = self:nowrap_segments(seg_i)
+		min_w = max(min_w, segs_wx)
+		seg_i = next_seg_i
 	end
 	return min_w
 end
 
 --text width when there's no wrapping.
-terra Layout:get_max_w()
-	assert(self.state >= STATE_SHAPED)
-	var max_w = self._max_w
-	if max_w == inf then
-		max_w = 0
-		var line_w = 0
-		var n = self.segs.len
-		for i = 0, n do
-			var seg = self.segs(i)
-			var gr = &self.r.glyph_runs:pair(seg.glyph_run_id).key
-			var wx = gr.wrap_advance_x
-			var ax = gr.advance_x
-			var linebreak = seg.linebreak ~= BREAK_NONE or i == n
-			wx = iif(linebreak, ax, wx)
-			line_w = line_w + wx
-			if linebreak then
-				max_w = max(max_w, line_w)
-				line_w = 0
-			end
+terra Layout:max_w()
+	var max_w: num = 0
+	var line_w = 0
+	var n = self.segs.len
+	for i = 0, n do
+		var seg = self.segs(i)
+		var gr = &self.r.glyph_runs:pair(seg.glyph_run_id).key
+		var wx = gr.wrap_advance_x
+		var ax = gr.advance_x
+		var linebreak = seg.linebreak ~= BREAK_NONE or i == n
+		wx = iif(linebreak, ax, wx)
+		line_w = line_w + wx
+		if linebreak then
+			max_w = max(max_w, line_w)
+			line_w = 0
 		end
-		self._max_w = max_w
 	end
 	return max_w
 end
 
-terra Layout:_wrap()
+terra Layout:wrap()
 
 	self.max_ax = 0
 	self.lines.len = 0
@@ -125,7 +115,6 @@ terra Layout:_wrap()
 
 			line = self.lines:add()
 			fill(line)
-			line.index = self.lines.len-1
 			line.first = self.segs:at(seg_i) --first segment in text order
 			line.first_vis = line.first --first segment in visual order
 		end

@@ -160,14 +160,14 @@ terra Renderer:rasterize_glyph_run(gr: &GlyphRun, ax: num, ay: num)
 		var by1 = floor(by)
 		var bx2 = ceil(bx + bw)
 		var by2 = ceil(by + bh)
-		var sr = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, bx2-bx1, by2-by1)
-		var srcr = sr:context()
-		srcr:translate(-bx1, -by1)
+		var sr = create_surface(bx2-bx1, by2-by1)
+		var cr = sr:context()
+		cr:translate(-bx1, -by1)
 		var surfaces = self:glyph_surfaces(gr, 0, gr.glyphs.len, ax, ay)
 		for gsr, gsx, gsy in surfaces do
-			self:paint_surface(srcr, gsr, gsx, gsy, false, 0, 0)
+			self:paint_surface(cr, gsr, gsx, gsy, false, 0, 0)
 		end
-		srcr:free()
+		cr:free()
 		gsp = gr.images:set(si,
 			GlyphImage{surface = sr, x = bx1-sx, y = by1-sy},
 			GlyphImage{surface = nil, x = 0, y = 0})

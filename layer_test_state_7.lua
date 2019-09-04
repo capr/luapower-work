@@ -7,10 +7,30 @@ return {
 		border_width_right=1,
 		border_width_top=1,
 		h=300,
+		span_count=2,
+		text_cursor_i=1,
+		text_cursor_offset=14,
+		text_cursor_seg=2,
+		text_cursor_x=263,
+		text_selectable=true,
+		text_spans={
+			{
+				span_font_id=1,
+				span_font_size=38
+			},
+			{
+				span_font_id=1,
+				span_font_size=38,
+				span_offset=9,
+				span_text_color=12975103
+			}
+		},
+		text_utf8='LuaJIT\'s ffi is the best!',
 		w=500,
 		x=100,
 		y=100
 	},
 	selected_layer_path={
-	}
+	},
+	tab='Text'
 }

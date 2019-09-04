@@ -1,21 +1,59 @@
 --[[
 
 	CLayer C/ffi API.
+	Implements a flattened API tailored for LuaJIT ffi use.
 
-	- creates a flattened API tailored to ffi use:
-		- using doubles in place of int types for better range checking.
-		- types are enlarged and simplified for forward compatibility.
-		- enum values are consecutive for forward compatibility.
-	- validates enums, clamps numbers to range.
-	- invalidates state automatically when input values are updated.
-	- synchronizes state automatically when computed values are accessed.
-	- adds self-allocating constructors.
+	- self-allocating constructors.
+	- non-fatal error checking and reporting.
+	- enum validation, number clamping to range.
+	- state invalidation when input values are changed.
+	- state resync'ing when computed values are read.
+	- uses doubles in place of ints for better range checking with ffi.
+
+	- simplified and enlarged number types for forward ABI compatibility.
+	- consecutive enum values for forward ABI compatibility.
+	- functions and types are renamed and prefixed to C conventions.
+	- methods and virtual properties are bound back to types via ffi.metatype.
 
 ]]
 
 
 local layer = require'terra/layer'
 setfenv(1, require'terra/low'.module(layer))
+
+--arg checking & error reporting macros --------------------------------------
+
+Lib.methods.error = macro(function(self, ...)
+	local args = args(...)
+	return quote
+		self.text_renderer:error([args])
+	end
+end)
+
+Layer.methods.check = macro(function(self, NAME, v, valid)
+	NAME = NAME:asvalue()
+	FORMAT = 'invalid '..NAME..': %d'
+	return quote
+		if not valid then
+			self.lib:error(FORMAT, v)
+		end
+		in valid
+	end
+end)
+
+Layer.methods.checkrange = macro(function(self, NAME, v, MIN_V, MAX_V)
+	NAME = NAME:asvalue()
+	MIN_V = MIN_V:asvalue()
+	MAX_V = MAX_V:asvalue()
+	FORMAT = 'invalid '..NAME..': %d (range: '..MIN_V..'..'..MAX_V..')'
+	return quote
+		var ok = v >= MIN_V and v <= MAX_V
+		if not ok then
+			self.lib:error(FORMAT, v)
+		end
+		in ok
+	end
+end)
 
 --API types ------------------------------------------------------------------
 
@@ -83,21 +121,19 @@ end
 
 do end --text rendering engine configuration
 
-ErrorFunction.cname = 'error_function_t'
-
 terra CLib:get_font_size_resolution       (): num return self.l.text_renderer.font_size_resolution end
 terra CLib:get_subpixel_x_resolution      (): num return self.l.text_renderer.subpixel_x_resolution end
 terra CLib:get_word_subpixel_x_resolution (): num return self.l.text_renderer.word_subpixel_x_resolution end
 terra CLib:get_glyph_cache_size           (): int return self.l.text_renderer.glyph_cache_size end
 terra CLib:get_glyph_run_cache_size       (): int return self.l.text_renderer.glyph_run_cache_size end
-terra CLib:get_error_function             (): ErrorFunction return self.l.error_function end
+terra CLib:get_error_function             (): ErrorFunction return self.l.text_renderer.error_function end
 
 terra CLib:set_font_size_resolution       (v: num) self.l.text_renderer.font_size_resolution = v end
 terra CLib:set_subpixel_x_resolution      (v: num) self.l.text_renderer.subpixel_x_resolution = v end
 terra CLib:set_word_subpixel_x_resolution (v: num) self.l.text_renderer.word_subpixel_x_resolution = v end
 terra CLib:set_glyph_cache_size           (v: int) self.l.text_renderer.glyph_cache_max_size = v end
 terra CLib:set_glyph_run_cache_size       (v: int) self.l.text_renderer.glyph_run_cache_max_size = v end
-terra CLib:set_error_function             (v: ErrorFunction) self.l.error_function = v end
+terra CLib:set_error_function             (v: ErrorFunction) self.l.text_renderer.error_function = v end
 
 do end --font registration
 
@@ -220,6 +256,12 @@ terra CLayer:set_padding(v: num)
 	self.padding_right  = v
 	self.padding_top    = v
 	self.padding_bottom = v
+end
+
+do end --space helpers
+
+terra CLayer:from_window(x: num, y: num)
+	return self.l:from_window(x, y)
 end
 
 do end --drawing
@@ -618,17 +660,17 @@ terra CLayer:set_shadow_content (i: int, v: bool)   change_shadow(self, i, 'cont
 
 do end --text
 
-terra CLayer:get_text() return self.l.text.layout.text.elements end
+terra CLayer:get_text() return self.l.text.layout.text end
 terra CLayer:get_text_len(): int return self.l.text.layout.text_len end
 
 terra CLayer:set_text(s: &codepoint, len: int)
 	self.l.text.layout:set_text(s, len)
-	self.l:invalidate_text()
+	self.l:invalidate'text'
 end
 
 terra CLayer:set_text_utf8(s: rawstring, len: int)
 	self.l.text.layout:set_text_utf8(s, len)
-	self.l:invalidate_text()
+	self.l:invalidate'text'
 end
 
 terra CLayer:get_text_utf8(out: rawstring, max_outlen: int): int
@@ -642,29 +684,34 @@ end
 terra CLayer:get_text_maxlen(): int return self.l.text.layout.maxlen end
 terra CLayer:set_text_maxlen(v: int)
 	self.l.text.layout.maxlen = v
-	self.l:invalidate_text()
+	self.l:invalidate'text'
 end
 
 terra CLayer:get_text_dir(): enum return self.l.text.layout.dir end
 terra CLayer:set_text_dir(v: enum)
 	self.l.text.layout.dir = v
-	self.l:invalidate_text()
+	self.l:invalidate'text'
 end
 
 terra CLayer:get_text_align_x(): enum return self.l.text.layout.align_x end
 terra CLayer:get_text_align_y(): enum return self.l.text.layout.align_y end
-terra CLayer:set_text_align_x(v: enum) self.l.text.layout.align_x = v; self.l:invalidate_text() end
-terra CLayer:set_text_align_y(v: enum) self.l.text.layout.align_y = v; self.l:invalidate_text() end
+terra CLayer:set_text_align_x(v: enum) self.l.text.layout.align_x = v; self.l:invalidate'text' end
+terra CLayer:set_text_align_y(v: enum) self.l.text.layout.align_y = v; self.l:invalidate'text' end
 
 terra CLayer:get_line_spacing      (): num return self.l.text.layout.line_spacing end
 terra CLayer:get_hardline_spacing  (): num return self.l.text.layout.hardline_spacing end
 terra CLayer:get_paragraph_spacing (): num return self.l.text.layout.paragraph_spacing end
 
-terra CLayer:set_line_spacing      (v: num) self.l.text.layout.line_spacing      = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate_text() end
-terra CLayer:set_hardline_spacing  (v: num) self.l.text.layout.hardline_spacing  = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate_text() end
-terra CLayer:set_paragraph_spacing (v: num) self.l.text.layout.paragraph_spacing = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate_text() end
+terra CLayer:set_line_spacing      (v: num) self.l.text.layout.line_spacing      = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate'text' end
+terra CLayer:set_hardline_spacing  (v: num) self.l.text.layout.hardline_spacing  = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate'text' end
+terra CLayer:set_paragraph_spacing (v: num) self.l.text.layout.paragraph_spacing = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate'text' end
 
 --text spans
+
+terra CLayer:get_has_text_cursor()
+	self:sync()
+	return self.l.has_text_cursor
+end
 
 terra CLayer:get_span_count(): int
 	return self.l.text.layout.span_count
@@ -674,7 +721,7 @@ terra CLayer:set_span_count(n: int)
 	n = clamp(n, 0, MAX_SPAN_COUNT)
 	if self.span_count ~= n then
 		self.l.text.layout.span_count = n
-		self.l:invalidate_text()
+		self.l:invalidate'text'
 	end
 end
 
@@ -685,21 +732,31 @@ local prefixed = {
 	operator=1,
 }
 
-for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
+for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 
+	local T = tr.SPAN_FIELD_TYPES[FIELD]
 	local API_T = api_types[T] or T
 	local PFIELD = prefixed[FIELD] and 'text_'..FIELD or FIELD
 
-	CLayer.methods['get_'..PFIELD] = terra(self: &CLayer, i: int, j: int, out_v: &API_T)
-		var v: T
-		var has_value = self.l.text.layout:['get_'..FIELD](i, j, &v)
-		@out_v = v
-		return has_value
+	CLayer.methods['get_text_selection_has_'..FIELD] = terra(self: &CLayer)
+		if self.has_text_cursor then
+			return self.l.text_selection.['has_'..FIELD]
+		else
+			return false
+		end
 	end
 
-	CLayer.methods['set_'..PFIELD] = terra(self: &CLayer, i: int, j: int, v: API_T)
-		self.l.text.layout:['set_'..FIELD](i, j, v)
-		self.l:invalidate_text()
+	CLayer.methods['get_text_selection_'..FIELD] = terra(self: &CLayer): API_T
+		if self.has_text_cursor then
+			return self.l.text_selection:['get_'..FIELD]()
+		end
+	end
+
+	CLayer.methods['set_text_selection_'..FIELD] = terra(self: &CLayer, v: API_T)
+		if self.has_text_cursor then
+			self.l.text_selection:['set_'..FIELD](v)
+			self.l:invalidate'text'
+		end
 	end
 
 	CLayer.methods['get_span_'..PFIELD] = terra(self: &CLayer, span_i: int): API_T
@@ -709,7 +766,7 @@ for FIELD, T in sortedpairs(tr.SPAN_FIELD_TYPES) do
 	CLayer.methods['set_span_'..PFIELD] = terra(self: &CLayer, span_i: int, v: API_T)
 		if span_i < MAX_SPAN_COUNT then
 			self.l.text.layout:['set_span_'..FIELD](span_i, v)
-			self.l:invalidate_text()
+			self.l:invalidate'text'
 		end
 	end
 
@@ -720,7 +777,8 @@ terra CLayer:get_span_offset(span_i: int): int
 end
 
 terra CLayer:set_span_offset(span_i: int, v: int)
-	return self.l.text.layout:set_span_offset(span_i, v)
+	self.l.text.layout:set_span_offset(span_i, v)
+	self.l:invalidate'text'
 end
 
 --text measuring and hit-testing
@@ -736,20 +794,123 @@ end
 
 terra CLayer:get_text_selectable(): bool return self.l.text_selectable end
 terra CLayer:set_text_selectable(v: bool)
-	self.l:change(self.l, 'text_selectable', v, 'pixels')
+	self.l:change(self.l, 'text_selectable', v, 'text pixels')
 end
 
-terra CLayer:get_cursor_offset(): int
-	self:sync()
-	return iif(self.l.caret_created, self.l.caret.p.offset, 0)
+terra CLayer:get_text_seg_count(): int
+	return self.l.text.layout.segs.len
 end
 
-terra CLayer:set_cursor_offset(offset: int)
-	self:sync()
-	if self.l.caret_created then
-		self.l.caret:move_to_offset(max(offset, 0), 0)
-		self.l.text_selection.p2 = self.l.caret.p
-		self.l:invalidate_pixels()
+terra CLayer:get_text_seg_pos_count(seg_i: int): int
+	var seg = self.l.text.layout.segs:at(seg_i, nil)
+	return iif(seg ~= nil, self.l.text.layout:glyph_run(seg).cursor_xs.len, 0)
+end
+
+terra CLayer:get_text_cursor_seg(): int
+	return iif(self.has_text_cursor, self.l.text.layout.segs:index(self.l.text_cursor.p.seg), 0)
+end
+
+terra CLayer:get_text_cursor_i(): int
+	return iif(self.has_text_cursor, self.l.text_cursor.p.i, 0)
+end
+
+terra CLayer:get_text_cursor_x(): num
+	return iif(self.has_text_cursor, self.l.text_cursor.x, 0)
+end
+
+terra CLayer:get_text_cursor_offset(): int
+	return iif(self.has_text_cursor, self.l.text_cursor.p.offset, 0)
+end
+
+terra CLayer:get_text_selection_offset1(): int
+	return iif(self.has_text_cursor, self.l.text_selection.p1.offset, 0)
+end
+terra CLayer:get_text_selection_offset2(): int
+	return iif(self.has_text_cursor, self.l.text_selection.p2.offset, 0)
+end
+
+terra Layer:sync_selection(select: bool)
+	var s = self.text_selection
+	if select then
+		return s:set_p1(self.text_cursor.p)
+	else
+		var wasnt_empty = not s.empty
+		s:set_p1(self.text_cursor.p)
+		s:set_p2(self.text_cursor.p)
+		return wasnt_empty
+	end
+end
+
+terra CLayer:set_text_cursor(seg_i: int, i: int, x: num, select: bool)
+	if self.has_text_cursor then
+		var seg = self.l.text.layout.segs:at(seg_i, nil)
+		if seg ~= nil then
+			var p = self.l.text.layout:pos(seg, i)
+			if self.l.text_cursor:set(p, x) then
+				self.l:invalidate'pixels'
+			end
+			if self.l:sync_selection(select) then
+				self.l:invalidate'pixels'
+			end
+		end
+	end
+end
+
+terra CLayer:text_cursor_move_to_offset(offset: int, which: enum, select: bool)
+	if self.has_text_cursor then
+		if self.l.text_cursor:move_to_offset(offset, which) then
+			self.l:invalidate'pixels'
+		end
+		if self.l:sync_selection(select) then
+			self.l:invalidate'pixels'
+		end
+	end
+end
+
+terra CLayer:text_cursor_move_to_pos(x: num, y: num, select: bool)
+	if self.has_text_cursor then
+		if self.l.text_cursor:move_to_pos(x, y) then
+			self.l:invalidate'pixels'
+		end
+		if self.l:sync_selection(select) then
+			self.l:invalidate'pixels'
+		end
+	end
+end
+
+terra CLayer:text_cursor_move_to_rel_line(delta_lines: int, x: num, select: bool)
+	if self.has_text_cursor then
+		if self.l.text_cursor:move_to_rel_line(delta_lines, x) then
+			self.l:invalidate'pixels'
+		end
+		if self.l:sync_selection(select) then
+			self.l:invalidate'pixels'
+		end
+	end
+end
+
+terra CLayer:text_cursor_move_to_rel_page(delta_pages: int, x: num, select: bool)
+	if self.has_text_cursor then
+		if self.l.text_cursor:move_to_rel_page(delta_pages, x) then
+			self.l:invalidate'pixels'
+		end
+		if self.l:sync_selection(select) then
+			self.l:invalidate'pixels'
+		end
+	end
+end
+
+terra CLayer:text_cursor_move_to_rel_cursor(dir: enum, mode: enum, which: enum, clamp: bool, select: bool)
+	if     self.l:checkrange('text cursor dir'  , dir  , CURSOR_DIR_MIN  , CURSOR_DIR_MAX)
+		and self.l:checkrange('text cursor mode' , mode , CURSOR_MODE_MIN , CURSOR_MODE_MAX)
+		and self.l:checkrange('text cursor which', which, CURSOR_WHICH_MIN, CURSOR_WHICH_MAX)
+	then
+		if self.has_text_cursor then
+			if self.l.text_cursor:move_to_rel_cursor(dir, mode, which, clamp) then
+				self.l:sync_selection(select)
+				self.l:invalidate'pixels'
+			end
+		end
 	end
 end
 
@@ -829,12 +990,12 @@ end
 
 terra CLayer:set_align_x(v: enum)
 	if self.l:check('align_x', v, v == ALIGN_DEFAULT or is_align(v)) then
-		self.l:change(self.l, 'align_x', v, 'layout')
+		self.l:change(self.l, 'align_x', v, 'parent_layout')
 	end
 end
 terra CLayer:set_align_y(v: enum)
 	if self.l:check('align_y', v, v == ALIGN_DEFAULT or is_align(v)) then
-		self.l:change(self.l, 'align_y', v, 'layout')
+		self.l:change(self.l, 'align_y', v, 'parent_layout')
 	end
 end
 
@@ -849,13 +1010,13 @@ terra CLayer:get_flex_wrap(): bool return self.l.flex.wrap end
 terra CLayer:set_flex_wrap(v: bool) self.l:change(self.l.flex, 'wrap', v, 'layout') end
 
 terra CLayer:get_fr(): num return self.l.fr end
-terra CLayer:set_fr(v: num) self.l:change(self.l, 'fr', max(v, 0), 'layout') end
+terra CLayer:set_fr(v: num) self.l:change(self.l, 'fr', max(v, 0), 'parent_layout') end
 
 terra CLayer:get_break_before (): bool return self.l.break_before end
 terra CLayer:get_break_after  (): bool return self.l.break_after  end
 
-terra CLayer:set_break_before (v: bool) self.l:change(self.l, 'break_before', v, 'layout') end
-terra CLayer:set_break_after  (v: bool) self.l:change(self.l, 'break_after' , v, 'layout') end
+terra CLayer:set_break_before (v: bool) self.l:change(self.l, 'break_before', v, 'parent_layout') end
+terra CLayer:set_break_after  (v: bool) self.l:change(self.l, 'break_after' , v, 'parent_layout') end
 
 terra CLayer:get_grid_col_fr_count(): num return self.l.grid.col_frs.len end
 terra CLayer:get_grid_row_fr_count(): num return self.l.grid.row_frs.len end
@@ -871,18 +1032,18 @@ terra CLayer:get_grid_col_fr(i: int): num return self.l.grid.col_frs(i, 1) end
 terra CLayer:get_grid_row_fr(i: int): num return self.l.grid.row_frs(i, 1) end
 
 terra CLayer:set_grid_col_fr(i: int, v: num)
-	if i < MAX_GRID_ITEM_COUNT then
+	if i >= 0 and i < MAX_GRID_ITEM_COUNT then
 		if self:get_grid_col_fr(i) ~= v then
 			self.l.grid.col_frs:set(i, v, 1)
-			self.l:invalidate_layout()
+			self.l:invalidate'layout'
 		end
 	end
 end
 terra CLayer:set_grid_row_fr(i: int, v: num)
-	if i < MAX_GRID_ITEM_COUNT then
+	if i >= 0 and i < MAX_GRID_ITEM_COUNT then
 		if self:get_grid_row_fr(i) ~= v then
 			self.l.grid.row_frs:set(i, v, 1)
-			self.l:invalidate_layout()
+			self.l:invalidate'layout'
 		end
 	end
 end
@@ -915,22 +1076,22 @@ end
 terra CLayer:get_min_cw(): num return self.l.min_cw end
 terra CLayer:get_min_ch(): num return self.l.min_ch end
 
-terra CLayer:set_min_cw(v: num) self.l:change(self.l, 'min_cw', clamp(v, 0, MAX_W), 'layout') end
-terra CLayer:set_min_ch(v: num) self.l:change(self.l, 'min_ch', clamp(v, 0, MAX_W), 'layout') end
+terra CLayer:set_min_cw(v: num) self.l:change(self.l, 'min_cw', clamp(v, 0, MAX_W), 'parent_layout') end
+terra CLayer:set_min_ch(v: num) self.l:change(self.l, 'min_ch', clamp(v, 0, MAX_W), 'parent_layout') end
 
 terra CLayer:get_grid_col(): int return self.l.grid_col end
 terra CLayer:get_grid_row(): int return self.l.grid_row end
 
-terra CLayer:set_grid_col(v: int) self.l:change(self.l, 'grid_col', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'layout') end
-terra CLayer:set_grid_row(v: int) self.l:change(self.l, 'grid_row', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'layout') end
+terra CLayer:set_grid_col(v: int) self.l:change(self.l, 'grid_col', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'parent_layout') end
+terra CLayer:set_grid_row(v: int) self.l:change(self.l, 'grid_row', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'parent_layout') end
 
 terra CLayer:get_grid_col_span(): int return self.l.grid_col_span end
 terra CLayer:get_grid_row_span(): int return self.l.grid_row_span end
 
-terra CLayer:set_grid_col_span(v: int) self.l:change(self.l, 'grid_col_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout') end
-terra CLayer:set_grid_row_span(v: int) self.l:change(self.l, 'grid_row_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout') end
+terra CLayer:set_grid_col_span(v: int) self.l:change(self.l, 'grid_col_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'parent_layout') end
+terra CLayer:set_grid_row_span(v: int) self.l:change(self.l, 'grid_row_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'parent_layout') end
 
---sync'ing, drawing & hit testing
+do end --sync'ing, drawing & hit testing
 
 terra CLayer:sync()
 	var layer = self.l.top_layer
@@ -951,16 +1112,21 @@ end
 terra CLayer:get_hit_test_mask(): enum return self.l.hit_test_mask end
 terra CLayer:set_hit_test_mask(v: enum) self.l.hit_test_mask = v end
 
-terra CLayer:hit_test(cr: &context, x: num, y: num, reason: int, out: &&CLayer): enum
+terra CLayer:hit_test(cr: &context, x: num, y: num, reason: int)
 	self:sync()
-	var layer, area = self.l:hit_test(cr, x, y, reason)
-	@out = [&CLayer](layer)
-	return area
+	fill(&self.l.lib.hit_test_result)
+	return self.l:hit_test(cr, x, y, reason)
 end
+
+terra CLayer:get_hit_test_layer       () return [&CLayer](self.l.lib.hit_test_result.layer) end
+terra CLayer:get_hit_test_area        () return self.l.lib.hit_test_result.area             end
+terra CLayer:get_hit_test_x           () return self.l.lib.hit_test_result.x                end
+terra CLayer:get_hit_test_y           () return self.l.lib.hit_test_result.y                end
+terra CLayer:get_hit_test_text_offset () return self.l.lib.hit_test_result.text_pos.offset  end
 
 --publish and build
 
-function build()
+function build(optimize)
 	local layerlib = publish'layer'
 
 	if memtotal then
@@ -968,7 +1134,7 @@ function build()
 		layerlib(memreport)
 	end
 
-	layerlib:getenums(layer)
+	layerlib(layer)
 
 	layerlib(layerlib_new, 'layerlib')
 
@@ -986,12 +1152,13 @@ function build()
 
 	layerlib:build{
 		linkto = {'cairo', 'freetype', 'harfbuzz', 'fribidi', 'unibreak', 'boxblur', 'xxhash'},
-		optimize = false,
+		optimize = optimize,
 	}
 end
 
 if not ... then
-	build()
+	print'Building non-optimized...'
+	build(false)
 	print('sizeof CLayer', sizeof(CLayer))
 end
 

@@ -21,15 +21,10 @@ require'terra/tr_wrap'
 require'terra/tr_align'
 require'terra/tr_clip'
 require'terra/tr_paint'
-require'terra/tr_hit_test'
-require'terra/tr_layoutedit'
-require'terra/tr_spanedit'
 require'terra/tr_cursor'
-require'terra/tr_selection'
 
 terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	fill(self) --this initializes all arr() types.
-
 	self.font_size_resolution  = 1.0/8  --in pixels
 	self.subpixel_x_resolution = 1.0/16 --1/64 pixels is max with freetype
 	self.word_subpixel_x_resolution = 1.0/4
@@ -47,16 +42,6 @@ terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	init_script_lang_map()
 	init_linebreak()
 end
-
-terra Renderer:get_glyph_run_cache_max_size() return self.glyph_runs.max_size end
-terra Renderer:set_glyph_run_cache_max_size(size: int) self.glyph_runs.max_size = size end
-terra Renderer:get_glyph_run_cache_size() return self.glyph_runs.size end
-terra Renderer:get_glyph_run_cache_count() return self.glyph_runs.count end
-
-terra Renderer:get_glyph_cache_max_size() return self.glyphs.max_size end
-terra Renderer:set_glyph_cache_max_size(size: int) self.glyphs.max_size = size end
-terra Renderer:get_glyph_cache_size() return self.glyphs.size end
-terra Renderer:get_glyph_cache_count() return self.glyphs.count end
 
 terra Renderer:free()
 	self.glyphs          :free()
@@ -80,8 +65,6 @@ terra Renderer:free()
 end
 
 terra Layout:free()
-	self.selections:free()
-	self.cursors:free()
 	self.lines:free()
 	for _,seg in self.segs do
 		self.r.glyph_runs:forget(seg.glyph_run_id)
@@ -96,63 +79,6 @@ terra Layout:free()
 	self.spans:free()
 end
 
-terra Layout:get_visible()
-	return self.text.len >= 0
-		and self.spans:at(0).font_id ~= -1
-		and self.spans:at(0).font_size > 0
-end
-
-terra Layout:get_min_size_valid()
-	return self.text.len == 0 or self.state >= STATE_SPACED
-end
-
-terra Layout:shape()
-	if self.state >= STATE_SHAPED then return false end
-	self:_shape()
-	self.state = STATE_SHAPED
-	self.cursors:call'reposition'
-	self.selections:call'reposition'
-	return true
-end
-
-terra Layout:wrap()
-	if self.state >= STATE_WRAPPED then return false end
-	assert(self.state == STATE_WRAPPED - 1)
-	self:_wrap()
-	self.state = STATE_WRAPPED
-	return true
-end
-
-terra Layout:spaceout()
-	if self.state >= STATE_SPACED then return false end
-	assert(self.state == STATE_SPACED - 1)
-	self:_spaceout()
-	self.state = STATE_SPACED
-	return true
-end
-
-terra Layout:align()
-	if self.state >= STATE_ALIGNED then return false end
-	assert(self.state == STATE_ALIGNED - 1)
-	self:_align()
-	self.state = STATE_ALIGNED
-	return true
-end
-
-terra Layout:layout()
-	self:shape()
-	self:wrap()
-	self:spaceout()
-	self:align()
-	self:clip()
-end
-
-terra Layout:paint(cr: &context)
-	self.selections:call('paint', cr, true)
-	self:paint_text(cr)
-	self.cursors:call('paint', cr)
-end
-
 terra Renderer:font()
 	assert(self.fonts.items.len <= 32000)
 	var font, font_id = self.fonts:alloc()
@@ -164,8 +90,5 @@ terra Renderer:free_font(font_id: int)
 	assert(self.fonts:at(font_id).refcount == 0)
 	self.fonts:release(font_id)
 end
-
-terra Renderer:get_paint_glyph_num() return self.paint_glyph_num end
-terra Renderer:set_paint_glyph_num(n: int) self.paint_glyph_num = n end
 
 return _M

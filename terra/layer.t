@@ -27,10 +27,9 @@ setfenv(1, require'terra/low'.module())
 require'terra/memcheck'
 require'terra/cairo'
 require'terra/tr_paint_cairo'
-tr = require'terra/tr'
+tr = require'terra/tr_api'
 bitmap = require'terra/bitmap'
 require'terra/boxblur'
-require'terra/utf8'
 require'terra/box2d'
 
 --external types -------------------------------------------------------------
@@ -43,6 +42,7 @@ surface = cairo_surface_t
 rect = rect(num)
 Bitmap = bitmap.Bitmap
 FontLoadFunc = tr.FontLoadFunc
+ErrorFunction = tr.ErrorFunction
 
 --common enums ---------------------------------------------------------------
 
@@ -80,7 +80,7 @@ OPERATOR_MAX = OPERATOR_HSL_LUMINOSITY
 BACKGROUND_EXTEND_MIN = BACKGROUND_EXTEND_NONE
 BACKGROUND_EXTEND_MAX = BACKGROUND_EXTEND_PAD
 
-HIT_NONE           = 0
+HIT_NONE           = 0 --this must be zero
 HIT_BORDER         = 1
 HIT_BACKGROUND     = 2
 HIT_TEXT           = 3
@@ -105,6 +105,7 @@ change = macro(function(self, FIELD, v)
 end)
 
 struct Layer;
+struct Lib;
 
 Layer.methods.invalidate = macro(function(self, WHAT)
 	WHAT = WHAT:asvalue() or ''
@@ -148,31 +149,6 @@ Layer.methods.changelen = macro(function(self, target, len, init, WHAT)
 			self:invalidate(WHAT)
 		end
 		in changed
-	end
-end)
-
-Layer.methods.check = macro(function(self, NAME, v, valid)
-	NAME = NAME:asvalue()
-	FORMAT = 'invalid '..NAME..': %d'
-	return quote
-		if not valid then
-			self.lib:error(FORMAT, v)
-		end
-		in valid
-	end
-end)
-
-Layer.methods.checkrange = macro(function(self, NAME, v, MIN_V, MAX_V)
-	NAME = NAME:asvalue()
-	MIN_V = MIN_V:asvalue()
-	MAX_V = MAX_V:asvalue()
-	FORMAT = 'invalid '..NAME..': %d (range: '..MIN_V..'..'..MAX_V..')'
-	return quote
-		var ok = v >= MIN_V and v <= MAX_V
-		if not ok then
-			self.lib:error(FORMAT, v)
-		end
-		in ok
 	end
 end)
 
@@ -522,16 +498,31 @@ terra GridLayout:free()
 	self._rows:free()
 end
 
---lib ------------------------------------------------------------------------
+--hit testing ----------------------------------------------------------------
 
-ErrorFunction = {rawstring} -> {}
+struct HitTestResult {
+	layer: &Layer;
+	area: enum;
+	x: num;
+	y: num;
+	text_pos: tr.Pos;
+};
+
+terra HitTestResult:set(layer: &Layer, area: enum, x: num, y: num)
+	self.layer = layer
+	self.area = area
+	self.x = x
+	self.y = y
+end
+
+--lib ------------------------------------------------------------------------
 
 struct Lib (gettersandsetters) {
 	text_renderer: tr.Renderer;
 	grid_occupied: BoolBitmap;
 	default_shadow: Shadow;
 	default_layout_solver: &LayoutSolver;
-	error_function: ErrorFunction;
+	hit_test_result: HitTestResult;
 }
 
 --layer ----------------------------------------------------------------------
@@ -1533,18 +1524,19 @@ terra Layer:invalidate_parent_content_shadows_force() self:invalidate_pcs(true) 
 
 terra Layer:invalidate_text()
 	if not self.text.layout.min_size_valid then
-		self:invalidate'pixels parent_layout content_shadows parent_content_shadows'
-	elseif self.text.layout.state == tr.STATE_ALIGNED-1 then
+		self:invalidate'parent_layout'
+	elseif not self.text.layout.layout_valid then
 		self.text.layout:align()
-		self:invalidate'pixels content_shadows parent_content_shadows'
 	end
+	self:invalidate'pixels content_shadows parent_content_shadows'
 end
 
-terra Layer:get_caret_created()
+--[[
+terra Layer:get_has_text_cursor()
 	return self.text.layout.cursors.len > 0
 end
 
-terra Layer:get_caret()
+terra Layer:get_text_cursor()
 	return self.text.layout.cursors(0)
 end
 
@@ -1558,19 +1550,19 @@ end
 
 terra Layer:set_text_selectable(v: bool)
 	if change(self.text, 'selectable', v) then
-		if self.caret_created and not v then
-			self.caret:release()
+		if self.has_text_cursor and not v then
+			self.text_cursor:release()
 			self.text_selection:release()
+		elseif not self.has_text_cursor and v then
+			self.text.layout:cursor()
+			self.text.layout:selection()
 		end
 	end
 end
+]]
 
 terra Layer:sync_text_shape()
 	self.text.layout:shape()
-	if not self.caret_created and self.text.selectable then
-		self.text.layout:cursor()
-		self.text.layout:selection()
-	end
 end
 
 terra Layer:sync_text_wrap()
@@ -1585,56 +1577,46 @@ terra Layer:sync_text_align()
 end
 
 terra Layer:get_baseline()
-	return iif(self.text.layout.visible, self.text.layout.baseline, self.h)
+	return iif(self.text.layout.text_visible, self.text.layout.baseline, self.h)
 end
 
 terra Layer:draw_text(cr: &context)
-	if not self.text.layout.visible then return end
-	var x1, y1, x2, y2 = cr:clip_extents()
-	self.text.layout:set_clip_extents(x1, y1, x2, y2)
-	self.text.layout:clip()
-	self.text.layout:paint(cr)
+	if self.text.layout.text_visible
+		or (self.text.selectable and self.text.layout.valid)
+	then
+		var x1, y1, x2, y2 = cr:clip_extents()
+		self.text.layout:set_clip_extents(x1, y1, x2, y2)
+		self.text.layout:clip()
+		self.text.layout:paint(cr)
+	end
 end
 
 terra Layer:text_bbox()
-	if not self.text.layout.visible then
-		return num(0), num(0), num(0), num(0)
-	end
 	return self.text.layout:bbox() --float->double conversion!
 end
 
 terra Layer:hit_test_text(cr: &context, x: num, y: num)
-	if self.text.layout.visible then
-		var line_i, x_flag = self.text.layout:hit_test(x, y)
-		if line_i >= 0 and line_i < self.text.layout.lines.len and x_flag == 0 then
-			return HIT_TEXT
-		end
+	if self.text.layout.text_visible then
+		self.lib.hit_test_result:set(self, HIT_TEXT, x, y)
+		return true
+	else
+		return false
 	end
-	return HIT_NONE
 end
 
-terra Layer:caret_rect()
-	return self.caret:rect()
-end
-
-terra Layer:caret_visibility_rect()
-	var x, y, w, h = self:caret_rect()
-	--enlarge the caret rect to contain the line spacing.
-	var line = self.caret.p.line
-	y = y + line.ascent - line.spaced_ascent
-	h = line.spaced_ascent - line.spaced_descent
-	return x, y, w, h
+terra Layer:text_cursor_rect()
+	return num(0), num(0), num(0), num(0) --self.text_cursor:rect()
 end
 
 --[[
-terra Layer:make_visible_caret()
+terra Layer:make_visible_text_cursor()
 	local segs = self.text.segments
 	local lines = segs.lines
 	local sx, sy = lines.x, lines.y
 	local cw, ch = self:client_size()
-	local x, y, w, h = self:caret_visibility_rect()
+	local x, y, w, h = self:text_cursor_visibility_rect()
 	lines.x, lines.y = box2d.scroll_to_view(x-sx, y-sy, w, h, cw, ch, sx, sy)
-	self:make_visible(self:caret_visibility_rect())
+	self:make_visible(self:text_cursor_visibility_rect())
 end
 ]]
 
@@ -1679,7 +1661,7 @@ end
 --children drawing & hit testing ---------------------------------------------
 
 terra Layer.methods.draw :: {&Layer, &context, bool} -> {}
-terra Layer.methods.hit_test :: {&Layer, &context, num, num, enum} -> {&Layer, enum}
+terra Layer.methods.hit_test :: {&Layer, &context, num, num, enum} -> bool
 
 terra Layer:draw_children(cr: &context, for_shadow: bool) --called in own content space
 	for e in self do
@@ -1689,12 +1671,11 @@ end
 
 terra Layer:hit_test_children(cr: &context, x: num, y: num, reason: enum) --called in content space
 	for i = self.children.len-1, -1, -1 do
-		var e, area = self.children(i):hit_test(cr, x, y, reason)
-		if area ~= HIT_NONE then
-			return e, area
+		if self.children(i):hit_test(cr, x, y, reason) then
+			return true
 		end
 	end
-	return nil, HIT_NONE
+	return false
 end
 
 --content drawing & hit testing ----------------------------------------------
@@ -1707,9 +1688,8 @@ terra Layer:draw_content(cr: &context, for_shadow: bool) --called in own content
 end
 
 terra Layer:hit_test_content(cr: &context, x: num, y: num, reason: enum)
-	var area = self:hit_test_text(cr, x, y)
-	if area ~= HIT_NONE then
-		return self, area
+	if self:hit_test_text(cr, x, y) then
+		return true
 	else
 		return self:hit_test_children(cr, x, y, reason)
 	end
@@ -1779,8 +1759,6 @@ terra Layer:draw(cr: &context, for_shadow: bool) --called in parent's content sp
 	cr:matrix(&cm)
 	if not for_shadow or self:content_casts_own_shadow() then
 		self:draw_content(cr, for_shadow)
-	else
-		print(self)
 	end
 	self:draw_inset_content_shadows(cr)
 
@@ -1802,10 +1780,10 @@ terra Layer:draw(cr: &context, for_shadow: bool) --called in parent's content sp
 end
 
 --called in parent's content space; child interface.
-terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
+terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum)
 
 	if not self.visible or self.opacity <= 0 then
-		return nil, HIT_NONE
+		return false
 	end
 
 	var self_allowed = self.hit_test_mask == 0
@@ -1818,10 +1796,9 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 	--hit the content first if it's not clipped
 	if not self.clip_content then
 		var cx, cy = self:to_content(x, y)
-		var e, area = self:hit_test_content(cr, cx, cy, reason)
-		if e ~= nil then
+		if self:hit_test_content(cr, cx, cy, reason) then
 			cr:restore()
-			return e, area
+			return true
 		end
 	end
 
@@ -1835,14 +1812,15 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 			if not cr:in_fill(x, y) then --outside border inner edge
 				cr:restore()
 				if self_allowed then
-					return self, HIT_BORDER
+					self.lib.hit_test_result:set(self, HIT_BORDER, x, y)
+					return true
 				else
-					return nil, HIT_NONE
+					return false
 				end
 			end
 		elseif self.clip_content then --outside border outer edge when clipped
 			cr:restore()
-			return nil, HIT_NONE
+			return false
 		end
 	end
 
@@ -1857,19 +1835,19 @@ terra Layer:hit_test(cr: &context, x: num, y: num, reason: enum): {&Layer, enum}
 	--hit the content if inside the clip area.
 	if self.clip_content and in_bg then
 		var cx, cy = self:to_content(x, y)
-		var e, area = self:hit_test_content(cr, cx, cy, reason)
-		if e ~= nil then
+		if self:hit_test_content(cr, cx, cy, reason) then
 			cr:restore()
-			return e, area
+			return true
 		end
 	end
 
 	--hit the background if any
 	if self_allowed and in_bg then
-		return self, HIT_BACKGROUND
+		self.lib.hit_test_result:set(self, HIT_BACKGROUND, x, y)
+		return true
 	end
 
-	return nil, HIT_NONE
+	return false
 end
 
 --layouts --------------------------------------------------------------------
@@ -2005,12 +1983,8 @@ local terra text_sync(self: &Layer)
 end
 
 terra Layer:get_nowrap()
-	var nowrap: bool
-	if self.text.layout:get_nowrap(0, -1, &nowrap) then
-		return nowrap
-	else
-		return false
-	end
+	return self.text.layout:get_span_nowrap(0)
+		and self.text.layout:has_nowrap(0, -1)
 end
 
 local terra text_sync_min_w(self: &Layer, other_axis_synced: bool)
@@ -3080,17 +3054,11 @@ end
 
 --lib ------------------------------------------------------------------------
 
-terra default_error_function(message: rawstring)
-	fprintf(stderr(), message)
-	fprintf(stderr(), '%s', '\n')
-end
-
 terra Lib:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	self.text_renderer:init(load_font, unload_font)
 	self.grid_occupied:init()
 	self.default_layout_solver = &null_layout
 	self.default_shadow:init(nil)
-	self.error_function = default_error_function
 end
 
 terra Lib:free()
@@ -3100,22 +3068,11 @@ end
 
 --debugging stuff
 
-Lib.methods.error = macro(function(self, ...)
-	local args = args(...)
-	return quote
-		if self.error_function ~= nil then
-			var s = arrayof(char, 256)
-			snprintf(s, 256, [args])
-			self.error_function(s)
-		end
-	end
-end)
-
 terra Lib:dump_stats()
-	pfn('Glyph cache size     : %d', self.text_renderer.glyphs.size)
-	pfn('Glyph cache count    : %d', self.text_renderer.glyphs.count)
-	pfn('GlyphRun cache size  : %d', self.text_renderer.glyph_runs.size)
-	pfn('GlyphRun cache count : %d', self.text_renderer.glyph_runs.count)
+	pfn('Glyph cache size     : %d', self.text_renderer.glyph_cache_size)
+	pfn('Glyph cache count    : %d', self.text_renderer.glyph_cache_count)
+	pfn('GlyphRun cache size  : %d', self.text_renderer.glyph_run_cache_size)
+	pfn('GlyphRun cache count : %d', self.text_renderer.glyph_run_cache_count)
 end
 
 --inlining invalidation one-liners just in case the compiler doesn't.

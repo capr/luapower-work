@@ -251,19 +251,22 @@ return {
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				clip_content=true,
 				h=144,
+				hit_test_mask=1,
 				layout_type=1,
 				min_ch=144,
 				min_cw=12,
+				text_cursor_i=1,
+				text_cursor_offset=1,
+				text_cursor_x=50.700000762939453,
 				text_selectable=true,
 				text_spans={
 					{
 						span_font_id=0,
-						span_font_size=27
+						span_font_size=20
 					}
 				},
-				text_utf8='Hello World!',
+				text_utf8='Goodbye\nCruel World!',
 				w=145.5,
 				x=360.79999999999995,
 				y=545.83333333333326
@@ -336,6 +339,5 @@ return {
 		y=13
 	},
 	selected_layer_path={
-		1
 	}
 }

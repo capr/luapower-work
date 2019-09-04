@@ -34,9 +34,6 @@ end
 
 terra Layout:paint_text(cr: &context)
 
-	assert(self.state >= STATE_ALIGNED)
-	assert(self.clip_valid)
-
 	var segs = &self.segs
 	var lines = &self.lines
 

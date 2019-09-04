@@ -1,3 +1,13 @@
+require'low'
+
+terra f()
+	return 1, 2
+end
+
+terralib.printraw(#f.type.returntype.entries)
+
+do return end
+
 setfenv(1, require'terra/low')
 local color = require'terra/cairo'.cairo_argb32_color_t
 terra f()

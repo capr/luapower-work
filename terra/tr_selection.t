@@ -8,38 +8,24 @@ require'terra/tr_paint'
 require'terra/tr_cursor'
 
 terra Selection:init(layout: &Layout)
+	fill(self)
 	self.layout = layout
-	var p = layout:cursor_at_offset(0)
-	self.p1 = p
-	self.p2 = p
 	self.color = DEFAULT_SELECTION_COLOR
 	self.opacity = DEFAULT_SELECTION_OPACITY
 end
 
-terra Selection:free()
-	dealloc(self)
+terra Selection:invalidate()
+	self.p1:invalidate()
+	self.p2:invalidate()
 end
 
-terra Layout:selection()
-	var sel = new(Selection, self)
-	self.selections:add(sel) --takes ownership
-	return sel
+terra Selection:validate()
+	self.p1:validate()
+	self.p2:validate()
 end
 
-terra Selection:release()
-	var i = self.layout.selections:find(self)
-	self.layout.selections:remove(i) --calls Selection:free()
-end
-
-terra Selection:reset()
-	self.p1:reset()
-	self.p2:reset()
-end
-
-terra Selection:reposition()
-	self.p1:reposition()
-	self.p2:reposition()
-end
+terra Selection:set_p1(p: Pos) return self.p1:set(p) end
+terra Selection:set_p2(p: Pos) return self.p2:set(p) end
 
 --line-relative (x, w) of a selection rectangle on two cursor
 --positions in the same segment (in whatever order).
@@ -56,13 +42,16 @@ terra Layout:segment_xw(seg: &Seg, i1: int, i2: int)
 end
 
 --merge two (x, w) segments together, if possible.
+local terra near(x1: num, x2: num)
+	return x2 - x1 >= 0 and x2 - x1 < 2 --merge if < 2px gap
+end
 local terra merge_xw(x1: num, w1: num, x2: num, w2: num)
 	if isnan(x1) then --is first
 		return x2, w2, false
-	elseif x2 == x1 + w1 then --comes after
-		return x1, w1 + w2, false
-	elseif x1 == x2 + w2 then --comes before
-		return x2, w1 + w2, false
+	elseif near(x1 + w1, x2) then --comes after
+		return x1, x2 + w2 - x1, false
+	elseif near(x2 + w2, x1) then --comes before
+		return x2, x1 + w1 - x2, false
 	else --not connected
 		return x2, w2, true
 	end
@@ -97,9 +86,9 @@ terra Selection:paint(cr: &context, spaced: bool)
 	if p1.offset > p2.offset then
 		swap(p1, p2)
 	end
-	assert(self.layout:seg_index(p1.seg) <= self.layout:seg_index(p2.seg))
+	assert(self.layout.segs:index(p1.seg) <= self.layout.segs:index(p2.seg))
 	var seg = p1.seg
-	while seg ~= nil and self.layout:seg_index(seg) <= self.layout:seg_index(p2.seg) do
+	while seg ~= nil and self.layout.segs:index(seg) <= self.layout.segs:index(p2.seg) do
 		var line_index = seg.line_index
 		if self.layout:line_visible(line_index) then
 			var line = self.layout:seg_line(seg)
@@ -107,7 +96,7 @@ terra Selection:paint(cr: &context, spaced: bool)
 			var x = nan
 			var w = nan
 			while seg ~= nil
-				and self.layout:seg_index(seg) <= self.layout:seg_index(p2.seg)
+				and self.layout.segs:index(seg) <= self.layout.segs:index(p2.seg)
 				and seg.line_index == line_index
 			do
 				var i1 = iif(seg == p1.seg, p1.i, 0)
@@ -129,17 +118,11 @@ terra Selection:paint(cr: &context, spaced: bool)
 	end
 end
 
-terra Selection:offsets()
-	var o1 = self.p1.offset
-	var o2 = self.p2.offset
-	return min(o1, o2), max(o1, o2), o1 < o2
-end
-
-terra Selection:select(o1: int, o2: int)
-	self.p1 = self.layout:cursor_at_offset(o1)
-	self.p2 = self.layout:cursor_at_offset(o2)
-end
-
 terra Selection:get_empty()
 	return self.p1.offset == self.p2.offset
 end
+
+--terra Selection:offset_range()
+--	return self.layout:offset_range(self.p1.offset, self.p2.offset)
+--end
+

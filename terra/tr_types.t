@@ -21,13 +21,13 @@ require_h'fribidi_h'
 require_h'libunibreak_h'
 require_h'xxhash_h'
 
+linklibrary'freetype'
 linklibrary'harfbuzz'
 linklibrary'fribidi'
 linklibrary'unibreak'
-linklibrary'freetype'
 linklibrary'xxhash'
 
---replace the default hash function with faster xxhash.
+--replace the default hash function used by the hashmap with faster xxhash.
 low.bithash = macro(function(size_t, k, h, len)
 	local size_t = size_t:astype()
 	local T = k:getpointertype()
@@ -37,6 +37,7 @@ low.bithash = macro(function(size_t, k, h, len)
 end)
 
 --create getters and setters for converting from/to fixed-point decimal fields.
+--all fields with the name `<name>_<digits>_<decimals>` will be processed.
 function fixpointfields(T)
 	for i,e in ipairs(T.entries) do
 		local priv = e.field
@@ -68,55 +69,29 @@ ALIGN_START   = 5 --based on bidi dir; only for align_x
 ALIGN_END     = 6 --based on bidi dir; only for align_x
 ALIGN_MAX     = 6
 
---dir
-DIR_AUTO = 1 --starting at 1, see above.
+--bidi paragraph directions (starting at 1, see above).
+DIR_AUTO = 1 --auto-detect.
 DIR_LTR  = 2
 DIR_RTL  = 3
-DIR_WLTR = 4
-DIR_WRTL = 5
+DIR_WLTR = 4 --weak LTR
+DIR_WRTL = 5 --weak RTL
+
+DIR_MIN = DIR_AUTO
+DIR_MAX = DIR_WRTL
 
 --linebreak codes
-BREAK_NONE = 0
-BREAK_LINE = 1
-BREAK_PARA = 2
+BREAK_NONE = 0 --soft line-break from line-wrapping
+BREAK_LINE = 1 --explicit line break (CR, LF, etc.)
+BREAK_PARA = 2 --explicit paragraph break (PS).
 
 --base types -----------------------------------------------------------------
 
-num = float
+num = float --using floats for better cache utilization.
 rect = rect(num)
-font_id_t = int16
-bidi_dir_t = enum
-bidi_level_t = enum
-
-do
-	terra to_fribidi_dir(dir: bidi_dir_t): FriBidiParType
-		if dir == DIR_AUTO then return FRIBIDI_PAR_ON   end
-		if dir == DIR_LTR  then return FRIBIDI_PAR_LTR  end
-		if dir == DIR_RTL  then return FRIBIDI_PAR_RTL  end
-		if dir == DIR_WLTR then return FRIBIDI_PAR_WLTR end
-		if dir == DIR_WRTL then return FRIBIDI_PAR_WRTL end
-		assert(false)
-	end
-
-	terra from_fribidi_dir(dir: FriBidiParType): enum
-		if dir == FRIBIDI_PAR_ON   then return DIR_AUTO end
-		if dir == FRIBIDI_PAR_LTR  then return DIR_LTR  end
-		if dir == FRIBIDI_PAR_RTL  then return DIR_RTL  end
-		if dir == FRIBIDI_PAR_WLTR then return DIR_WLTR end
-		if dir == FRIBIDI_PAR_WRTL then return DIR_WRTL end
-		assert(false)
-	end
-end
+font_id_t = int16 --max 64k fonts can be used at the same time.
 
 struct Renderer;
 struct Font;
-
---overridable constants ------------------------------------------------------
-
-DEFAULT_TEXT_COLOR        = DEFAULT_TEXT_COLOR      or `color {0xffffffff}
-DEFAULT_SELECTION_COLOR   = DEFAULT_SELECTION_COLOR or `color {0x6666ff66}
-DEFAULT_TEXT_OPERATOR     = DEFAULT_TEXT_OPERATOR   or 2 --CAIRO_OPERATOR_OVER
-DEFAULT_SELECTION_OPACITY = DEFAULT_SELECTION_OPACITY or 1
 
 --font type ------------------------------------------------------------------
 
@@ -125,15 +100,15 @@ struct Font (gettersandsetters) {
 	--loading and unloading
 	file_data: &opaque;
 	file_size: size_t;
-	refcount: int;
+	refcount: int; --each Span keeps a ref. caches don't keep a ref.
 	--freetype & harfbuzz font objects
-	hb_font: &hb_font_t;
 	ft_face: FT_Face;
+	hb_font: &hb_font_t; --represents a ft_face at a particular size.
 	ft_load_flags: int;
 	ft_render_flags: FT_Render_Mode;
 	--font metrics per current size
 	size: num;
-	scale: num; --scaling factor for bitmap fonts
+	scale: num; --scaling factor for scaling raster glyphs.
 	ascent: num;
 	descent: num;
 }
@@ -143,26 +118,31 @@ FontLoadFunc.cname = 'tr_font_load_func'
 
 --layout type ----------------------------------------------------------------
 
+hb_feature_arr_t = arr(hb_feature_t)
+
+--a span is a set of rendering properties for a specific part of the text.
+--spans are kept in an array and cover the whole text without holes by virtue
+--of their `offset` field alone: a span ends where the next span begins.
 struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
 	font_id: font_id_t;
 	font_size_16_6: uint16;
-	features: arr(hb_feature_t);
+	features: hb_feature_arr_t;
 	script: hb_script_t;
 	lang: hb_language_t;
-	paragraph_dir: bidi_dir_t; --bidi dir override for current paragraph.
-	nowrap: bool; --disable word wrapping.
-	color: color;
+	paragraph_dir: enum; --bidi dir override for current paragraph.
+	nowrap: bool; --disable word wrapping for this span.
 	opacity: double; --the opacity level in 0..1.
-	operator: int;   --blending operator.
+	color: color;
+	operator: int; --blending operator.
 }
 fixpointfields(Span)
 
-Span.empty = `Span {
+Span.empty = constant(`Span {
 	offset = 0;
 	font_id = -1;
 	font_size_16_6 = 0;
-	features = [arr(hb_feature_t).empty];
+	features = [hb_feature_arr_t.empty];
 	script = 0;
 	lang = nil;
 	paragraph_dir = 0;
@@ -170,7 +150,7 @@ Span.empty = `Span {
 	color = DEFAULT_TEXT_COLOR;
 	opacity = 1;
 	operator = DEFAULT_TEXT_OPERATOR;
-}
+})
 
 terra Span:init()
 	@self = [Span.empty]
@@ -186,6 +166,8 @@ terra Span:copy()
 	return s
 end
 
+--an embed is a reserved visual space at a specific offset in text,
+--used to embed widgets and alike in the text.
 struct Embed {
 	offset: int; --offset in the text
 	ascent: num;
@@ -193,6 +175,8 @@ struct Embed {
 	advance_x: num;
 }
 
+--a sub-segment is a clipped part of a glyph image, used when a single glyph
+--image covers two spans, eg. when the letters in a ligature have diff. colors.
 struct SubSeg {
 	i: int16;
 	j: int16;
@@ -201,20 +185,27 @@ struct SubSeg {
 	clip_right: num;
 }
 
+struct Layout;
+
+--a segment is the result of shaping a single shaping-unit i.e. a single
+--word as delimited by soft-breaks per unicode line-breaking algorithm.
+--because shaping is expensive, shaping results are cached in a struct
+--called "glyph run" which the segment references via its `glyph_run_id`.
+--segs are kept in an array in logical text order.
 struct Seg {
 	--filled by shaping
 	glyph_run_id: int;
 	line_num: int;             --physical line number
 	linebreak: enum;           --for line/paragraph breaking
-	bidi_level: bidi_level_t;  --for bidi reordering
-	paragraph_dir: bidi_dir_t; --computed paragraph bidi dir, for ALIGN_AUTO
+	bidi_level: int8;          --for bidi reordering
+	paragraph_dir: enum;       --computed paragraph bidi dir, for ALIGN_AUTO
 	span: &Span;               --span of the first sub-segment
 	offset: int;               --codepoint offset into the text
 	--filled by layouting
 	line_index: int;
 	x: num;
 	advance_x: num; --segment's x-axis boundaries
-	next_vis: &Seg; --next segment on the same line in visual order
+	next_vis: &Seg; --next segment <<on the same line>> in visual order
 	wrapped: bool;  --segment is the last on a wrapped line
 	visible: bool;  --segment is not entirely clipped
 	subsegs: arr(SubSeg);
@@ -224,8 +215,10 @@ terra Seg:free()
 	self.subsegs:free()
 end
 
+--a line is the result of line-wrapping the text. line segments can be
+--iterated in visual order via `line.first_vis/seg.next_vis` or in logical
+--order via `line.first/layout.segs:next(seg)`.
 struct Line (gettersandsetters) {
-	index: int;
 	first: &Seg;     --first segment in text order
 	first_vis: &Seg; --first segment in visual order
 	x: num;
@@ -238,6 +231,7 @@ struct Line (gettersandsetters) {
 	linebreak: enum; --set by wrap(), used by align()
 }
 
+--iterate a line's segments in visual order.
 Line.metamethods.__for = function(self, body)
 	if self:islvalue() then self = `&self end
 	return quote
@@ -250,114 +244,72 @@ Line.metamethods.__for = function(self, body)
 	end
 end
 
-STATE_UNSHAPED = 0 --must be 0
-STATE_SHAPED   = 1
-STATE_WRAPPED  = 2
-STATE_SPACED   = 3
-STATE_ALIGNED  = 4
-
-struct Cursor;
-terra Cursor.methods.free :: {&Cursor} -> {}
---^^for Layout.cursors to take ownership.
-
-struct Selection;
-terra Selection.methods.free :: {&Selection} -> {}
---^^for Layout.selections to take ownership.
-
+--a layout is a unit of multi-paragraph rich text to be shaped, layouted,
+--rendered, navigated, hit-tested, edited, updated and re-rendered.
 struct Layout (gettersandsetters) {
 	r: &Renderer;
-	--input/shape
-	spans: arr(Span);
-	embeds: arr(Embed);
-	text: arr(codepoint);
-	_maxlen: int;
-	_dir: bidi_dir_t; --default base paragraph direction.
-	--input/wrap+align
-	_align_w: num;
-	_align_h: num;
-	_align_x: enum;
-	_align_y: enum;
-	_line_spacing: num; --line spacing multiplication factor (m.f.).
-	_hardline_spacing: num; --line spacing m.f. for hard-breaked lines.
-	_paragraph_spacing: num; --paragraph spacing m.f.
-	--input/clip+paint
-	_clip_x: num;
-	_clip_y: num;
-	_clip_w: num;
-	_clip_h: num;
-	_x: num;
-	_y: num;
-	--state
-	state: enum; --STATE_*
-	--shaping output: segments and bidi info
-	segs: arr(Seg);
-	bidi: bool; --`true` if the text is bidirectional.
-	--wrap/align output: lines
-	lines: arr(Line);
-	max_ax: num; --text's maximum x-advance (equivalent to text's width).
-	h: num; --text's wrapped height.
-	spaced_h: num; --text's wrapped height including line and paragraph spacing.
+	spans: arr(Span);       --shape/in
+	embeds: arr(Embed);     --shape/in
+	text: arr(codepoint);   --shape/in
+	align_w: num;           --wrap+align/in
+	align_h: num;           --align/in
+	align_x: enum;          --align/in
+	align_y: enum;          --align/in
+	dir: enum;              --shape/in:     default base paragraph direction.
+	bidi: bool;             --shape/out:   `true` if the text is bidirectional.
+	line_spacing: num;      --spaceout/in:  line spacing multiplication factor (m.f.).
+	hardline_spacing: num;  --spaceout/in:  line spacing m.f. for hard-breaked lines.
+	paragraph_spacing: num; --spaceout/in:  paragraph spacing m.f.
+	clip_x: num;            --clip/in
+	clip_y: num;            --clip/in
+	clip_w: num;            --clip/in
+	clip_h: num;            --clip/in
+	x: num;                 --paint/in
+	y: num;                 --paint/in
+	segs: arr(Seg);         --shape/out
+	lines: arr(Line);       --wrap+align/out
+	max_ax: num;            --wrap/out:     maximum x-advance
+	h: num;                 --spaceout/out: wrapped height.
+	spaced_h: num;          --spaceout/out: wrapped height incl. line/paragraph spacing.
 	baseline: num;
 	min_x: num;
-	--clip output
-	clip_valid: bool;
-	first_visible_line: int;
-	last_visible_line: int;
-	--cached computed values
-	_min_w: num;
-	_max_w: num;
-	--text cursors and selections, kept synchronized with text changes.
-	cursors: arr(&Cursor);
-	selections: arr(&Selection);
+	first_visible_line: int; --clip/out
+	last_visible_line: int;  --clip/out
+	_min_w: num;             --get_min_w/cache
+	_max_w: num;             --get_max_w/cache
 }
 
-terra Layout:get_maxlen  () return self._maxlen end
-terra Layout:get_dir     () return self._dir end
-terra Layout:get_align_w () return self._align_w end
-terra Layout:get_align_h () return self._align_h end
-terra Layout:get_align_x () return self._align_x end
-terra Layout:get_align_y () return self._align_y end
-terra Layout:get_line_spacing      () return self._line_spacing end
-terra Layout:get_hardline_spacing  () return self._hardline_spacing end
-terra Layout:get_paragraph_spacing () return self._paragraph_spacing end
-terra Layout:get_clip_x  () return self._clip_x end
-terra Layout:get_clip_y  () return self._clip_y end
-terra Layout:get_clip_w  () return self._clip_w end
-terra Layout:get_clip_h  () return self._clip_h end
-terra Layout:get_x       () return self._x end
-terra Layout:get_y       () return self._y end
-
-terra Layout:span_end_offset(i: int)
-	var next_span = self.spans:at(i+1, nil)
+--a span's ending offset is the starting offset of the next span.
+terra Layout:span_end_offset(span_i: int)
+	var next_span = self.spans:at(span_i+1, nil)
 	return iif(next_span ~= nil, next_span.offset, self.text.len)
-end
-
-terra Layout:seg_index(seg: &Seg)
-	return self.segs:index(seg)
 end
 
 terra Layout:init(r: &Renderer)
 	fill(self)
 	self.r = r
-	self._maxlen   =  maxint
-	self._dir      =  DIR_AUTO
-	self._align_x  =  ALIGN_CENTER
-	self._align_y  =  ALIGN_CENTER
-	self._line_spacing      = 1.0
-	self._hardline_spacing  = 1.0
-	self._paragraph_spacing = 2.0
-	self._clip_x   = -inf
-	self._clip_y   = -inf
-	self._clip_w   =  inf
-	self._clip_h   =  inf
-	self.spans:add([Span.empty])
+	self.dir      =  DIR_AUTO
+	self.align_x  =  ALIGN_CENTER
+	self.align_y  =  ALIGN_CENTER
+	self.line_spacing      = 1.0
+	self.hardline_spacing  = 1.0
+	self.paragraph_spacing = 2.0
+	self.clip_x   = -inf
+	self.clip_y   = -inf
+	self.clip_w   =  inf
+	self.clip_h   =  inf
 end
 
 --glyph run type -------------------------------------------------------------
 
+--glyph runs hold the results of shaping individual words and are kept in a
+--special LRU cache that can also ref-count its objects so that they're not
+--evicted from the cache when its memory size limit is reached. segs keep
+--their glyph run alive by holding a ref to it while they're alive.
+
 struct GlyphInfo (gettersandsetters) {
-	glyph_index: int;
-	x: num; --glyph origin relative to glyph run origin
+	glyph_index: int; --in the font's charmap
+	x: num; --glyph origin relative to glyph run's origin
 	image_x_16_6: int16; --glyph image origin relative to glyph origin
 	image_y_16_6: int16;
 	cluster: int;
@@ -374,9 +326,9 @@ GlyphImage.empty = `GlyphImage{surface = nil, x = 0, y = 0}
 terra GlyphImage.methods.free :: {&GlyphImage, &Renderer} -> {}
 
 struct GlyphRun (gettersandsetters) {
-	--cache key fields: no alignment holes between lang..rtl!
+	--cache key fields: no alignment holes allowed between fields `lang` and `rtl` !!!
 	text            : arr(codepoint);
-	features        : arr(hb_feature_t);
+	features        : hb_feature_arr_t;
 	lang            : hb_language_t;     --8
 	script          : hb_script_t;       --4
 	font_id         : font_id_t;         --2
@@ -384,7 +336,7 @@ struct GlyphRun (gettersandsetters) {
 	rtl             : bool;              --1
 	--resulting glyphs and glyph metrics
 	glyphs          : arr(GlyphInfo);
-	--for positioning in horizontal flow
+	--for vertical positioning in horizontal flow
 	ascent          : num;
 	descent         : num;
 	advance_x       : num;
@@ -392,24 +344,25 @@ struct GlyphRun (gettersandsetters) {
 	--pre-rendered images for each subpixel offset.
 	images          : arr{T = GlyphImage, context_t = &Renderer};
 	images_memsize  : int;
-	--for cursor positioning and hit testing (len = text.len+1)
-	cursor_offsets  : arr(uint16);
-	cursor_xs       : arr(num);
-	trailing_space  : bool;
+	--for cursor positioning and hit testing.
+	--these arrays hold exactly text.len+1 items, one for each codepoint.
+	cursor_offsets  : arr(uint16); --navigable offsets, so some are duplicates.
+	cursor_xs       : arr(num); --x-coords, so some are duplicates.
+	trailing_space  : bool; --the text includes a trailing space (for wrapping).
 }
 fixpointfields(GlyphRun)
 
 local key_offset = offsetof(GlyphRun, 'lang')
 local key_size = offsetafter(GlyphRun, 'rtl') - key_offset
 
-terra GlyphRun:__hash32(h: uint32)
+terra GlyphRun:__hash32(h: uint32) --for hashmap
 	h = hash(uint32, [&char](self) + key_offset, h, key_size)
 	h = hash(uint32, &self.text, h)
 	h = hash(uint32, &self.features, h)
 	return h
 end
 
-terra GlyphRun:__eq(other: &GlyphRun)
+terra GlyphRun:__eq(other: &GlyphRun) --for hashmap
 	return equal(
 			[&char](self)  + key_offset,
 			[&char](other) + key_offset, key_size)
@@ -417,7 +370,7 @@ terra GlyphRun:__eq(other: &GlyphRun)
 		and equal(&self.features, &other.features)
 end
 
-terra GlyphRun:__memsize()
+terra GlyphRun:__memsize() --for lru cache
 	return
 		  memsize(self.text)
 		+ memsize(self.features)
@@ -432,8 +385,11 @@ terra GlyphRun.methods.free :: {&GlyphRun, &Renderer} -> {}
 
 --glyph type -----------------------------------------------------------------
 
+--rasterized glyphs are also cached, this time in a cache without ref counting
+--since rasterization is done on-demand on paint().
+
 struct Glyph (gettersandsetters) {
-	--cache key: no alignment holes between fields!
+	--cache key: no alignment holes allowed between fields `font_id` and `subpixel_offset` !!!
 	font_id         : font_id_t;   --2
 	font_size_16_6  : uint16;      --2
 	glyph_index     : uint;        --4
@@ -454,17 +410,17 @@ Glyph.empty = `Glyph {
 local key_offset = offsetof(Glyph, 'font_id')
 local key_size = offsetafter(Glyph, 'subpixel_offset_x_8_6') - key_offset
 
-terra Glyph:__hash32(h: uint32)
+terra Glyph:__hash32(h: uint32) --for hashmap
 	return hash(uint32, [&char](self) + key_offset, h, key_size)
 end
 
-terra Glyph:__eq(other: &Glyph)
+terra Glyph:__eq(other: &Glyph) --for hashmap
 	return equal(
 		[&char](self ) + key_offset,
 		[&char](other) + key_offset, key_size)
 end
 
-terra Glyph:__memsize()
+terra Glyph:__memsize() --for lru cache
 	return iif(self.image.surface ~= nil,
 		1024 + self.image.surface:stride() * self.image.surface:height(), 0)
 end
@@ -557,7 +513,7 @@ struct Renderer (gettersandsetters) {
 	langs:           arr(hb_language_t);
 	bidi_types:      arr(FriBidiCharType);
 	bracket_types:   arr(FriBidiBracketType);
-	levels:          arr(bidi_level_t);
+	levels:          arr(int8);
 	linebreaks:      arr(char);
 	grapheme_breaks: arr(char);
 	carets_buffer:   arr(hb_position_t);
@@ -565,7 +521,7 @@ struct Renderer (gettersandsetters) {
 	ranges:          RangesFreelist;
 	sbuf:            arr(char);
 	xsbuf:           arr(double);
-	paragraph_dirs:  arr(bidi_dir_t);
+	paragraph_dirs:  arr(enum);
 
 	--constants that neeed to be initialized at runtime.
 	HB_LANGUAGE_EN: hb_language_t;

@@ -9,6 +9,16 @@ require'terra/cairo'
 color = cairo_argb32_color_t
 surface = cairo_surface_t
 context = cairo_t
+
+DEFAULT_TEXT_COLOR        = DEFAULT_TEXT_COLOR        or `color {0xffffffff}
+DEFAULT_SELECTION_COLOR   = DEFAULT_SELECTION_COLOR   or `color {0x6666ff66}
+DEFAULT_TEXT_OPERATOR     = DEFAULT_TEXT_OPERATOR     or CAIRO_OPERATOR_OVER
+DEFAULT_SELECTION_OPACITY = DEFAULT_SELECTION_OPACITY or 1
+
+terra create_surface(w: int, h: int)
+	return cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h)
+end
+
 setfenv(1, require'terra/tr_types')
 
 terra Renderer:wrap_glyph(glyph: &Glyph, bmp: &FT_Bitmap)
@@ -27,8 +37,8 @@ terra Renderer:wrap_glyph(glyph: &Glyph, bmp: &FT_Bitmap)
 		--scale raster glyphs which freetype cannot scale by itself.
 		var bw = font.size
 		var w1, h1 = rect.fit(w, h, bw, bw)
-		var sr = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ceil(w1), ceil(h1))
-		var cr = cairo_create(sr)
+		var sr = create_surface(ceil(w1), ceil(h1))
+		var cr = sr:context()
 		cr:translate(glyph.subpixel_offset_x, 0)
 		cr:scale(w1 / w, h1 / h)
 		cr:source(sr0, 0, 0)
@@ -37,8 +47,8 @@ terra Renderer:wrap_glyph(glyph: &Glyph, bmp: &FT_Bitmap)
 		cr:free()
 		glyph.image.surface = sr
 	else
-		var sr = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h)
-		var cr = cairo_create(sr)
+		var sr = create_surface(w, h)
+		var cr = sr:context()
 		if bmp.pixel_mode == FT_PIXEL_MODE_GRAY then
 			cr:rgb(1, 1, 1)
 			cr:mask(sr0, 0, 0)
@@ -57,7 +67,8 @@ end
 --NOTE: clip_left and clip_right are relative to bitmap's left edge.
 terra Renderer:paint_surface(
 	cr: &context, sr: &surface,
-	x: num, y: num, clip: bool, clip_left: num, clip_right: num
+	x: num, y: num,
+	clip: bool, clip_left: num, clip_right: num
 )
 	if clip then
 		cr:save()
@@ -74,7 +85,7 @@ terra Renderer:paint_surface(
 end
 
 terra Renderer:setcontext(cr: &context, span: &Span)
-	var c: cairo_color_t = span.color --implicit cast
+	var c = cairo_color_t(span.color)
 	c.alpha = c.alpha * span.opacity
 	cr:rgba(c)
 	cr:operator(span.operator)

@@ -30,6 +30,13 @@ local fonts = {}
 fonts[1] = assert(bundle.load'media/fonts/OpenSans-Regular.ttf')
 fonts[2] = assert(bundle.load'media/fonts/Amiri-Regular.ttf')
 
+local font_names = {'OpenSans', 'Amiri'}
+local font_map = {}
+for i=1,#font_names do
+	font_map[font_names[i]] = i-1
+	font_map[i-1] = font_names[i]
+end
+
 local function load_font(font_id, file_data_buf, file_size_buf)
 	local s = assert(fonts[font_id+1])
 	file_data_buf[0] = ffi.cast('void*', s)
@@ -53,7 +60,8 @@ local lorem_ipsum = bundle.load('lorem_ipsum.txt')
 local test_texts = {
 	[''] = '',
 	lorem_ipsum = lorem_ipsum,
-	hello = 'Hello World!',
+	hello = 'LuaJIT\'s ffi is the best!',
+	bye = 'Goodbye\nCruel World!',
 	parbreak = u'Hey\nYou&ps;New Paragraph',
 }
 local test_text_names = glue.index(test_texts)
@@ -73,10 +81,17 @@ local e, hit_e, hit_area
 
 local sessions = {}
 local session = '1'
+local tab = 'Position'
 local layer_changed = false
 local draw_changed_dt = 0
 local draw_fps_t, draw_fps_dt = 0, 0
 local repaint_fps_t, repaint_fps_dt = 0, 0
+
+sel_e = lib:layer()
+--sel_e.background_color = 0xffffff22
+sel_e.border_width = 2
+sel_e:set_border_dash(0, 10)
+sel_e.border_offset = 1
 
 --layer tree (de)serialization -----------------------------------------------
 
@@ -217,10 +232,12 @@ local function serialize_layer(e)
 		span_text_operator     =1,
 	})
 	t.text_selectable   = e.text_selectable
-	--TODO:
-	-- text_caret_width
-	-- text_caret_color
-	-- text_caret_insert_mode
+	if e.has_text_cursor then
+		t.text_cursor_seg    = e.text_cursor_seg
+		t.text_cursor_i      = e.text_cursor_i
+		t.text_cursor_x      = e.text_cursor_x
+		t.text_cursor_offset = e.text_cursor_offset
+	end
 	t.in_transition     = e.in_transition
 	t.layout_type       = e.layout_type
 	t.align_items_x     = e.align_items_x
@@ -286,9 +303,14 @@ local function deserialize_layer(e, t)
 					set(e, i-1, v)
 				end
 			end
-		else
+		elseif not k:find'^text_cursor_' then
 			e[k] = v
 		end
+	end
+	if t.text_cursor_seg or t.text_cursor_i or t.text_cursor_x then
+		e:set_text_cursor(t.text_cursor_seg or 0, t.text_cursor_i or 0, t.text_cursor_x or 0, false)
+	elseif t.text_cursor_offset then
+		e:text_cursor_move_to_offset(t.text_cursor_offset, 0)
 	end
 end
 
@@ -297,16 +319,14 @@ local function create_top_e()
 		top_e:free()
 	end
 	top_e = lib:layer()
+end
+
+local function init_top_e()
 	top_e.x = 100
 	top_e.y = 100
 	top_e.w = 500
 	top_e.h = 300
 	top_e.border_width = 1
-
-	if not sel_e then
-		sel_e = lib:layer()
-		sel_e.background_color = 0xffffff22
-	end
 end
 
 --session management ---------------------------------------------------------
@@ -337,7 +357,11 @@ end
 local function save_session()
 	local t = serialize_layer(top_e)
 	local file = session_file(session)
-	save_table(file, {root = t, selected_layer_path = selected_layer_path})
+	save_table(file, {
+		root = t,
+		selected_layer_path = selected_layer_path,
+		tab = tab,
+	})
 end
 
 local function load_session(name)
@@ -345,7 +369,10 @@ local function load_session(name)
 	local t = load_table(session_file(name))
 	if t then
 		selected_layer_path = t.selected_layer_path
+		tab = t.tab
 		deserialize_layer(top_e, t.root)
+	else
+		init_top_e()
 	end
 	session = name
 end
@@ -373,12 +400,11 @@ local function get_prop(e, prop) return e[prop] end
 local function set_prop(e, prop, v) e[prop] = v; layer_changed = true end
 local function get_prop_i(e, prop, i) return e['get_'..prop](e, i) end
 local function set_prop_i(e, prop, v, i) e['set_'..prop](e, i, v); layer_changed = true end
-local function get_prop_ij(e, prop, i, j) return e['get_'..prop](e, i, j) end
-local function set_prop_ij(e, prop, v, i, j) e['set_'..prop](e, i, j, v); layer_changed = true end
-local function getset(prop, i, j)
+local function get_prop_if(e, prop, _, is_set) if not is_set then return nil end; return e[prop] end
+local function getset(prop, i, is_set)
 	local id = i and prop..'['..i..']' or prop
-	get = j and get_prop_ij or i and get_prop_i or get_prop
-	set = j and set_prop_ij or i and set_prop_i or set_prop
+	get = is_set ~= nil and get_prop_if or i and get_prop_i or get_prop
+	set = i and set_prop_i or set_prop
 	return id, get, set
 end
 local function slide(prop, min, max, step, ...)
@@ -595,309 +621,391 @@ function testui:repaint()
 
 	--layer property editors --------------------------------------------------
 
+	self:pushgroup('right')
+
+	self.min_w = 80
+
+	tab = self:choose('tab', {
+		'Position', 'Border & Padding', 'Background', 'Shadows', 'Text', 'Layout',
+	}, tab) or tab
+
+	self:popgroup()
+
 	self:pushgroup'right'
 
 	self:pushgroup'down'
 
-	self:heading'Position'
+	if tab == 'Position' then
 
-	if sliden('index') then
-		selected_layer_path[#selected_layer_path] = e.index
-	end
-	self:pushgroup('right', 1/2)
-	slidex('x')
-	slidey('y')
-	self:nextgroup()
-	slidex('w')
-	slidey('h')
-	self:popgroup()
+		self:heading'Z-Index'
 
-	self:heading'Drawing'
+		if sliden('index') then
+			selected_layer_path[#selected_layer_path] = e.index
+		end
 
-	choose('operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'})
+		self:heading'Position & Size'
 
-	self:pushgroup('right', 1/2)
-	toggle'visible'
-	toggle'clip_content'
-	self:nextgroup()
-	toggle'snap_x'
-	toggle'snap_y'
-	self:popgroup()
-
-	slideo'opacity'
-
-	self:heading'Border'
-
-	slidew('border_width'       )
-	self:pushgroup('right', 1/2)
-	slidew('border_width_left'  )
-	slidew('border_width_right' )
-	self:nextgroup()
-	slidew('border_width_top'   )
-	slidew('border_width_bottom')
-	self:popgroup()
-
-	slidew('corner_radius')
-	self:pushgroup('right', 1/2)
-	slidew('corner_radius_top_left')
-	slidew('corner_radius_top_right')
-	self:nextgroup()
-	slidew('corner_radius_bottom_left')
-	slidew('corner_radius_bottom_right')
-	self:popgroup()
-
-	pickcolor('border_color')
-	pickcolor('border_color_left')
-	pickcolor('border_color_right')
-	pickcolor('border_color_top')
-	pickcolor('border_color_bottom')
-
-	slideo('border_offset')
-
-	sliden('border_dash_count')
-	for i = 0, e.border_dash_count-1 do
-		slide('border_dash', -100, 100, .1, i)
-	end
-	slide('border_dash_offset', -100, 100, .1)
-
-	self:heading'Padding'
-
-	slidew('padding'       )
-	self:pushgroup('right', 1/2)
-	slidew('padding_left'  )
-	slidew('padding_right' )
-	self:nextgroup()
-	slidew('padding_top'   )
-	slidew('padding_bottom')
-	self:popgroup()
-
-	self:heading'Transforms'
-
-	slidea('rotation')
-	self:pushgroup('right', 1/2)
-	slidex('rotation_cx')
-	slidey('rotation_cy')
-	self:popgroup()
-
-	slideo('scale')
-	self:pushgroup('right', 1/2)
-	slidex('scale_cx')
-	slidey('scale_cy')
-	self:popgroup()
-
-	self:heading'Shadows'
-
-	slide('shadow_count', -10, 10, 1)
-	for i = 0, e.shadow_count-1 do
-		pickcolor('shadow_color', i)
 		self:pushgroup('right', 1/2)
-		slidew('shadow_x', i)
-		slidew('shadow_y', i)
-		self:popgroup()
-		self:pushgroup('right', 1/2)
-		slide ('shadow_blur',   -300, 300, 1, i)
-		slide ('shadow_passes',  -20,  20, 1, i)
+		slidex('x')
+		slidey('y')
 		self:nextgroup()
-		toggle('shadow_inset', i)
-		toggle('shadow_content', i)
+		slidex('w')
+		slidey('h')
 		self:popgroup()
+
+		self:heading'Drawing'
+
+		choose('operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'})
+
+		self:pushgroup('right', 1/2)
+		toggle'visible'
+		toggle'clip_content'
+		self:nextgroup()
+		toggle'snap_x'
+		toggle'snap_y'
+		self:popgroup()
+
+		slideo'opacity'
+
+		self:heading'Transforms'
+
+		slidea('rotation')
+		self:pushgroup('right', 1/2)
+		slidex('rotation_cx')
+		slidey('rotation_cy')
+		self:popgroup()
+
+		slideo('scale')
+		self:pushgroup('right', 1/2)
+		slidex('scale_cx')
+		slidey('scale_cy')
+		self:popgroup()
+
+	elseif tab == 'Border & Padding' then
+
+		self:heading'Border Width'
+
+		slidew('border_width'       )
+		self:pushgroup('right', 1/2)
+		slidew('border_width_left'  )
+		slidew('border_width_right' )
+		self:nextgroup()
+		slidew('border_width_top'   )
+		slidew('border_width_bottom')
+		self:popgroup()
+
+		self:heading'Border Offset'
+
+		slideo('border_offset')
+
+		self:heading'Corner Radius'
+
+		slidew('corner_radius')
+		self:pushgroup('right', 1/2)
+		slidew('corner_radius_top_left')
+		slidew('corner_radius_top_right')
+		self:nextgroup()
+		slidew('corner_radius_bottom_left')
+		slidew('corner_radius_bottom_right')
+		self:popgroup()
+
+		self:heading'Border Color'
+
+		pickcolor('border_color')
+		pickcolor('border_color_left')
+		pickcolor('border_color_right')
+		pickcolor('border_color_top')
+		pickcolor('border_color_bottom')
+
+		self:heading'Border Dash'
+
+		sliden('border_dash_count')
+		for i = 0, e.border_dash_count-1 do
+			slide('border_dash', -100, 100, .1, i)
+		end
+		slide('border_dash_offset', -100, 100, .1)
+
+		self:heading'Padding'
+
+		slidew('padding'       )
+		self:pushgroup('right', 1/2)
+		slidew('padding_left'  )
+		slidew('padding_right' )
+		self:nextgroup()
+		slidew('padding_top'   )
+		slidew('padding_bottom')
+		self:popgroup()
+
+	elseif tab == 'Background' then
+
+		self:heading'Background'
+
+		choose('background_type', 'background_type_', {'none', 'color', 'linear_gradient', 'radial_gradient', 'image'})
+
+		toggle('background_hittable')
+		choose('background_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'})
+		slideo'background_opacity'
+		slideo('background_clip_border_offset')
+
+		if e.background_type == layer.BACKGROUND_TYPE_COLOR then
+
+			self:heading'Background Color'
+
+			pickcolor('background_color')
+
+		elseif
+			   e.background_type == layer.BACKGROUND_TYPE_LINEAR_GRADIENT
+			or e.background_type == layer.BACKGROUND_TYPE_RADIAL_GRADIENT
+		then
+
+			self:heading'Background Gradient'
+
+			self:pushgroup('right', 1/2)
+			slidex('background_x1')
+			slidey('background_y1')
+			self:nextgroup()
+			slidex('background_x2')
+			slidey('background_y2')
+			if e.background_type == layer.BACKGROUND_TYPE_RADIAL_GRADIENT then
+				self:nextgroup()
+				slidex('background_r1')
+				slidey('background_r2')
+			end
+			self:popgroup()
+
+			sliden('background_color_stop_count')
+
+			for i = 0, e.background_color_stop_count-1 do
+				pickcolor('background_color_stop_color', i)
+				slideo('background_color_stop_offset', i)
+			end
+
+		elseif e.background_type == layer.BACKGROUND_TYPE_IMAGE then
+
+			self:heading'Background Image'
+
+			--[[
+				set_background_image=1,
+				get_background_image_w=1,
+				get_background_image_h=1,
+				get_background_image_stride=1,
+				get_background_image_pixels=1,
+				get_background_image_format=1,
+				background_image_invalidate=1,
+				background_image_invalidate_rect=1,
+			]]
+
+		end
+
+		self:heading'Background Extend'
+
+		choose('background_extend', 'background_extend_', {'none', 'pad', 'reflect', 'repeat'})
+
+		self:heading'Background Transforms'
+
+		self:pushgroup('right', 1/2)
+		slidex('background_x')
+		slidex('background_y')
+		self:popgroup()
+		slidea('background_rotation')
+		self:pushgroup('right', 1/2)
+		slidex('background_rotation_cx')
+		slidey('background_rotation_cy')
+		self:popgroup()
+		slideo('background_scale')
+		self:pushgroup('right', 1/2)
+		slidex('background_scale_cx')
+		slidey('background_scale_cy')
+		self:popgroup()
+
+	elseif tab == 'Shadows' then
+
+		self:heading'Shadows'
+
+		slide('shadow_count', -10, 10, 1)
+		for i = 0, e.shadow_count-1 do
+			pickcolor('shadow_color', i)
+			self:pushgroup('right', 1/2)
+			slidew('shadow_x', i)
+			slidew('shadow_y', i)
+			self:popgroup()
+			self:pushgroup('right', 1/2)
+			slide ('shadow_blur',   -300, 300, 1, i)
+			slide ('shadow_passes',  -20,  20, 1, i)
+			self:nextgroup()
+			toggle('shadow_inset', i)
+			toggle('shadow_content', i)
+			self:popgroup()
+		end
+
+	elseif tab == 'Text' then
+
+		self:heading'Text'
+
+		self:pushgroup'right'
+		self.min_w = 0
+		local text = utf8_text(e)
+		local text_name = test_text_names[text]
+		local sel_text_name = self:choose('text_utf8', glue.keys(test_texts, true), text_name)
+		if sel_text_name then
+			local sel_text = test_texts[sel_text_name]
+			e:set_text_utf8(sel_text, #sel_text)
+			layer_changed = true
+		end
+		self:popgroup()
+
+		slide ('text_maxlen', -10, 9999, 1)
+		choose('text_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'})
+		choose('text_align_x', 'align_', {'left', 'right', 'center', 'justify', 'start', 'end'})
+		choose('text_align_y', 'align_', {'top', 'bottom', 'center'})
+		slideo('line_spacing')
+		slideo('hardline_spacing')
+		slideo('paragraph_spacing')
+
+		self:heading'Text Cursor & Selection'
+
+		toggle'text_selectable'
+		slide('text_cursor_seg'   , -1, e.text_seg_count, 1)
+		slide('text_cursor_i'     , -1, e:get_text_seg_pos_count(e.text_cursor_seg), 1)
+		slide('text_cursor_offset', -1, e.text_len + 1, 1)
+
+		self:heading'Text Selection Properties'
+
+		choose('text_selection_font_id', font_map, font_names, nil, e.text_selection_has_font_id)
+		slide ('text_selection_font_size', -10, 100, 1, nil, e.text_selection_has_font_size)
+		----TODO: slide ('features',
+		----TODO: choose('script', i)
+		----TODO: choose('lang'             , i)
+		choose('text_selection_paragraph_dir', 'dir_',
+			{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, nil,
+			e.text_selection_has_paragraph_dir)
+		toggle('text_selection_nowrap'  , nil, e.text_selection_has_nowrap)
+		pickcolor('text_selection_color', nil, e.text_selection_has_text_color)
+		slideo('text_selection_opacity' , nil, e.text_selection_has_opacity)
+		choose('text_selection_operator', 'operator_',
+			{'clear', 'source', 'over', 'in', 'out', 'xor'}, nil,
+			e.text_selection_has_operator)
+
+		self:nextgroup()
+
+		self:heading'Text Spans'
+
+		sliden('span_count')
+		for i = 0, e.span_count-1 do
+
+			--self:pushgroup('right', 1/2)
+			self:heading('Span '..i)
+			slide ('span_offset', -1, 100, 1, i)
+			--self:popgroup()
+
+			choose('span_font_id', font_map, font_names, i)
+			slide ('span_font_size', -10, 100, 1, i)
+			--TODO: slide ('features',
+			--TODO: choose('script', i)
+			--TODO: choose('lang'             , i)
+			choose('span_paragraph_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i)
+			toggle('span_nowrap'          , i)
+			pickcolor('span_text_color'   , i)
+			slideo('span_text_opacity'    , i)
+			choose('span_text_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'}, i)
+		end
+
+	elseif tab == 'Layout' then
+
+		self:heading'Layout'
+
+		self.x = self.x + 80
+		choose('layout_type', 'layout_', {'null', 'textbox', 'flexbox', 'grid'})
+		self.x = self.x - 80
+
+		self:pushgroup('right', 1/2)
+		slidex('min_cw')
+		slidey('min_ch')
+		self:popgroup()
+
+		toggle('in_transition')
+
+		self:heading'Flex & Grid Layout'
+
+		choose('align_items_x', 'align_', {
+			'left', 'right', 'center', 'stretch', 'start', 'end',
+			'space_evenly', 'space_around', 'space_between',
+		})
+		choose('align_items_y', 'align_', {
+			'top', 'bottom', 'center', 'stretch', 'start', 'end',
+			'space_evenly', 'space_around', 'space_between',
+		})
+		choose('item_align_x', 'align_', {
+			'left', 'right', 'center', 'stretch', 'start', 'end',
+		})
+		choose('item_align_y', 'align_', {
+			'top', 'bottom', 'center', 'stretch', 'start', 'end',
+			'baseline',
+		})
+
+		self:heading'Child / Flex & Grid Layout'
+
+		slideo('fr')
+
+		choose('align_x', 'align_', {
+			'default',
+			'left', 'right', 'center', 'stretch', 'start', 'end',
+		})
+		choose('align_y', 'align_', {
+			'default',
+			'top', 'bottom', 'center', 'stretch', 'start', 'end',
+		})
+
+		self:heading'Flex Layout'
+
+		choose('flex_flow', 'flex_flow_', {'x', 'y'})
+
+		toggle('flex_wrap')
+
+		self:heading'Child / Flex Layout'
+
+		self:pushgroup('right', 1/2)
+		toggle('break_before')
+		toggle('break_after')
+		self:popgroup()
+
+		self:heading'Grid Layout'
+
+		mchoose('grid_flow', 'grid_flow_', {'y', 'r', 'b'})
+
+		sliden('grid_col_fr_count')
+		for i = 0, e.grid_col_fr_count-1 do
+			slideo('grid_col_fr', i)
+		end
+		sliden('grid_row_fr_count')
+		for i = 0, e.grid_row_fr_count-1 do
+			slideo('grid_row_fr', i)
+		end
+
+		self:pushgroup('right', 1/2)
+		slidew('grid_col_gap')
+		slidew('grid_row_gap')
+		self:popgroup()
+
+		sliden('grid_wrap')
+
+		sliden('grid_min_lines')
+
+		self:heading'Child / Grid Layout'
+
+		self:pushgroup('right', 1/2)
+		sliden('grid_col')
+		sliden('grid_col_span')
+		self:nextgroup()
+		sliden('grid_row')
+		sliden('grid_row_span')
+		self:popgroup()
+
+		self:popgroup()
+		self:popgroup()
+		self:popgroup()
+
 	end
-
-	self:nextgroup(10)
-
-	self:heading'Background'
-
-	choose('background_type', 'background_type_', {'none', 'color', 'linear_gradient', 'radial_gradient', 'image'})
-	pickcolor('background_color')
-
-	self:pushgroup('right', 1/2)
-	slidex('background_x1')
-	slidey('background_y1')
-	self:nextgroup()
-	slidex('background_x2')
-	slidey('background_y2')
-	self:nextgroup()
-	slidex('background_r1')
-	slidey('background_r2')
-	self:popgroup()
-
-	sliden('background_color_stop_count')
-
-	for i = 0, e.background_color_stop_count-1 do
-		pickcolor('background_color_stop_color', i)
-		slideo('background_color_stop_offset', i)
-	end
-
-	--[[
-		set_background_image=1,
-		get_background_image_w=1,
-		get_background_image_h=1,
-		get_background_image_stride=1,
-		get_background_image_pixels=1,
-		get_background_image_format=1,
-		background_image_invalidate=1,
-		background_image_invalidate_rect=1,
-	]]
-
-	toggle('background_hittable')
-	choose('background_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'})
-	slideo'background_opacity'
-	slideo('background_clip_border_offset')
-
-	self:pushgroup('right', 1/2)
-	slidex('background_x')
-	slidex('background_y')
-	self:popgroup()
-	slidea('background_rotation')
-	self:pushgroup('right', 1/2)
-	slidex('background_rotation_cx')
-	slidey('background_rotation_cy')
-	self:popgroup()
-	slideo('background_scale')
-	self:pushgroup('right', 1/2)
-	slidex('background_scale_cx')
-	slidey('background_scale_cy')
-	self:popgroup()
-
-	choose('background_extend', 'background_extend_', {'none', 'pad', 'reflect', 'repeat'})
-
-	self:heading'Text'
-
-	self:pushgroup'right'
-	self.min_w = 0
-	local text = utf8_text(e)
-	local text_name = test_text_names[text]
-	local sel_text_name = self:choose('text_utf8', glue.keys(test_texts, true), text_name)
-	if sel_text_name then
-		local sel_text = test_texts[sel_text_name]
-		e:set_text_utf8(sel_text, #sel_text)
-		layer_changed = true
-	end
-	self:popgroup()
-
-	slide ('text_maxlen', -10, 9999, 1)
-	choose('text_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'})
-	choose('text_align_x', 'align_', {'left', 'right', 'center', 'justify', 'start', 'end'})
-	choose('text_align_y', 'align_', {'top', 'bottom', 'center'})
-	slideo('line_spacing')
-	slideo('hardline_spacing')
-	slideo('paragraph_spacing')
-
-	self:heading'Text Spans'
-
-	sliden('span_count')
-	for i = 0, e.span_count-1 do
-		choose('span_font_id', {OpenSans=0, Amiri=1}, {'OpenSans', 'Amiri'}, i)
-		slide ('span_font_size', -10, 100, 1, i)
-		--TODO: slide ('features',
-		--TODO: choose('script', i)
-		--TODO: choose('lang'             , i)
-		choose('span_paragraph_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i)
-		toggle('span_nowrap'          , i)
-		pickcolor('span_text_color'   , i)
-		slideo('span_text_opacity'    , i)
-		choose('span_text_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'}, i)
-	end
-
-	self:heading'Text Cursor & Selection'
-
-	toggle'text_selectable'
-	slide('cursor_offset', -1, e.text_len + 1, 1)
-
-	self:nextgroup(10)
-
-	self:heading'Layouting'
-
-	self.x = self.x + 80
-	choose('layout_type', 'layout_', {'null', 'textbox', 'flexbox', 'grid'})
-	self.x = self.x - 80
-
-	self:pushgroup('right', 1/2)
-	slidex('min_cw')
-	slidey('min_ch')
-	self:popgroup()
-
-	toggle('in_transition')
-
-	self:heading'Flex & Grid Layout'
-
-	choose('align_items_x', 'align_', {
-		'left', 'right', 'center', 'stretch', 'start', 'end',
-		'space_evenly', 'space_around', 'space_between',
-	})
-	choose('align_items_y', 'align_', {
-		'top', 'bottom', 'center', 'stretch', 'start', 'end',
-		'space_evenly', 'space_around', 'space_between',
-	})
-	choose('item_align_x', 'align_', {
-		'left', 'right', 'center', 'stretch', 'start', 'end',
-	})
-	choose('item_align_y', 'align_', {
-		'top', 'bottom', 'center', 'stretch', 'start', 'end',
-		'baseline',
-	})
-
-	self:heading'Child / Flex & Grid Layout'
-
-	slideo('fr')
-
-	choose('align_x', 'align_', {
-		'default',
-		'left', 'right', 'center', 'stretch', 'start', 'end',
-	})
-	choose('align_y', 'align_', {
-		'default',
-		'top', 'bottom', 'center', 'stretch', 'start', 'end',
-	})
-
-	self:heading'Flex Layout'
-
-	choose('flex_flow', 'flex_flow_', {'x', 'y'})
-
-	toggle('flex_wrap')
-
-	self:heading'Child / Flex Layout'
-
-	self:pushgroup('right', 1/2)
-	toggle('break_before')
-	toggle('break_after')
-	self:popgroup()
-
-	self:heading'Grid Layout'
-
-	mchoose('grid_flow', 'grid_flow_', {'y', 'r', 'b'})
-
-	sliden('grid_col_fr_count')
-	for i = 0, e.grid_col_fr_count-1 do
-		slideo('grid_col_fr', i)
-	end
-	sliden('grid_row_fr_count')
-	for i = 0, e.grid_row_fr_count-1 do
-		slideo('grid_row_fr', i)
-	end
-
-	self:pushgroup('right', 1/2)
-	slidew('grid_col_gap')
-	slidew('grid_row_gap')
-	self:popgroup()
-
-	sliden('grid_wrap')
-
-	sliden('grid_min_lines')
-
-	self:heading'Child / Grid Layout'
-
-	self:pushgroup('right', 1/2)
-	sliden('grid_col')
-	sliden('grid_col_span')
-	self:nextgroup()
-	sliden('grid_row')
-	sliden('grid_row_span')
-	self:popgroup()
-
-	self:popgroup()
-	self:popgroup()
-	self:popgroup()
 
 	--sync'ing, drawing and hit-testing ---------------------------------------
 
@@ -945,6 +1053,24 @@ function testui:repaint()
 			end
 		end
 
+		function self.ewindow:keypress(key)
+			local shift = self.app:key'shift'
+			if key == 'right' or key == 'left' then
+				assert(e ~= nil)
+				e:text_cursor_move_to_rel_cursor(
+					key == 'right' and layer.CURSOR_DIR_NEXT or layer.CURSOR_DIR_PREV,
+					layer.CURSOR_MODE_CHAR,
+					layer.CURSOR_WHICH_FIRST, true, shift)
+			elseif key == 'up' or key == 'down' then
+				assert(e ~= nil)
+				e:text_cursor_move_to_rel_line(key == 'up' and -1 or 1, 0/0, shift)
+			elseif key == 'pageup' or key == 'pagedown' then
+				assert(e ~= nil)
+				e:text_cursor_move_to_rel_page(key == 'pageup' and -1 or 1, 0/0, shift)
+			end
+			self:parent():invalidate()
+		end
+
 		function self.ewindow:keyup(key)
 			if key == 'esc' then
 				self:parent():close()
@@ -953,13 +1079,23 @@ function testui:repaint()
 
 		--hit-testing
 
-		local lbuf = ffi.new'layer_t*[1]'
+		local active_e, active_area
+
 		function self.ewindow:mousemove(mx, my)
 			local cr = self:bitmap():cairo()
-			hit_area = top_e:hit_test(cr, mx, my, 0, lbuf)
-			hit_e = lbuf[0]
-			if hit_e == nil then hit_e = nil end
-			if hit_area == 0 then hit_area = nil end
+			if active_e then
+				if active_area == layer.HIT_TEXT then
+					local t = active_e:from_window(mx, my)
+					local x, y = t._0, t._1
+					active_e:text_cursor_move_to_pos(x, y, true)
+				end
+			elseif top_e:hit_test(cr, mx, my, 0) then
+				hit_e = top_e.hit_test_layer
+				hit_area = top_e.hit_test_area
+			else
+				hit_e, hit_area = nil
+			end
+			self:parent():invalidate()
 		end
 
 		function self.ewindow:mousedown(button)
@@ -970,14 +1106,24 @@ function testui:repaint()
 					table.insert(selected_layer_path, 1, e.index)
 					e = e.parent
 				end
-				self:parent():invalidate()
+				if hit_area == layer.HIT_TEXT then
+					hit_e:text_cursor_move_to_pos(top_e.hit_test_x, top_e.hit_test_y, false)
+				end
+				active_e, active_area = hit_e, hit_area
+			end
+			self:parent():invalidate()
+		end
+
+		function self.ewindow:mouseup(button)
+			if hit_e and button == 'left' then
+				active_e, active_area = nil
 			end
 		end
 
 	end
 
-	if top_e:sync() then self.ewindow:invalidate() end
-	if sel_e:sync() then self.ewindow:invalidate() end
+	if top_e:sync() then self.ewindow:invalidate(); self.window:invalidate() end
+	if sel_e:sync() then self.ewindow:invalidate(); self.window:invalidate() end
 
 	self.x = self.win_w - 1200
 	self.y = 10

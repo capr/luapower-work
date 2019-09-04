@@ -24,7 +24,7 @@ terra Line:_update_vertical_metrics(
 			(run_descent - half_line_gap) * descent_factor)
 end
 
-terra Layout:_spaceout()
+terra Layout:spaceout()
 
 	self.h = 0
 	self.spaced_h = 0
@@ -53,9 +53,9 @@ terra Layout:_spaceout()
 
 		var seg = line.first_vis
 		if seg == nil then --special case for empty text: use font's metrics.
-			var span = self.spans:at(0)
-			var font = self.r.fonts:at(span.font_id, nil)
-			var line = self.lines:at(0)
+			var span = self.spans:at(0, nil)
+			var font = iif(span ~= nil, self.r.fonts:at(span.font_id, nil), nil)
+			assert(line_i == 0)
 			if font ~= nil then
 				line:_update_vertical_metrics(
 					self.line_spacing,
@@ -131,15 +131,13 @@ end
 --set segments `x` to be relative to the line's origin.
 terra Layout:unjustify(line: &Line)
 	var ax: num = 0
-	var seg = line.first_vis
-	while seg ~= nil do
-		seg.x = ax + 0 --TODO: seg.x
+	for seg in line do
+		seg.x = ax
 		ax = ax + seg.advance_x
-		seg = seg.next_vis
 	end
 end
 
-terra Layout:_align()
+terra Layout:align()
 
 	self.min_x = inf
 	for line_i, line in self.lines do
@@ -189,8 +187,6 @@ terra Layout:_align()
 		var first_line = self.lines:at(0)
 		self.baseline = first_line.spaced_ascent + (self.align_h - self.spaced_h) / 2
 	end
-
-	self.clip_valid = false
 end
 
 terra Layout:bbox()
@@ -201,3 +197,25 @@ terra Layout:bbox()
 	var bh = self.spaced_h
 	return bx, by, bw, bh
 end
+
+terra Layout:line_pos(line: &Line)
+	self.lines:index(line)
+	var x = self.x + line.x
+	var y = self.y + self.baseline + line.y
+	return x, y
+end
+
+--hit-test lines vertically given a relative(!) y-coord.
+local terra cmp_ys(line1: &Line, line2: &Line)
+	return line1.y - line1.spaced_descent < line2.y -- < < [=] = < <
+end
+terra Layout:line_at_y(y: num)
+	return self.lines:clamp(self.lines:binsearch(Line{y = y}, cmp_ys))
+end
+
+--hit-test the text vertical boundaries for a line index given an y-coord.
+terra Layout:hit_test_lines(y: num)
+	var y = y - (self.y + self.baseline)
+	return self:line_at_y(y)
+end
+
