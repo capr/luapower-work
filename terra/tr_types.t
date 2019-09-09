@@ -114,7 +114,6 @@ struct Font (gettersandsetters) {
 }
 
 FontLoadFunc = {int, &&opaque, &size_t} -> {}
-FontLoadFunc.cname = 'tr_font_load_func'
 
 --layout type ----------------------------------------------------------------
 
@@ -437,21 +436,38 @@ end
 
 terra Glyph.methods.free :: {&Glyph, &Renderer} -> {}
 
---cursor & selection types ---------------------------------------------------
+--cursor type ----------------------------------------------------------------
 
---visual position in shaped text and matching offset in logical text.
-struct Pos (gettersandsetters) {
-	layout: &Layout;
+--live cursor position, valid only on the layout as currently shaped.
+struct Pos {
 	seg: &Seg;
 	i: int;
-	offset: int; --offset in logical text, for repositioning after reshaping.
+}
+
+Pos.metamethods.__eq = macro(function(a, b)
+	return `a.seg == b.seg and a.i == b.i
+end)
+Pos.metamethods.__ne = macro(function(a, b)
+	return not (a == b)
+end)
+
+--NOTE: using enlarged types for forward-ABI compat since this is a public struct.
+struct CursorState {
+	--position in logical text and whether is the first or last visual
+	--position in case there's two visual positions for the same offset.
+	offset: int;
+	which: int;
+	--selection-end position, when selecting text by moving the cursor.
+	sel_offset: int;
+	sel_which: int;
+	--x-coord to try to go to when navigating vertically.
+	x: double;
 }
 
 struct Cursor (gettersandsetters) {
-	p: Pos;
 
-	--x-coord to try to go to when navigating vertically.
-	x: num;
+	layout: &Layout;
+	state: CursorState;
 
 	--park cursor to start or end of text if vertical navigation goes above
 	--or beyond available text lines.
@@ -476,27 +492,42 @@ struct Cursor (gettersandsetters) {
 	insert_mode: bool;
 
 	--drawing attributes
-	visible: bool; --alternate this for blinking.
-	color: color;
-	opacity: num;
-	w: num;
+	caret_visible: bool; --alternate this for blinking.
+	caret_color: color;
+	caret_opacity: num;
+	caret_thickness: num;
+
+	selection_visible: bool;
+	selection_color: color;
+	selection_opacity: num;
 }
 
-terra Cursor:get_layout() return self.p.layout end
-terra Cursor:set_layout(p: &Layout) self.p.layout = p end
+Cursor.empty = constant(`Cursor {
+	layout = nil,
+	state = CursorState {
+		offset = 0;
+		which = 0;
+		sel_offset = 0;
+		sel_which = 0;
+		x = 0;
+	},
 
-struct Selection (gettersandsetters) {
-	p: Pos[2];
-	visible: bool; --make invisible selections to change text properties through.
-	color: color;
-	opacity: num;
-}
+	park_home = true,
+	park_end = true,
 
-terra Selection:get_layout() return self.p[0].layout end
-terra Selection:set_layout(p: &Layout)
-	self.p[0].layout = p
-	self.p[0].layout = p
-end
+	unique_offsets = true,
+	wrapped_space = false,
+	insert_mode = true,
+
+	caret_visible = true,
+	caret_color = DEFAULT_TEXT_COLOR,
+	caret_opacity = 1,
+	caret_thickness = 1,
+
+	selection_visible = true,
+	selection_color = DEFAULT_SELECTION_COLOR,
+	selection_opacity = DEFAULT_SELECTION_OPACITY,
+})
 
 --renderer type --------------------------------------------------------------
 

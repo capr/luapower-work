@@ -1,5 +1,8 @@
+--[[
 
---Itemizing and shaping rich text into an array of segments.
+	Itemizing and shaping rich text into an array of segments.
+
+]]
 
 if not ... then require'terra/tr_test'; return end
 

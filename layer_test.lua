@@ -232,12 +232,14 @@ local function serialize_layer(e)
 		span_text_operator     =1,
 	})
 	t.text_selectable   = e.text_selectable
-	if e.has_text_cursor then
-		t.text_cursor_seg    = e.text_cursor_seg
-		t.text_cursor_i      = e.text_cursor_i
-		t.text_cursor_x      = e.text_cursor_x
-		t.text_cursor_offset = e.text_cursor_offset
-	end
+	t.text_cursor_count = e.text_cursor_count
+	t.text_cursors      = list(e, e.text_cursor_count, {
+		text_cursor_offset     =1,
+		text_cursor_which      =1,
+		text_cursor_sel_offset =1,
+		text_cursor_sel_which  =1,
+		text_cursor_x          =1,
+	})
 	t.in_transition     = e.in_transition
 	t.layout_type       = e.layout_type
 	t.align_items_x     = e.align_items_x
@@ -303,14 +305,9 @@ local function deserialize_layer(e, t)
 					set(e, i-1, v)
 				end
 			end
-		elseif not k:find'^text_cursor_' then
+		else
 			e[k] = v
 		end
-	end
-	if t.text_cursor_seg or t.text_cursor_i or t.text_cursor_x then
-		e:set_text_cursor(t.text_cursor_seg or 0, t.text_cursor_i or 0, t.text_cursor_x or 0, false)
-	elseif t.text_cursor_offset then
-		e:text_cursor_move_to_offset(t.text_cursor_offset, 0)
 	end
 end
 
@@ -667,7 +664,7 @@ function testui:repaint()
 
 		slideo'opacity'
 
-		self:heading'Transforms'
+		self:heading'Transform'
 
 		slidea('rotation')
 		self:pushgroup('right', 1/2)
@@ -824,6 +821,7 @@ function testui:repaint()
 
 		slide('shadow_count', -10, 10, 1)
 		for i = 0, e.shadow_count-1 do
+			self:heading('Shadow '..i)
 			pickcolor('shadow_color', i)
 			self:pushgroup('right', 1/2)
 			slidew('shadow_x', i)
@@ -862,29 +860,32 @@ function testui:repaint()
 		slideo('hardline_spacing')
 		slideo('paragraph_spacing')
 
-		self:heading'Text Cursor & Selection'
-
+		self:heading'Text Cursors'
 		toggle'text_selectable'
-		slide('text_cursor_seg'   , -1, e.text_seg_count, 1)
-		slide('text_cursor_i'     , -1, e:get_text_seg_pos_count(e.text_cursor_seg), 1)
-		slide('text_cursor_offset', -1, e.text_len + 1, 1)
+		slide('text_cursor_count', -10, 10, 1)
+		for i = 0, e.text_cursor_count-1 do
+			self:heading('Cursor '..i)
 
-		self:heading'Text Selection Properties'
+			slide('text_cursor_offset', -1, e.text_len + 1, 1, i)
+			slide('text_cursor_which', -1, 2, 1, i)
+			slide('text_cursor_sel_offset', -1, e.text_len + 1, 1, i)
+			slide('text_cursor_sel_which', -1, 2, 1, i)
 
-		choose('text_selection_font_id', font_map, font_names, nil, e.text_selection_has_font_id)
-		slide ('text_selection_font_size', -10, 100, 1, nil, e.text_selection_has_font_size)
-		----TODO: slide ('features',
-		----TODO: choose('script', i)
-		----TODO: choose('lang'             , i)
-		choose('text_selection_paragraph_dir', 'dir_',
-			{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, nil,
-			e.text_selection_has_paragraph_dir)
-		toggle('text_selection_nowrap'  , nil, e.text_selection_has_nowrap)
-		pickcolor('text_selection_color', nil, e.text_selection_has_text_color)
-		slideo('text_selection_opacity' , nil, e.text_selection_has_opacity)
-		choose('text_selection_operator', 'operator_',
-			{'clear', 'source', 'over', 'in', 'out', 'xor'}, nil,
-			e.text_selection_has_operator)
+			choose('text_selection_font_id', font_map, font_names, i, e.text_selection_has_font_id)
+			slide ('text_selection_font_size', -10, 100, 1, i, e.text_selection_has_font_size)
+			----TODO: slide ('features',
+			----TODO: choose('script', i)
+			----TODO: choose('lang'             , i)
+			choose('text_selection_paragraph_dir', 'dir_',
+				{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i,
+				e.text_selection_has_paragraph_dir)
+			toggle('text_selection_nowrap'  , i, e.text_selection_has_nowrap)
+			pickcolor('text_selection_color', i, e.text_selection_has_text_color)
+			slideo('text_selection_opacity' , i, e.text_selection_has_opacity)
+			choose('text_selection_operator', 'operator_',
+				{'clear', 'source', 'over', 'in', 'out', 'xor'}, i,
+				e.text_selection_has_operator)
+		end
 
 		self:nextgroup()
 
@@ -1033,7 +1034,7 @@ function testui:repaint()
 			local draw_t0 = time.clock()
 			top_e:draw(cr)
 			local draw_t = time.clock()
-			sel_e:draw(cr)
+			--sel_e:draw(cr)
 			local repaint_t = draw_t
 			local draw_dt    = draw_t    - draw_t0
 			local repaint_dt = repaint_t - repaint_t0
@@ -1057,16 +1058,16 @@ function testui:repaint()
 			local shift = self.app:key'shift'
 			if key == 'right' or key == 'left' then
 				assert(e ~= nil)
-				e:text_cursor_move_to_rel_cursor(
+				e:text_cursor_move_near(0,
 					key == 'right' and layer.CURSOR_DIR_NEXT or layer.CURSOR_DIR_PREV,
 					layer.CURSOR_MODE_CHAR,
-					layer.CURSOR_WHICH_FIRST, true, shift)
+					layer.CURSOR_WHICH_FIRST, shift)
 			elseif key == 'up' or key == 'down' then
 				assert(e ~= nil)
-				e:text_cursor_move_to_rel_line(key == 'up' and -1 or 1, 0/0, shift)
+				e:text_cursor_move_near_line(0, key == 'up' and -1 or 1, 0/0, shift)
 			elseif key == 'pageup' or key == 'pagedown' then
 				assert(e ~= nil)
-				e:text_cursor_move_to_rel_page(key == 'pageup' and -1 or 1, 0/0, shift)
+				e:text_cursor_move_near_page(0, key == 'pageup' and -1 or 1, 0/0, shift)
 			end
 			self:parent():invalidate()
 		end
@@ -1087,7 +1088,7 @@ function testui:repaint()
 				if active_area == layer.HIT_TEXT then
 					local t = active_e:from_window(mx, my)
 					local x, y = t._0, t._1
-					active_e:text_cursor_move_to_pos(x, y, true)
+					active_e:text_cursor_move_to_point(0, x, y, true)
 				end
 			elseif top_e:hit_test(cr, mx, my, 0) then
 				hit_e = top_e.hit_test_layer
@@ -1107,7 +1108,7 @@ function testui:repaint()
 					e = e.parent
 				end
 				if hit_area == layer.HIT_TEXT then
-					hit_e:text_cursor_move_to_pos(top_e.hit_test_x, top_e.hit_test_y, false)
+					hit_e:text_cursor_move_to_point(0, top_e.hit_test_x, top_e.hit_test_y, false)
 				end
 				active_e, active_area = hit_e, hit_area
 			end
@@ -1123,7 +1124,7 @@ function testui:repaint()
 	end
 
 	if top_e:sync() then self.ewindow:invalidate(); self.window:invalidate() end
-	if sel_e:sync() then self.ewindow:invalidate(); self.window:invalidate() end
+	--if sel_e:sync() then self.ewindow:invalidate(); self.window:invalidate() end
 
 	self.x = self.win_w - 1200
 	self.y = 10

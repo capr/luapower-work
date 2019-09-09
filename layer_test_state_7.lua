@@ -1,18 +1,22 @@
 return {
 	root={
-		background_color=1763779327,
-		background_type=1,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
-		h=300,
+		h=222.5,
+		layout_type=1,
+		min_ch=222.5,
+		min_cw=255,
 		span_count=2,
-		text_cursor_i=1,
-		text_cursor_offset=14,
-		text_cursor_seg=2,
-		text_cursor_x=263,
-		text_selectable=true,
+		text_cursor_count=1,
+		text_cursors={
+			{
+				text_cursor_offset=17,
+				text_cursor_sel_offset=17,
+				text_cursor_x=0/0
+			}
+		},
 		text_spans={
 			{
 				span_font_id=1,
@@ -26,9 +30,9 @@ return {
 			}
 		},
 		text_utf8='LuaJIT\'s ffi is the best!',
-		w=500,
-		x=100,
-		y=100
+		w=255,
+		x=85,
+		y=78.5
 	},
 	selected_layer_path={
 	},

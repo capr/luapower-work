@@ -8,7 +8,8 @@
 	- enum validation, number clamping to range.
 	- state invalidation when input values are changed.
 	- state checking when computed values are read.
-	- utf8 text in/out for: text, features, lang, script.
+	- utf8 text input/output.
+	- text representation for: features, lang, script.
 	- checking if a span property has the same value across an offset range.
 	- updating a span property for an offset range with auto-collapsing
 	  of duplicate spans.
@@ -25,27 +26,16 @@ require'terra/tr_paint_cairo'
 require'terra/utf8'
 require'terra/rawstringview'
 require'terra/tr_cursor'
-require'terra/tr_selection'
 local tr = require'terra/tr'
 setfenv(1, require'terra/low'.module(tr))
 
 num = double
 MAX_CURSOR_COUNT = 2^16
 
+FontLoadFunc.cname = 'tr_font_load_func'
+
 struct Layout;
 struct Renderer;
-
---cursor + selection combination ---------------------------------------------
-
-struct CurSel {
-	cursor: tr.Cursor;
-	selection: tr.Selection;
-}
-
-terra CurSel:init(layout: &tr.Layout)
-	self.cursor:init(layout)
-	self.selection:init(layout)
-end
 
 --Renderer & Layout wrappers and self-allocating constructors ----------------
 
@@ -85,7 +75,7 @@ end
 
 struct Layout (gettersandsetters) {
 	l: tr.Layout;
-	cursels: arr(CurSel);
+	cursors: arr(Cursor);
 	_min_w: num;
 	_max_w: num;
 	_maxlen: int;
@@ -98,7 +88,7 @@ terra Layout:get_r() return [&Renderer](self.l.r) end
 
 terra Layout:init(r: &Renderer)
 	self.l:init(&r.r)
-	self.cursels:init()
+	self.cursors:init()
 	self._min_w = -inf
 	self._max_w =  inf
 	self._maxlen = maxint
@@ -108,7 +98,7 @@ terra Layout:init(r: &Renderer)
 end
 
 terra Layout:free()
-	self.cursels:free()
+	self.cursors:free()
 	self.l:free()
 end
 
@@ -214,15 +204,32 @@ end)
 
 --macro to generate multiple invalidation calls in one go.
 Layout.methods.invalidate = macro(function(self, WHAT)
-	WHAT = WHAT and WHAT:asvalue() or 'spans'
+	WHAT = WHAT and WHAT:asvalue() or 'valid'
 	return quote
 		escape
 			for s in WHAT:gmatch'[^%s]+' do
+
 				emit quote self:['_invalidate_'..s]() end
 			end
 		end
 	end
 end)
+
+STATE_VALID   = 1
+STATE_SHAPED  = 2
+STATE_WRAPPED = 3
+STATE_SPACED  = 4
+STATE_ALIGNED = 5
+STATE_CLIPPED = 6
+STATE_PAINTED = 7
+
+terra Layout:_invalidate_valid   () self.state = min(self.state, STATE_VALID   - 1) end
+terra Layout:_invalidate_shape   () self.state = min(self.state, STATE_SHAPED  - 1) end
+terra Layout:_invalidate_wrap    () self.state = min(self.state, STATE_WRAPPED - 1) end
+terra Layout:_invalidate_spaceout() self.state = min(self.state, STATE_SPACED  - 1) end
+terra Layout:_invalidate_align   () self.state = min(self.state, STATE_ALIGNED - 1) end
+terra Layout:_invalidate_clip    () self.state = min(self.state, STATE_CLIPPED - 1) end
+terra Layout:_invalidate_paint   () self.state = min(self.state, STATE_PAINTED - 1) end
 
 terra Layout:_invalidate_min_w()
 	self._min_w = -inf
@@ -232,42 +239,10 @@ terra Layout:_invalidate_max_w()
 	self._max_w =  inf
 end
 
-terra Pos:invalidate()
-	self.seg = nil
-	self.i = 0
-end
-
-terra Pos:get_valid()
-	return self.seg ~= nil or self.layout.segs.len == 0
-end
-
-terra Pos:validate()
-	if not self.valid then
-		@self = self.layout:cursor_at_offset(self.offset)
-	end
-end
-
-terra CurSel:invalidate()
-	self.cursor.p:invalidate()
-	self.selection.p[0]:invalidate()
-	self.selection.p[1]:invalidate()
-end
-
-terra CurSel:validate()
-	self.cursor.p:validate()
-	self.selection.p[0]:validate()
-	self.selection.p[1] = self.cursor.p --this end follows the cursor.
-end
-
-terra Layout:_invalidate_cursels()
-	self.cursels:call'invalidate'
-end
-
-terra Layout:_before_invalidate_spans()
-	self:_invalidate_cursels()
-end
-
-terra Layout:_validate_spans()
+--check that there's at least one span and it has offset zero.
+--check that spans have monotonically increasing, in-range offsets.
+--check that all spans can be displayed (font and font size it set).
+terra Layout:_do_validate()
 	if self.l.spans.len == 0 or self.l.spans:at(0).offset ~= 0 then
 		self._offsets_valid = false
 		self._values_valid = false
@@ -291,78 +266,85 @@ terra Layout:_validate_spans()
 	end
 end
 
-terra Layout:_before_invalidate_shape()
-	self:_invalidate_cursels()
-end
-
-terra Layout:_before_shape()
-	self:_invalidate_min_w()
-	self:_invalidate_max_w()
-	self:_invalidate_cursels()
-end
-
-for STATE, METHOD in ipairs{'spans', 'shape', 'wrap', 'spaceout', 'align', 'clip', 'paint'} do
-
-	_M['STATE_'..METHOD:upper()] = STATE --enum value
-
-	Layout.methods['_invalidate_'..METHOD] = terra(self: &Layout)
-		optcall(self, ['_before_invalidate_'..METHOD])
-		self.state = min(self.state, STATE - 1)
+terra Layout:_validate()
+	if self.state < STATE_VALID then
+		assert(self.state == STATE_VALID - 1)
+		self:_do_validate()
+		self.state = STATE_VALID
 	end
-
-	if METHOD ~= 'spans' and METHOD ~= 'paint' then
-
-		Layout.methods[METHOD] = terra(self: &Layout)
-			if self.state < STATE then
-				assert(self.state == STATE - 1)
-				optcall(self, ['_before_'..METHOD])
-				optcall(self.l, METHOD)
-				self.state = STATE
-				return true
-			else
-				return false
-			end
-		end
-
-	end
-
 end
 
 terra Layout:get_offsets_valid()
-	self:_validate_spans()
+	self:_validate()
 	return self._offsets_valid
 end
 
 terra Layout:get_valid()
-	self:_validate_spans()
+	self:_validate()
 	return self._offsets_valid and self._values_valid
 end
 
-terra Layout:layout()
-	if self.valid then
-		self:shape()
-		self:wrap()
-		self:spaceout()
-		self:align()
-		self:clip()
-		return true
-	else
-		return false
+terra Layout:shape()
+	if self.state < STATE_SHAPED and self.valid then
+		assert(self.state == STATE_SHAPED - 1)
+		self:_invalidate_min_w()
+		self:_invalidate_max_w()
+		self.l:shape()
+		self.state = STATE_SHAPED
 	end
 end
 
+terra Layout:wrap()
+	if self.state < STATE_WRAPPED and self.state >= STATE_VALID then
+		assert(self.state == STATE_WRAPPED - 1)
+		self.l:wrap()
+		self.state = STATE_WRAPPED
+	end
+end
+
+terra Layout:spaceout()
+	if self.state < STATE_SPACED and self.state >= STATE_VALID then
+		assert(self.state == STATE_SPACED - 1)
+		self.l:spaceout()
+		self.state = STATE_SPACED
+	end
+end
+
+terra Layout:align()
+	if self.state < STATE_ALIGNED and self.state >= STATE_VALID then
+		assert(self.state == STATE_ALIGNED - 1)
+		self.l:align()
+		self.state = STATE_ALIGNED
+	end
+end
+
+terra Layout:clip()
+	if self.state < STATE_CLIPPED and self.state >= STATE_VALID then
+		assert(self.state == STATE_CLIPPED - 1)
+		self.l:clip()
+		self.state = STATE_CLIPPED
+	end
+end
+
+terra Layout:layout()
+	self:shape()
+	self:wrap()
+	self:spaceout()
+	self:align()
+	self:clip()
+end
+
 terra Layout:paint(cr: &context)
-	if self.valid then
-		assert(self.state >= STATE_CLIP)
-		for i,cs in self.cursels do
-			cs:validate()
-			cs.selection:paint(cr, true)
+	if self.state >= STATE_VALID then
+		assert(self.state >= STATE_CLIPPED)
+		for i,c in self.cursors do
+			c:draw_selection(cr, true)
 		end
 		self.l:paint_text(cr)
-		for i,cs in self.cursels do
-			cs.cursor:paint(cr)
+		for i,c in self.cursors do
+			c:draw_caret(cr)
 		end
-		self.state = STATE_PAINT
+		self.state = STATE_PAINTED
 	end
 end
 
@@ -460,7 +442,7 @@ terra Layout:get_align_w(): num return self.l.align_w end
 terra Layout:get_align_h(): num return self.l.align_h end
 
 terra Layout:set_align_w(v: num) self:change(self.l, 'align_w', v, 'wrap') end
-terra Layout:set_align_h(v: num) self:change(self.l, 'align_h', v, 'wrap') end
+terra Layout:set_align_h(v: num) self:change(self.l, 'align_h', v, 'align') end
 
 terra Layout:get_align_x(): enum return self.l.align_x end
 terra Layout:get_align_y(): enum return self.l.align_y end
@@ -1002,23 +984,23 @@ terra Layout:get_seg_next_vis  (seg_i: int) end
 --layouting helper APIs ------------------------------------------------------
 
 terra Layout:get_min_size_valid() --text box might need re-layouting.
-	return self.state >= STATE_SPACEOUT
+	return self.state >= STATE_SPACED
 end
 
 terra Layout:get_align_valid() --text needs re-aligning.
-	return self.state >= STATE_ALIGN
+	return self.state >= STATE_ALIGNED
 end
 
 terra Layout:get_pixels_valid() --text needs repainting.
-	return self.state >= STATE_PAINT
+	return self.state >= STATE_PAINTED
 end
 
-terra Layout:get_text_visible() --to decide whether to clip & paint the text.
-	return self.l.text.len > 0 and self.valid
+terra Layout:get_visible() --check if the text and/or cursor is visible.
+	return (self.l.text.len > 0 or self.cursors.len > 0) and self.valid
 end
 
 terra Layout:get_min_w(): num --for page layouting min-size constraints.
-	assert(self.state >= STATE_SHAPE)
+	assert(self.state >= STATE_SHAPED)
 	if self._min_w == -inf then
 		self._min_w = self.l:min_w()
 	end
@@ -1026,7 +1008,7 @@ terra Layout:get_min_w(): num --for page layouting min-size constraints.
 end
 
 terra Layout:get_max_w(): num --not used yet
-	assert(self.state >= STATE_SHAPE)
+	assert(self.state >= STATE_SHAPED)
 	if self._max_w == -inf then
 		self._max_w = self.l:max_w()
 	end
@@ -1034,12 +1016,12 @@ terra Layout:get_max_w(): num --not used yet
 end
 
 terra Layout:get_baseline(): num --for page layouting baseline alignment.
-	assert(self.state >= STATE_ALIGN)
+	assert(self.state >= STATE_ALIGNED)
 	return self.l.baseline
 end
 
 terra Layout:get_spaced_h(): num --for page layouting min-size constraints.
-	assert(self.state >= STATE_SPACEOUT)
+	assert(self.state >= STATE_SPACED)
 	return self.l.spaced_h
 end
 
@@ -1050,135 +1032,136 @@ end
 --cursor & selection API -----------------------------------------------------
 
 terra Layout:get_cursor_count(): int
-	return self.cursels.len
+	return self.cursors.len
 end
 terra Layout:set_cursor_count(n: int): int
 	n = clamp(n, 0, MAX_CURSOR_COUNT)
-	if self.cursels.len ~= n then
-		for _,cs in self.cursels:setlen(n) do
-			(@cs):init(&self.l)
+	if self.cursors.len ~= n then
+		for _,c in self.cursors:setlen(n) do
+			(@c):init(&self.l)
 		end
 		self:invalidate'paint'
 	end
 end
 
-terra Layout:_cursel(cs_i: int)
-	cs_i = clamp(cs_i, 0, MAX_CURSOR_COUNT-1)
-	var cs, new_cursels = self.cursels:getat(cs_i)
-	for _,cs in new_cursels do
-		(@cs):init(&self.l)
+terra Layout:_cursor(c_i: int)
+	c_i = clamp(c_i, 0, MAX_CURSOR_COUNT-1)
+	var c, new_cursors = self.cursors:getat(c_i)
+	for _,c in new_cursors do
+		(@c):init(&self.l)
 		self:invalidate'paint'
 	end
-	return cs
+	return c
 end
 
-terra Layout:get_cursor_offset(cs_i: int, at_sel_end: bool)
-	var cs = self.cursels:at(cs_i, nil)
-	if cs == nil then return 0 end
-	return iif(at_sel_end, cs.selection.p[0].offset, cs.cursor.p.offset)
+terra Layout:get_cursor_offset     (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.offset     end
+terra Layout:get_cursor_which      (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.which      end
+terra Layout:get_cursor_sel_offset (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.sel_offset end
+terra Layout:get_cursor_sel_which  (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.sel_which  end
+terra Layout:get_cursor_x          (c_i: int): num return self.cursors:at(c_i, &[Cursor.empty]).state.x          end
+
+terra Layout:set_cursor_offset(c_i: int, v: int)
+	self:change(self:_cursor(c_i).state, 'offset', v, 'paint')
+end
+terra Layout:set_cursor_which(c_i: int, v: int)
+	if self:checkrange('cursor_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
+		self:change(self:_cursor(c_i).state, 'which', v, 'paint')
+	end
+end
+terra Layout:set_cursor_sel_offset(c_i: int, v: int)
+	self:change(self:_cursor(c_i).state, 'sel_offset', v, 'paint')
+end
+terra Layout:set_cursor_sel_which(c_i: int, v: int)
+	if self:checkrange('cursor_sel_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
+		self:change(self:_cursor(c_i).state, 'sel_which' , v, 'paint')
+	end
+end
+terra Layout:set_cursor_x(c_i: int, v: num)
+	self:change(self:_cursor(c_i).state, 'x', v, 'paint')
 end
 
-terra Layout:set_cursor_offset(cs_i: int, at_sel_end: bool, offset: int)
-	var cs = self:_cursel(cs_i)
-	if at_sel_end then
-		if self:change(cs.selection.p[0], 'offset', offset, 'paint') then
-			cs:invalidate()
+terra Layout:cursor_move_to(c_i: int, offset: int, which: enum, select: bool)
+	assert(self.state >= STATE_ALIGNED)
+	var c = self:_cursor(c_i)
+	if c:move_to(offset, which, select) then
+		self:invalidate'paint'
+	end
+end
+
+terra Layout:cursor_move_to_point(c_i: int, x: num, y: num, select: bool)
+	assert(self.state >= STATE_ALIGNED)
+	var c = self:_cursor(c_i)
+	if c:move_to_point(x, y, select) then
+		self:invalidate'paint'
+	end
+end
+
+terra Layout:cursor_move_near(
+	c_i: int, dir: enum, mode: enum, which: enum, select: bool
+)
+	if     self:checkrange('text cursor dir'  , dir  , CURSOR_DIR_MIN  , CURSOR_DIR_MAX)
+		and self:checkrange('text cursor mode' , mode , CURSOR_MODE_MIN , CURSOR_MODE_MAX)
+		and self:checkrange('text cursor which', which, CURSOR_WHICH_MIN, CURSOR_WHICH_MAX)
+	then
+		assert(self.state >= STATE_ALIGNED)
+		var c = self:_cursor(c_i)
+		if c:move_near(dir, mode, which, select) then
+			self:invalidate'paint'
 		end
-	else
-		if self:change(cs.cursor.p, 'offset', offset, 'paint') then
-			cs:invalidate()
-		end
 	end
 end
 
-terra CurSel:sync_selection(select: bool)
-	if select then
-		self.selection.p[1] = self.cursor.p
-		return false
-	else
-		var wasnt_empty = not self.selection.empty
-		self.selection.p[0] = self.cursor.p
-		self.selection.p[1] = self.cursor.p
-		return wasnt_empty
-	end
-end
-
-terra Layout:cursor_move_to_offset(cs_i: int, offset: int, which: enum, select: bool)
-	assert(self.state >= STATE_SHAPE)
-	var cs = self:_cursel(cs_i)
-	cs.cursor.p:validate()
-	if cs.cursor:move_to_offset(offset, which) then
-		self:invalidate'paint'
-	end
-	if cs:sync_selection(select) then
+terra Layout:cursor_move_near_line(c_i: int, delta_lines: int, x: num, select: bool)
+	assert(self.state >= STATE_ALIGNED)
+	var c = self:_cursor(c_i)
+	if c:move_near_line(delta_lines, x, select) then
 		self:invalidate'paint'
 	end
 end
 
-terra Layout:cursor_move_to_point(cs_i: int, x: num, y: num, select: bool)
-	assert(self.state >= STATE_ALIGN)
-	var cs = self:_cursel(cs_i)
-	cs.cursor.p:validate()
-	if cs.cursor:move_to_point(x, y) then
-		self:invalidate'paint'
-	end
-	if cs:sync_selection(select) then
+terra Layout:cursor_move_near_page(c_i: int, delta_pages: int, x: num, select: bool)
+	assert(self.state >= STATE_ALIGNED)
+	var c = self:_cursor(c_i)
+	if c:move_near_page(delta_pages, x, select) then
 		self:invalidate'paint'
 	end
 end
 
-terra Layout:get_cursor_visible(cs_i: int)
-	var cs = self.cursels:at(cs_i, nil)
-	return iif(cs ~= nil, cs.cursor.visible, false)
+terra Layout:get_caret_visible(c_i: int)
+	var c = self.cursors:at(c_i, nil)
+	return iif(c ~= nil, c.caret_visible, false)
 end
 
-terra Layout:get_selection_visible(cs_i: int)
-	var cs = self.cursels:at(cs_i, nil)
-	return iif(cs ~= nil, cs.selection.visible, false)
+terra Layout:get_selection_visible(c_i: int)
+	var c = self.cursors:at(c_i, nil)
+	return iif(c ~= nil, c.selection_visible, false)
 end
 
-terra Layout:set_cursor_visible(cs_i: int, v: bool)
-	self:change(self:_cursel(cs_i).cursor, 'visible', v, 'paint')
+terra Layout:set_caret_visible(c_i: int, v: bool)
+	self:change(self:_cursor(c_i), 'caret_visible', v, 'paint')
 end
 
-terra Layout:set_selection_visible(cs_i: int, v: bool)
-	self:change(self:_cursel(cs_i).selection, 'visible', v, 'paint')
+terra Layout:set_selection_visible(c_i: int, v: bool)
+	self:change(self:_cursor(c_i), 'selection_visible', v, 'paint')
 end
 
-terra Selection:get_is_forward()
-	return self.p[0].offset < self.p[1].offset
-end
-
-terra Selection:get_smaller_offset()
-	return iif(self.is_forward, self.p[0].offset, self.p[1].offset)
-end
-
-terra Selection:get_smaller_seg()
-	return iif(self.is_forward, self.p[0].seg, self.p[1].seg)
-end
-
-terra Selection:get_span_index()
-	if self.p[0].valid then
-		return self.layout.spans:index(self.smaller_seg.span)
-	else
-		return self.layout:span_at_offset(self.smaller_offset)
-	end
-end
-
-terra Layout:get_selection_first_span(cs_i: int): int
-	assert(self.state >= STATE_SHAPE)
-	var cs = self.cursels:at(cs_i, nil)
-	if cs ~= nil then
-		cs:validate()
-		return cs.selection.span_index
+terra Layout:get_selection_first_span(c_i: int): int
+	var c = self.cursors:at(c_i, nil)
+	if c ~= nil then
+		var is_forward = c.state.sel_offset < c.state.offset
+		var offset = iif(is_forward, c.state.sel_offset, c.state.offset)
+		return self:span_at_offset(offset)
 	else
 		return 0
 	end
 end
 
-terra Layout:cursor_xs(line_i: int)
-	return self.l:cursor_xs(line_i)
+terra Layout:load_cursor_xs(line_i: int)
+	assert(self.state >= STATE_ALIGNED)
+	self.l:cursor_xs(line_i)
 end
+terra Layout:get_cursor_xs() return self.l.r.xsbuf.elements end
+terra Layout:get_cursor_xs_len(): int return self.l.r.xsbuf.len end
 
 --publish and build ----------------------------------------------------------
 
@@ -1192,6 +1175,7 @@ function build(optimize)
 
 	trlib(tr, '^ALIGN_')
 	trlib(tr, '^DIR_')
+	trlib(tr, '^CURSOR_')
 
 	trlib(tr_renderer_sizeof)
 	trlib(tr_layout_sizeof)

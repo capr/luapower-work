@@ -60,6 +60,7 @@ end)
 
 --API types ------------------------------------------------------------------
 
+local real_int    = int
 local real_uint32 = uint32
 
 --Using doubles in place of int types allows us to clamp out-of-range Lua
@@ -106,6 +107,7 @@ local MAX_SHADOW_PASSES = 10
 local MAX_SPAN_COUNT = 10^9
 local MAX_GRID_ITEM_COUNT = 10^9
 local MAX_CHILD_COUNT = 10^9
+local MAX_CURSOR_COUNT = 10000
 
 do end --lib new/release
 
@@ -211,10 +213,10 @@ terra Layer:get_y(): num return self.l.y end
 terra Layer:get_w(): num return self.l.w end
 terra Layer:get_h(): num return self.l.h end
 
-terra Layer:set_x(v: num) self.l:change(self.l, 'x', clamp(v, -MAX_X, MAX_X)) end
-terra Layer:set_y(v: num) self.l:change(self.l, 'y', clamp(v, -MAX_X, MAX_X)) end
-terra Layer:set_w(v: num) self.l:change(self.l, 'w', clamp(v, -MAX_W, MAX_W)) end
-terra Layer:set_h(v: num) self.l:change(self.l, 'h', clamp(v, -MAX_W, MAX_W)) end
+terra Layer:set_x(v: num) self.l:change(self.l, 'x', clamp(v, -MAX_X, MAX_X), 'pixels') end
+terra Layer:set_y(v: num) self.l:change(self.l, 'y', clamp(v, -MAX_X, MAX_X), 'pixels') end
+terra Layer:set_w(v: num) self.l:change(self.l, 'w', clamp(v, -MAX_W, MAX_W), 'pixels layout') end
+terra Layer:set_h(v: num) self.l:change(self.l, 'h', clamp(v, -MAX_W, MAX_W), 'pixels layout') end
 
 terra Layer:get_cx(): num return self.l.cx end
 terra Layer:get_cy(): num return self.l.cy end
@@ -709,7 +711,7 @@ terra Layer:set_line_spacing      (v: num) self.l.text.layout.line_spacing      
 terra Layer:set_hardline_spacing  (v: num) self.l.text.layout.hardline_spacing  = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate'text' end
 terra Layer:set_paragraph_spacing (v: num) self.l.text.layout.paragraph_spacing = clamp(v, -MAX_OFFSET, MAX_OFFSET); self.l:invalidate'text' end
 
---text spans
+do end --text spans
 
 terra Layer:get_span_count(): int
 	return self.l.text.layout.span_count
@@ -733,32 +735,14 @@ local prefixed = {
 for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 
 	local T = tr.SPAN_FIELD_TYPES[FIELD]
-	local API_T = api_types[T] or T
+	local T = api_types[T] or T
 	local PFIELD = prefixed[FIELD] and 'text_'..FIELD or FIELD
 
-	Layer.methods['get_text_selection_has_'..FIELD] = terra(self: &Layer)
-		var o1 = self.l.text.layout:get_cursor_offset(0, false)
-		var o2 = self.l.text.layout:get_cursor_offset(0, true)
-		return self.l.text.layout:['has_'..FIELD](o1, o2)
-	end
-
-	Layer.methods['get_text_selection_'..FIELD] = terra(self: &Layer): API_T
-		var span_i = self.l.text.layout:get_selection_first_span(0)
+	Layer.methods['get_span_'..PFIELD] = terra(self: &Layer, span_i: int): T
 		return self.l.text.layout:['get_span_'..FIELD](span_i)
 	end
 
-	Layer.methods['set_text_selection_'..FIELD] = terra(self: &Layer, v: API_T)
-		var o1 = self.l.text.layout:get_cursor_offset(0, false)
-		var o2 = self.l.text.layout:get_cursor_offset(0, true)
-		self.l.text.layout:['set_'..FIELD](o1, o2, v)
-		self.l:invalidate'text'
-	end
-
-	Layer.methods['get_span_'..PFIELD] = terra(self: &Layer, span_i: int): API_T
-		return self.l.text.layout:['get_span_'..FIELD](span_i)
-	end
-
-	Layer.methods['set_span_'..PFIELD] = terra(self: &Layer, span_i: int, v: API_T)
+	Layer.methods['set_span_'..PFIELD] = terra(self: &Layer, span_i: int, v: T)
 		if span_i < MAX_SPAN_COUNT then
 			self.l.text.layout:['set_span_'..FIELD](span_i, v)
 			self.l:invalidate'text'
@@ -776,16 +760,16 @@ terra Layer:set_span_offset(span_i: int, v: int)
 	self.l:invalidate'text'
 end
 
---text measuring and hit-testing
+do end --text geometry
 
-terra Layer:text_cursor_xs(line_i: int, outlen: &int)
+terra Layer:load_text_cursor_xs(line_i: int)
 	self:sync()
-	var xs = self.l.text.layout:cursor_xs(line_i)
-	@outlen = xs.len
-	return xs.elements
+	self.l.text.layout:load_cursor_xs(line_i)
 end
+terra Layer:get_text_cursor_xs() return self.l.text.layout.cursor_xs end
+terra Layer:get_text_cursor_xs_len() return self.l.text.layout.cursor_xs_len end
 
---text cursor & selection
+do end --text cursor & selection
 
 terra Layer:get_text_selectable(): bool
 	return self.l.text.selectable
@@ -794,118 +778,89 @@ end
 terra Layer:set_text_selectable(v: bool)
 	if self.l:change(self.l.text, 'selectable', v) then
 		var l = &self.l.text.layout
-		if v then
-			l.cursor_count = max(1, l.cursor_count)
-		end
-		for i = 0, l.cursor_count do
-			l:set_cursor_visible(i, v)
-			l:set_selection_visible(i, v)
-		end
+		l:set_caret_visible(0, v)
+		l:set_selection_visible(0, v)
 		self.l:invalidate'text'
 	end
 end
 
---[==[
-terra Layer:get_has_text_cursor()
+terra Layer:get_text_cursor_count(): int
+	return self.l.text.layout.cursor_count
+end
+terra Layer:set_text_cursor_count(v: int): int
+	self.l.text.layout.cursor_count = v
+	self.l:invalidate'text'
+end
+
+terra Layer:get_text_cursor_offset     (c_i: int): int return self.l.text.layout:get_cursor_offset     (c_i) end
+terra Layer:get_text_cursor_which      (c_i: int): int return self.l.text.layout:get_cursor_which      (c_i) end
+terra Layer:get_text_cursor_sel_offset (c_i: int): int return self.l.text.layout:get_cursor_sel_offset (c_i) end
+terra Layer:get_text_cursor_sel_which  (c_i: int): int return self.l.text.layout:get_cursor_sel_which  (c_i) end
+terra Layer:get_text_cursor_x          (c_i: int): num return self.l.text.layout:get_cursor_x          (c_i) end
+
+terra Layer:set_text_cursor_offset     (c_i: int, v: int) self.l.text.layout:set_cursor_offset     (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_which      (c_i: int, v: int) self.l.text.layout:set_cursor_which      (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_sel_offset (c_i: int, v: int) self.l.text.layout:set_cursor_sel_offset (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_sel_which  (c_i: int, v: int) self.l.text.layout:set_cursor_sel_which  (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_x          (c_i: int, v: num) self.l.text.layout:set_cursor_x          (c_i, v); self.l:invalidate'text' end
+
+do end --text span field get/set through current selection.
+
+for _,FIELD in ipairs(tr.SPAN_FIELDS) do
+
+	local T = tr.SPAN_FIELD_TYPES[FIELD]
+	local T = api_types[T] or T
+
+	Layer.methods['text_selection_has_'..FIELD] = terra(self: &Layer, c_i: int)
+		var o1 = self.l.text.layout:get_cursor_offset(c_i)
+		var o2 = self.l.text.layout:get_cursor_sel_offset(c_i)
+		return self.l.text.layout:['has_'..FIELD](o1, o2)
+	end
+
+	Layer.methods['get_text_selection_'..FIELD] = terra(self: &Layer, c_i: int): T
+		var span_i = self.l.text.layout:get_selection_first_span(c_i)
+		return self.l.text.layout:['get_span_'..FIELD](span_i)
+	end
+
+	Layer.methods['set_text_selection_'..FIELD] = terra(self: &Layer, c_i: int, v: T)
+		var o1 = self.l.text.layout:get_cursor_offset(c_i)
+		var o2 = self.l.text.layout:get_cursor_sel_offset(c_i)
+		self.l.text.layout:['set_'..FIELD](o1, o2, v)
+		self.l:invalidate'text'
+	end
+end
+
+do end --text navigation & hit-testing
+
+terra Layer:text_cursor_move_to(c_i: int, offset: int, which: enum, select: bool)
 	self:sync()
-	return self.l.has_text_cursor
+	self.l.text.layout:cursor_move_to(c_i, offset, which, select)
+	self.l:invalidate'text'
 end
 
-terra Layer:sync_selection(select: bool)
-	if select then
-		--return self.l.text.layout:selection_move_to_()
-		--set_p(0, self.text_cursor.p)
-	else
-		var wasnt_empty = false --not s.empty
-		--s:set_p(0, self.text_cursor.p)
-		--s:set_p(1, self.text_cursor.p)
-		return wasnt_empty
-	end
-end
-
-terra Layer:set_text_cursor(seg_i: int, i: int, x: num, select: bool)
-	if self.has_text_cursor then
-		var seg = self.l.text.layout.segs:at(seg_i, nil)
-		if seg ~= nil then
-			var p = self.l.text.layout:pos(seg, i)
-			if self.l.text_cursor:set(p, x) then
-				self.l:invalidate'pixels'
-			end
-			if self.l:sync_selection(select) then
-				self.l:invalidate'pixels'
-			end
-		end
-	end
-end
-
-terra Layer:text_cursor_move_to_offset(offset: int, which: enum, select: bool)
-	if self.has_text_cursor then
-		if self.l.text_cursor:move_to_offset(offset, which) then
-			self.l:invalidate'pixels'
-		end
-		if self.l:sync_selection(select) then
-			self.l:invalidate'pixels'
-		end
-	end
-end
-
-terra Layer:text_cursor_move_to_pos(x: num, y: num, select: bool)
-	if self.has_text_cursor then
-		if self.l.text_cursor:move_to_pos(x, y) then
-			self.l:invalidate'pixels'
-		end
-		if self.l:sync_selection(select) then
-			self.l:invalidate'pixels'
-		end
-	end
-end
-
-terra Layer:text_cursor_move_to_rel_line(delta_lines: int, x: num, select: bool)
-	if self.has_text_cursor then
-		if self.l.text_cursor:move_to_rel_line(delta_lines, x) then
-			self.l:invalidate'pixels'
-		end
-		if self.l:sync_selection(select) then
-			self.l:invalidate'pixels'
-		end
-	end
-end
-
-terra Layer:text_cursor_move_to_rel_page(delta_pages: int, x: num, select: bool)
-	if self.has_text_cursor then
-		if self.l.text_cursor:move_to_rel_page(delta_pages, x) then
-			self.l:invalidate'pixels'
-		end
-		if self.l:sync_selection(select) then
-			self.l:invalidate'pixels'
-		end
-	end
-end
-
-terra Layer:text_cursor_move_to_rel_cursor(dir: enum, mode: enum, which: enum, clamp: bool, select: bool)
-	if     self.l:checkrange('text cursor dir'  , dir  , CURSOR_DIR_MIN  , CURSOR_DIR_MAX)
-		and self.l:checkrange('text cursor mode' , mode , CURSOR_MODE_MIN , CURSOR_MODE_MAX)
-		and self.l:checkrange('text cursor which', which, CURSOR_WHICH_MIN, CURSOR_WHICH_MAX)
-	then
-		if self.has_text_cursor then
-			if self.l.text_cursor:move_to_rel_cursor(dir, mode, which, clamp) then
-				self.l:sync_selection(select)
-				self.l:invalidate'pixels'
-			end
-		end
-	end
-end
-
-terra Layer:get_selection_offset1()
+terra Layer:text_cursor_move_to_point(c_i: int, x: num, y: num, select: bool)
 	self:sync()
-	--
+	self.l.text.layout:cursor_move_to_point(c_i, x, y, select)
+	self.l:invalidate'text'
 end
 
-terra Layer:set_selection_offset1()
+terra Layer:text_cursor_move_near(c_i: int, dir: enum, mode: enum, which: enum, select: bool)
 	self:sync()
-	--
+	self.l.text.layout:cursor_move_near(c_i, dir, mode, which, select)
+	self.l:invalidate'text'
 end
-]==]
+
+terra Layer:text_cursor_move_near_line(c_i: int, delta_lines: int, x: num, select: bool)
+	self:sync()
+	self.l.text.layout:cursor_move_near_line(c_i, delta_lines, x, select)
+	self.l:invalidate'text'
+end
+
+terra Layer:text_cursor_move_near_page(c_i: int, delta_pages: int, x: num, select: bool)
+	self:sync()
+	self.l.text.layout:cursor_move_near_page(c_i, delta_pages, x, select)
+	self.l:invalidate'text'
+end
 
 do end --layouts
 
@@ -1104,7 +1059,8 @@ terra Layer:get_hit_test_layer       () return [&Layer](self.l.lib.hit_test_resu
 terra Layer:get_hit_test_area        () return self.l.lib.hit_test_result.area             end
 terra Layer:get_hit_test_x           () return self.l.lib.hit_test_result.x                end
 terra Layer:get_hit_test_y           () return self.l.lib.hit_test_result.y                end
-terra Layer:get_hit_test_text_offset () return self.l.lib.hit_test_result.text_pos.offset  end
+terra Layer:get_hit_test_text_offset () return self.l.lib.hit_test_result.text_offset      end
+terra Layer:get_hit_test_text_cursor_which() return self.l.lib.hit_test_result.text_cursor_which end
 
 --publish and build
 

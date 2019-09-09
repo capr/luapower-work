@@ -1,5 +1,10 @@
+--[[
 
---Shaping a single word into a cached array of glyphs called a glyph run.
+	Shaping a single word into a cached array of glyphs called a glyph run.
+
+	About cursor positions:
+
+]]
 
 if not ... then require'terra/tr_test'; return end
 
@@ -36,18 +41,17 @@ terra GlyphRun:shape(r: &Renderer)
 
 	var hb_dir = iif(self.rtl, HB_DIRECTION_RTL, HB_DIRECTION_LTR)
 	var hb_buf = hb_buffer_create()
+
+	--see https://harfbuzz.github.io/clusters.html
 	hb_buffer_set_cluster_level(hb_buf,
-		--HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS
-		HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES
-		--HB_BUFFER_CLUSTER_LEVEL_CHARACTERS
-	)
+		HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS)
+
 	hb_buffer_set_direction(hb_buf, hb_dir)
 	hb_buffer_set_script(hb_buf, self.script)
 	hb_buffer_set_language(hb_buf, self.lang)
 	hb_buffer_add_codepoints(hb_buf, self.text.elements, self.text.len, 0, self.text.len)
-	--print('shaping', font.hb_font, hb_buf, self.features.elements, self.features.len)
 	hb_shape(font.hb_font, hb_buf, self.features.elements, self.features.len)
-	--print'shaped'
+
 	var len: uint32
 	var info = hb_buffer_get_glyph_infos(hb_buf, &len)
 	var pos  = hb_buffer_get_glyph_positions(hb_buf, &len)

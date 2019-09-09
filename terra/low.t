@@ -1548,7 +1548,7 @@ function publish(modulename)
 		then
 			local public_methods, opt = ...
 			T.opaque = opt and opt.opaque
-			T.cname = opt and opt.cname
+			T.cname = opt and opt.cname or T.cname
 			T.cprefix = opt and opt.cprefix
 			if type(T) == 'terrafunction' or type(T) == 'overloadedterrafunction' then
 				T.ffi_name = public_methods

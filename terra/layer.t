@@ -7,6 +7,10 @@
 	Uses terra-tr for text shaping and rendering.
 	Uses terra-boxblur and boxblur for shadows.
 
+	NOTE: this is the implementation module. In here, invalid input data is
+  	undefined behavior and changing layer properties does not keep the internal
+	state consistent. Use `layer_api` instead.
+
 	How this box model works (and how it differs from the web's box model):
 
 	* the "layer box" is defined by (x, y, w, h).
@@ -18,6 +22,13 @@
 	  so to make room for an inner border, you need to add some padding.
 	* background can be clipped to the inside or outside of the border outline,
 	  subject to `background_clip_border_offset`.
+
+	Layout types currently implemented:
+
+		* none (default): manual positioning via x, y, w, h properties.
+		* textbox: content box grows to contain the text.
+		* flexbox: "css flexbox"-like layout type.
+		* grid: "css grid"-like layout type.
 
 ]]
 
@@ -69,8 +80,8 @@ local function map_enum(C, src_prefix, dst_prefix)
 	end
 end
 map_enum(C, 'CAIRO_OPERATOR_', 'OPERATOR_')
-map_enum(tr, 'DIR_')
-map_enum(tr, 'CURSOR_')
+map_enum(tr.__index, 'DIR_')
+map_enum(tr.__index, 'CURSOR_')
 map_enum(bitmap, 'FORMAT_', 'BITMAP_FORMAT_')
 map_enum(C, 'CAIRO_EXTEND_', 'BACKGROUND_EXTEND_')
 
@@ -505,7 +516,8 @@ struct HitTestResult {
 	area: enum;
 	x: num;
 	y: num;
-	text_pos: tr.Pos;
+	text_offset: int;
+	text_cursor_which: enum;
 };
 
 terra HitTestResult:set(layer: &Layer, area: enum, x: num, y: num)
@@ -1548,13 +1560,11 @@ terra Layer:sync_text_align()
 end
 
 terra Layer:get_baseline()
-	return iif(self.text.layout.text_visible, self.text.layout.baseline, self.h)
+	return iif(self.text.layout.visible, self.text.layout.baseline, self.h)
 end
 
 terra Layer:draw_text(cr: &context)
-	if self.text.layout.text_visible
-		or (self.text.selectable and self.text.layout.valid)
-	then
+	if self.text.layout.visible then
 		var x1, y1, x2, y2 = cr:clip_extents()
 		self.text.layout:set_clip_extents(x1, y1, x2, y2)
 		self.text.layout:clip()
@@ -1567,7 +1577,7 @@ terra Layer:text_bbox()
 end
 
 terra Layer:hit_test_text(cr: &context, x: num, y: num)
-	if self.text.layout.text_visible then
+	if self.text.layout.visible then
 		self.lib.hit_test_result:set(self, HIT_TEXT, x, y)
 		return true
 	else
