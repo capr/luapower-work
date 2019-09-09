@@ -14,6 +14,8 @@ return {
 			{
 				text_cursor_offset=17,
 				text_cursor_sel_offset=17,
+				text_cursor_sel_which=1,
+				text_cursor_which=1,
 				text_cursor_x=0/0
 			}
 		},

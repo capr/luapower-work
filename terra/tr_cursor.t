@@ -50,6 +50,7 @@ require'terra/tr_paint'
 terra Layout:offset_at_cursor(p: Pos) -- O(1)
 	if p.seg ~= nil then
 		var run = self:glyph_run(p.seg)
+		print(p.i, run.cursor_offsets(p.i))
 		assert(p.i == run.cursor_offsets(p.i))
 		return p.seg.offset + p.i
 	else

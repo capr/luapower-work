@@ -42,9 +42,8 @@ struct Renderer;
 ErrorFunction = {rawstring} -> {}
 ErrorFunction.cname = 'error_function_t'
 
-terra default_error_function(message: rawstring)
-	fprintf(stderr(), message)
-	fprintf(stderr(), '%s', '\n')
+local terra default_error_function(message: rawstring)
+	fprintf(stderr(), '%s\n', message)
 end
 
 struct Renderer (gettersandsetters) {
@@ -168,7 +167,7 @@ Renderer.methods.error = macro(function(self, ...)
 	local args = args(...)
 	return quote
 		if self.error_function ~= nil then
-			var s = arrayof(char, 256)
+			var s: char[256]
 			snprintf(s, 256, [args])
 			self.error_function(s)
 		end
@@ -186,13 +185,13 @@ Layout.methods.check = macro(function(self, NAME, v, valid)
 	end
 end)
 
-Layout.methods.checkrange = macro(function(self, NAME, v, MIN_V, MAX_V)
+Layout.methods.checkrange = macro(function(self, NAME, v, MIN, MAX)
 	NAME = NAME:asvalue()
-	MIN_V = MIN_V:asvalue()
-	MAX_V = MAX_V:asvalue()
-	FORMAT = 'invalid '..NAME..': %d (range: '..MIN_V..'..'..MAX_V..')'
+	MIN = MIN:asvalue()
+	MAX = MAX:asvalue()
+	FORMAT = 'invalid '..NAME..': %d (range: '..MIN..'..'..MAX..')'
 	return quote
-		var ok = v >= MIN_V and v <= MAX_V
+		var ok = v >= MIN and v <= MAX
 		if not ok then
 			self.r:error(FORMAT, v)
 		end
@@ -208,7 +207,6 @@ Layout.methods.invalidate = macro(function(self, WHAT)
 	return quote
 		escape
 			for s in WHAT:gmatch'[^%s]+' do
-
 				emit quote self:['_invalidate_'..s]() end
 			end
 		end
@@ -295,7 +293,7 @@ terra Layout:shape()
 end
 
 terra Layout:wrap()
-	if self.state < STATE_WRAPPED and self.state >= STATE_VALID then
+	if self.state >= STATE_VALID and self.state < STATE_WRAPPED then
 		assert(self.state == STATE_WRAPPED - 1)
 		self.l:wrap()
 		self.state = STATE_WRAPPED
@@ -303,7 +301,7 @@ terra Layout:wrap()
 end
 
 terra Layout:spaceout()
-	if self.state < STATE_SPACED and self.state >= STATE_VALID then
+	if self.state >= STATE_VALID and self.state < STATE_SPACED then
 		assert(self.state == STATE_SPACED - 1)
 		self.l:spaceout()
 		self.state = STATE_SPACED
@@ -311,7 +309,7 @@ terra Layout:spaceout()
 end
 
 terra Layout:align()
-	if self.state < STATE_ALIGNED and self.state >= STATE_VALID then
+	if self.state >= STATE_VALID and self.state < STATE_ALIGNED then
 		assert(self.state == STATE_ALIGNED - 1)
 		self.l:align()
 		self.state = STATE_ALIGNED
@@ -319,7 +317,7 @@ terra Layout:align()
 end
 
 terra Layout:clip()
-	if self.state < STATE_CLIPPED and self.state >= STATE_VALID then
+	if self.state >= STATE_VALID and self.state < STATE_CLIPPED then
 		assert(self.state == STATE_CLIPPED - 1)
 		self.l:clip()
 		self.state = STATE_CLIPPED
