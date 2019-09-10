@@ -85,46 +85,46 @@ void tr_set_y(layout_t*, double);
 int32_t tr_split_spans(layout_t*, int32_t, bool);
 void tr_remove_duplicate_spans(layout_t*, int32_t, int32_t);
 void tr_remove_trailing_spans(layout_t*);
+bool tr_has_color(layout_t*, int32_t, int32_t);
+bool tr_has_features(layout_t*, int32_t, int32_t);
+bool tr_has_font_id(layout_t*, int32_t, int32_t);
+bool tr_has_font_size(layout_t*, int32_t, int32_t);
+bool tr_has_lang(layout_t*, int32_t, int32_t);
+bool tr_has_nowrap(layout_t*, int32_t, int32_t);
 bool tr_has_opacity(layout_t*, int32_t, int32_t);
 bool tr_has_operator(layout_t*, int32_t, int32_t);
 bool tr_has_paragraph_dir(layout_t*, int32_t, int32_t);
-bool tr_has_font_id(layout_t*, int32_t, int32_t);
-bool tr_has_font_size(layout_t*, int32_t, int32_t);
-bool tr_has_features(layout_t*, int32_t, int32_t);
-bool tr_has_lang(layout_t*, int32_t, int32_t);
-bool tr_has_color(layout_t*, int32_t, int32_t);
-bool tr_has_nowrap(layout_t*, int32_t, int32_t);
 bool tr_has_script(layout_t*, int32_t, int32_t);
-void tr_set_paragraph_dir(layout_t*, int32_t, int32_t, int32_t);
-void tr_set_nowrap(layout_t*, int32_t, int32_t, bool);
-void tr_set_lang(layout_t*, int32_t, int32_t, const char *);
-void tr_set_script(layout_t*, int32_t, int32_t, const char *);
 void tr_set_color(layout_t*, int32_t, int32_t, uint32_t);
-void tr_set_font_size(layout_t*, int32_t, int32_t, double);
-void tr_set_font_id(layout_t*, int32_t, int32_t, int32_t);
-void tr_set_operator(layout_t*, int32_t, int32_t, int8_t);
 void tr_set_features(layout_t*, int32_t, int32_t, const char *);
+void tr_set_font_id(layout_t*, int32_t, int32_t, int32_t);
+void tr_set_font_size(layout_t*, int32_t, int32_t, double);
+void tr_set_lang(layout_t*, int32_t, int32_t, const char *);
+void tr_set_nowrap(layout_t*, int32_t, int32_t, bool);
 void tr_set_opacity(layout_t*, int32_t, int32_t, double);
-double tr_get_span_opacity(layout_t*, int32_t);
-int8_t tr_get_span_operator(layout_t*, int32_t);
-const char * tr_get_span_lang(layout_t*, int32_t);
-int32_t tr_get_span_paragraph_dir(layout_t*, int32_t);
+void tr_set_operator(layout_t*, int32_t, int32_t, int8_t);
+void tr_set_paragraph_dir(layout_t*, int32_t, int32_t, int32_t);
+void tr_set_script(layout_t*, int32_t, int32_t, const char *);
+uint32_t tr_get_span_color(layout_t*, int32_t);
 const char * tr_get_span_features(layout_t*, int32_t);
 int32_t tr_get_span_font_id(layout_t*, int32_t);
 double tr_get_span_font_size(layout_t*, int32_t);
-uint32_t tr_get_span_color(layout_t*, int32_t);
+const char * tr_get_span_lang(layout_t*, int32_t);
 bool tr_get_span_nowrap(layout_t*, int32_t);
+double tr_get_span_opacity(layout_t*, int32_t);
+int8_t tr_get_span_operator(layout_t*, int32_t);
+int32_t tr_get_span_paragraph_dir(layout_t*, int32_t);
 const char * tr_get_span_script(layout_t*, int32_t);
-void tr_set_span_font_size(layout_t*, int32_t, double);
-void tr_set_span_script(layout_t*, int32_t, const char *);
-void tr_set_span_operator(layout_t*, int32_t, int8_t);
-void tr_set_span_opacity(layout_t*, int32_t, double);
 void tr_set_span_color(layout_t*, int32_t, uint32_t);
 void tr_set_span_features(layout_t*, int32_t, const char *);
+void tr_set_span_font_id(layout_t*, int32_t, int32_t);
+void tr_set_span_font_size(layout_t*, int32_t, double);
 void tr_set_span_lang(layout_t*, int32_t, const char *);
 void tr_set_span_nowrap(layout_t*, int32_t, bool);
-void tr_set_span_font_id(layout_t*, int32_t, int32_t);
+void tr_set_span_opacity(layout_t*, int32_t, double);
+void tr_set_span_operator(layout_t*, int32_t, int8_t);
 void tr_set_span_paragraph_dir(layout_t*, int32_t, int32_t);
+void tr_set_span_script(layout_t*, int32_t, const char *);
 int32_t tr_get_span_offset(layout_t*, int32_t);
 void tr_set_span_offset(layout_t*, int32_t, int32_t);
 int32_t tr_get_span_count(layout_t*);
@@ -279,46 +279,46 @@ local methods = {
 	split_spans = C.tr_split_spans,
 	remove_duplicate_spans = C.tr_remove_duplicate_spans,
 	remove_trailing_spans = C.tr_remove_trailing_spans,
+	has_color = C.tr_has_color,
+	has_features = C.tr_has_features,
+	has_font_id = C.tr_has_font_id,
+	has_font_size = C.tr_has_font_size,
+	has_lang = C.tr_has_lang,
+	has_nowrap = C.tr_has_nowrap,
 	has_opacity = C.tr_has_opacity,
 	has_operator = C.tr_has_operator,
 	has_paragraph_dir = C.tr_has_paragraph_dir,
-	has_font_id = C.tr_has_font_id,
-	has_font_size = C.tr_has_font_size,
-	has_features = C.tr_has_features,
-	has_lang = C.tr_has_lang,
-	has_color = C.tr_has_color,
-	has_nowrap = C.tr_has_nowrap,
 	has_script = C.tr_has_script,
-	set_paragraph_dir = C.tr_set_paragraph_dir,
-	set_nowrap = C.tr_set_nowrap,
-	set_lang = C.tr_set_lang,
-	set_script = C.tr_set_script,
 	set_color = C.tr_set_color,
-	set_font_size = C.tr_set_font_size,
-	set_font_id = C.tr_set_font_id,
-	set_operator = C.tr_set_operator,
 	set_features = C.tr_set_features,
+	set_font_id = C.tr_set_font_id,
+	set_font_size = C.tr_set_font_size,
+	set_lang = C.tr_set_lang,
+	set_nowrap = C.tr_set_nowrap,
 	set_opacity = C.tr_set_opacity,
-	get_span_opacity = C.tr_get_span_opacity,
-	get_span_operator = C.tr_get_span_operator,
-	get_span_lang = C.tr_get_span_lang,
-	get_span_paragraph_dir = C.tr_get_span_paragraph_dir,
+	set_operator = C.tr_set_operator,
+	set_paragraph_dir = C.tr_set_paragraph_dir,
+	set_script = C.tr_set_script,
+	get_span_color = C.tr_get_span_color,
 	get_span_features = C.tr_get_span_features,
 	get_span_font_id = C.tr_get_span_font_id,
 	get_span_font_size = C.tr_get_span_font_size,
-	get_span_color = C.tr_get_span_color,
+	get_span_lang = C.tr_get_span_lang,
 	get_span_nowrap = C.tr_get_span_nowrap,
+	get_span_opacity = C.tr_get_span_opacity,
+	get_span_operator = C.tr_get_span_operator,
+	get_span_paragraph_dir = C.tr_get_span_paragraph_dir,
 	get_span_script = C.tr_get_span_script,
-	set_span_font_size = C.tr_set_span_font_size,
-	set_span_script = C.tr_set_span_script,
-	set_span_operator = C.tr_set_span_operator,
-	set_span_opacity = C.tr_set_span_opacity,
 	set_span_color = C.tr_set_span_color,
 	set_span_features = C.tr_set_span_features,
+	set_span_font_id = C.tr_set_span_font_id,
+	set_span_font_size = C.tr_set_span_font_size,
 	set_span_lang = C.tr_set_span_lang,
 	set_span_nowrap = C.tr_set_span_nowrap,
-	set_span_font_id = C.tr_set_span_font_id,
+	set_span_opacity = C.tr_set_span_opacity,
+	set_span_operator = C.tr_set_span_operator,
 	set_span_paragraph_dir = C.tr_set_span_paragraph_dir,
+	set_span_script = C.tr_set_span_script,
 	get_span_offset = C.tr_get_span_offset,
 	set_span_offset = C.tr_set_span_offset,
 	span_at_offset = C.tr_span_at_offset,
