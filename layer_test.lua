@@ -397,17 +397,24 @@ local function get_prop(e, prop) return e[prop] end
 local function set_prop(e, prop, v) e[prop] = v; layer_changed = true end
 local function get_prop_i(e, prop, i) return e['get_'..prop](e, i) end
 local function set_prop_i(e, prop, v, i) e['set_'..prop](e, i, v); layer_changed = true end
-local function get_prop_if(e, prop, _, is_set) if not is_set then return nil end; return e[prop] end
+local function get_prop_if(e, prop, _, is_set)
+	if not e[is_set](e) then return nil end
+	return e[prop]
+end
+local function get_prop_if_i(e, prop, i, is_set)
+	if not e[is_set](e, i) then return nil end
+	return e['get_'..prop](e, i)
+end
 local function getset(prop, i, is_set)
 	local id = i and prop..'['..i..']' or prop
-	get = is_set ~= nil and get_prop_if or i and get_prop_i or get_prop
+	get = is_set ~= nil and (i ~= nil and get_prop_if_i or get_prop_if) or i and get_prop_i or get_prop
 	set = i and set_prop_i or set_prop
 	return id, get, set
 end
 local function slide(prop, min, max, step, ...)
 	local id, get, set = getset(prop, ...)
 	local v = get(e, prop, ...)
-	local v = testui:slide(id, nil, v, min, max, step, get(default_e, prop, 0))
+	local v = testui:slide(id, nil, v, min, max, step, get(default_e, prop, 0, select(2, ...)))
 	if v then
 		set(e, prop, v, ...)
 		return v
@@ -421,7 +428,7 @@ local function sliden(prop, ...) return slide(prop, -10, 10, .1, ...) end
 local function slideo(prop, ...) return slide(prop, -2, 2, .001, ...) end
 local function pickcolor(prop, ...)
 	local id, get, set = getset(prop, ...)
-	local r, g, b, a = color.parse_rgba32(get(e, prop, ...))
+	local r, g, b, a = color.parse_rgba32(get(e, prop, ...) or 0)
 	local h, s, l = color.convert('hsl', 'rgb', r, g, b)
 
 	testui:pushgroup'down'
@@ -871,20 +878,24 @@ function testui:repaint()
 			slide('text_cursor_sel_offset', -1, e.text_len + 1, 1, i)
 			slide('text_cursor_sel_which', -1, 2, 1, i)
 
-			choose('text_selection_font_id', font_map, font_names, i, e.text_selection_has_font_id)
-			slide ('text_selection_font_size', -10, 100, 1, i, e.text_selection_has_font_size)
-			----TODO: slide ('features',
-			----TODO: choose('script', i)
-			----TODO: choose('lang'             , i)
-			choose('text_selection_paragraph_dir', 'dir_',
-				{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i,
-				e.text_selection_has_paragraph_dir)
-			toggle('text_selection_nowrap'  , i, e.text_selection_has_nowrap)
-			pickcolor('text_selection_color', i, e.text_selection_has_text_color)
-			slideo('text_selection_opacity' , i, e.text_selection_has_opacity)
-			choose('text_selection_operator', 'operator_',
-				{'clear', 'source', 'over', 'in', 'out', 'xor'}, i,
-				e.text_selection_has_operator)
+			if self.text_valid then
+				choose('text_selection_font_id', font_map, font_names, i, 'text_selection_has_font_id')
+				slide ('text_selection_font_size', -10, 100, 1, i, 'text_selection_has_font_size')
+				----TODO: slide ('features',
+				----TODO: choose('script', i)
+				----TODO: choose('lang'             , i)
+				choose('text_selection_paragraph_dir', 'dir_',
+					{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i,
+					'text_selection_has_paragraph_dir')
+				toggle('text_selection_nowrap'  , i, 'text_selection_has_nowrap')
+				pickcolor('text_selection_color', i, 'text_selection_has_color')
+				slideo('text_selection_opacity' , i, 'text_selection_has_opacity')
+				choose('text_selection_operator', 'operator_',
+					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i,
+					'text_selection_has_operator')
+			else
+				self:heading'TEXT INVALID'
+			end
 		end
 
 		self:nextgroup()
@@ -1123,8 +1134,8 @@ function testui:repaint()
 
 	end
 
-	if top_e:sync() then self.ewindow:invalidate(); self.window:invalidate() end
-	--if sel_e:sync() then self.ewindow:invalidate(); self.window:invalidate() end
+	if not top_e.pixels_valid then self.ewindow:invalidate(); self.window:invalidate() end
+	if not sel_e.pixels_valid then self.ewindow:invalidate(); self.window:invalidate() end
 
 	self.x = self.win_w - 1200
 	self.y = 10

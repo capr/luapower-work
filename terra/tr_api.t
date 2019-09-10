@@ -1,7 +1,19 @@
 --[[
 
-	Text Renderer C/Terra API.
+	Text Renderer Terra/C/ffi API.
 	Implements a flat API tailored for C or Terra use.
+
+	This module adds input validation and state management to the raw
+	implementation in order to achieve the following goals:
+
+	- Invalid input should never cause fatal errors or crashes. At worst
+	(eg. on invalid span offsets), nothing is displayed and zero or something
+	sensible is returned for computed values. Invalid API _usage_ however
+	(eg. wrong call order or missing calls) should cause an assertion failure.
+
+	- The order in which layout and span properties are set is not important.
+
+	Additional functionality:
 
 	- self-allocating constructors.
 	- non-fatal error checking and reporting.
@@ -18,6 +30,15 @@
 	- consecutive enum values for forward ABI compatibility.
 	- functions and types are renamed and prefixed to C conventions.
 	- methods and virtual properties are bound back to types via ffi.metatype.
+
+	Usage:
+
+	- make a renderer object. make a layout object from said renderer.
+	- set the text and text properties on the layout object.
+	- add text spans and set text span properties on the layout object.
+	- call layout() then paint(<cairo-context>). change any properties,
+	  check if `pixels_valid` is false and issue a repaint if it is.
+	- navigate, hit-test, select and edit the text with cursors.
 
 ]]
 
@@ -80,7 +101,7 @@ struct Layout (gettersandsetters) {
 	_maxlen: int;
 	state: enum; --STATE_*
 	_offsets_valid: bool; --span offsets are good so spans can be split/merged.
-	_values_valid: bool;  --span values are good so shaping won't crash.
+	_valid: bool; --span offsets _and_ values are good so shaping won't crash.
 }
 
 terra Layout:get_r() return [&Renderer](self.l.r) end
@@ -93,7 +114,7 @@ terra Layout:init(r: &Renderer)
 	self._maxlen = maxint
 	self.state = 0
 	self._offsets_valid = false
-	self._values_valid = false
+	self._valid = false
 end
 
 terra Layout:free()
@@ -199,35 +220,24 @@ Layout.methods.checkrange = macro(function(self, NAME, v, MIN, MAX)
 	end
 end)
 
---state validation and invalidation ------------------------------------------
+--state invalidation ---------------------------------------------------------
 
---macro to generate multiple invalidation calls in one go.
-Layout.methods.invalidate = macro(function(self, WHAT)
-	WHAT = WHAT and WHAT:asvalue() or 'valid'
-	return quote
-		escape
-			for s in WHAT:gmatch'[^%s]+' do
-				emit quote self:['_invalidate_'..s]() end
-			end
-		end
-	end
-end)
+STATE_VALIDATED = 1
+STATE_SHAPED    = 2
+STATE_WRAPPED   = 3
+STATE_ALIGNED   = 4
+STATE_CLIPPED   = 5
+STATE_PAINTED   = 6
 
-STATE_VALID   = 1
-STATE_SHAPED  = 2
-STATE_WRAPPED = 3
-STATE_SPACED  = 4
-STATE_ALIGNED = 5
-STATE_CLIPPED = 6
-STATE_PAINTED = 7
-
-terra Layout:_invalidate_valid   () self.state = min(self.state, STATE_VALID   - 1) end
-terra Layout:_invalidate_shape   () self.state = min(self.state, STATE_SHAPED  - 1) end
-terra Layout:_invalidate_wrap    () self.state = min(self.state, STATE_WRAPPED - 1) end
-terra Layout:_invalidate_spaceout() self.state = min(self.state, STATE_SPACED  - 1) end
-terra Layout:_invalidate_align   () self.state = min(self.state, STATE_ALIGNED - 1) end
-terra Layout:_invalidate_clip    () self.state = min(self.state, STATE_CLIPPED - 1) end
-terra Layout:_invalidate_paint   () self.state = min(self.state, STATE_PAINTED - 1) end
+terra Layout:_invalidate_all()
+	self.state = 0
+	self._valid = false
+end
+terra Layout:_invalidate_shape() self.state = min(self.state, STATE_SHAPED  - 1) end
+terra Layout:_invalidate_wrap () self.state = min(self.state, STATE_WRAPPED - 1) end
+terra Layout:_invalidate_align() self.state = min(self.state, STATE_ALIGNED - 1) end
+terra Layout:_invalidate_clip () self.state = min(self.state, STATE_CLIPPED - 1) end
+terra Layout:_invalidate_paint() self.state = min(self.state, STATE_PAINTED - 1) end
 
 terra Layout:_invalidate_min_w()
 	self._min_w = -inf
@@ -237,27 +247,52 @@ terra Layout:_invalidate_max_w()
 	self._max_w =  inf
 end
 
+--macro to generate multiple invalidation calls in one go.
+Layout.methods.invalidate = macro(function(self, WHAT)
+	WHAT = WHAT and WHAT:asvalue() or 'all'
+	return quote
+		escape
+			for s in WHAT:gmatch'[^%s]+' do
+				emit quote self:['_invalidate_'..s]() end
+			end
+		end
+	end
+end)
+
+--state validation -----------------------------------------------------------
+
+terra Layout:_advance_state(state: enum)
+	if self.state < state then
+		assert(self.state == state - 1)
+		self.state = state
+		return true
+	else
+		return false
+	end
+end
+
 --check that there's at least one span and it has offset zero.
 --check that spans have monotonically increasing, in-range offsets.
 --check that all spans can be displayed (font and font size it set).
 terra Layout:_do_validate()
 	if self.l.spans.len == 0 or self.l.spans:at(0).offset ~= 0 then
 		self._offsets_valid = false
-		self._values_valid = false
+		self._valid = false
 	else
 		self._offsets_valid = true
-		self._values_valid = true
+		self._valid = true
 		var prev_offset = -1
 		for _,s in self.l.spans do
 			if s.offset <= prev_offset         --offset overlapping
 				or s.offset >= self.l.text.len  --offset out-of-range
 			then
 				self._offsets_valid = false
+				self._valid = false
 			end
 			if s.font_id == -1      --font not set
 				or s.font_size <= 0  --font size not set
 			then
-				self._values_valid = false
+				self._valid = false
 			end
 			prev_offset = s.offset
 		end
@@ -265,10 +300,8 @@ terra Layout:_do_validate()
 end
 
 terra Layout:_validate()
-	if self.state < STATE_VALID then
-		assert(self.state == STATE_VALID - 1)
+	if self:_advance_state(STATE_VALIDATED) then
 		self:_do_validate()
-		self.state = STATE_VALID
 	end
 end
 
@@ -279,62 +312,48 @@ end
 
 terra Layout:get_valid()
 	self:_validate()
-	return self._offsets_valid and self._values_valid
+	return self._valid
 end
 
 terra Layout:shape()
-	if self.state < STATE_SHAPED and self.valid then
-		assert(self.state == STATE_SHAPED - 1)
+	self:_validate()
+	if self:_advance_state(STATE_SHAPED) and self._valid then
 		self:_invalidate_min_w()
 		self:_invalidate_max_w()
 		self.l:shape()
-		self.state = STATE_SHAPED
 	end
 end
 
 terra Layout:wrap()
-	if self.state >= STATE_VALID and self.state < STATE_WRAPPED then
-		assert(self.state == STATE_WRAPPED - 1)
+	if self:_advance_state(STATE_WRAPPED) and self._valid then
 		self.l:wrap()
-		self.state = STATE_WRAPPED
-	end
-end
-
-terra Layout:spaceout()
-	if self.state >= STATE_VALID and self.state < STATE_SPACED then
-		assert(self.state == STATE_SPACED - 1)
 		self.l:spaceout()
-		self.state = STATE_SPACED
 	end
 end
 
 terra Layout:align()
-	if self.state >= STATE_VALID and self.state < STATE_ALIGNED then
-		assert(self.state == STATE_ALIGNED - 1)
+	if self:_advance_state(STATE_ALIGNED) and self._valid then
 		self.l:align()
-		self.state = STATE_ALIGNED
 	end
 end
 
 terra Layout:clip()
-	if self.state >= STATE_VALID and self.state < STATE_CLIPPED then
-		assert(self.state == STATE_CLIPPED - 1)
+	if self:_advance_state(STATE_CLIPPED) and self._valid then
 		self.l:clip()
-		self.state = STATE_CLIPPED
 	end
 end
 
 terra Layout:layout()
 	self:shape()
 	self:wrap()
-	self:spaceout()
 	self:align()
 	self:clip()
 end
 
 terra Layout:paint(cr: &context)
-	if self.state >= STATE_VALID then
-		assert(self.state >= STATE_CLIPPED)
+	assert(self.state >= STATE_PAINTED - 1)
+	self.state = STATE_PAINTED
+	if self._valid then --paint() must paint from STATE_PAINTED too.
 		for i,c in self.cursors do
 			c:draw_selection(cr, true)
 		end
@@ -342,7 +361,6 @@ terra Layout:paint(cr: &context)
 		for i,c in self.cursors do
 			c:draw_caret(cr)
 		end
-		self.state = STATE_PAINTED
 	end
 end
 
@@ -472,9 +490,9 @@ terra Layout:get_line_spacing      (): num return self.l.line_spacing      end
 terra Layout:get_hardline_spacing  (): num return self.l.hardline_spacing  end
 terra Layout:get_paragraph_spacing (): num return self.l.paragraph_spacing end
 
-terra Layout:set_line_spacing      (v: num) self:change(self.l, 'line_spacing'     , v, 'spaceout') end
-terra Layout:set_hardline_spacing  (v: num) self:change(self.l, 'hardline_spacing' , v, 'spaceout') end
-terra Layout:set_paragraph_spacing (v: num) self:change(self.l, 'paragraph_spacing', v, 'spaceout') end
+terra Layout:set_line_spacing      (v: num) self:change(self.l, 'line_spacing'     , v, 'wrap') end
+terra Layout:set_hardline_spacing  (v: num) self:change(self.l, 'hardline_spacing' , v, 'wrap') end
+terra Layout:set_paragraph_spacing (v: num) self:change(self.l, 'paragraph_spacing', v, 'wrap') end
 
 terra Layout:get_clip_x(): num return self.l.clip_x end
 terra Layout:get_clip_y(): num return self.l.clip_y end
@@ -982,7 +1000,7 @@ terra Layout:get_seg_next_vis  (seg_i: int) end
 --layouting helper APIs ------------------------------------------------------
 
 terra Layout:get_min_size_valid() --text box might need re-layouting.
-	return self.state >= STATE_SPACED
+	return self.state >= STATE_WRAPPED
 end
 
 terra Layout:get_align_valid() --text needs re-aligning.
@@ -998,33 +1016,54 @@ terra Layout:get_visible() --check if the text and/or cursor is visible.
 end
 
 terra Layout:get_min_w(): num --for page layouting min-size constraints.
-	assert(self.state >= STATE_SHAPED)
-	if self._min_w == -inf then
-		self._min_w = self.l:min_w()
+	if self._valid then
+		assert(self.state >= STATE_SHAPED)
+		if self._min_w == -inf then
+			self._min_w = self.l:min_w()
+		end
+		return self._min_w
+	else
+		return 0
 	end
-	return self._min_w
 end
 
 terra Layout:get_max_w(): num --not used yet
-	assert(self.state >= STATE_SHAPED)
-	if self._max_w == -inf then
-		self._max_w = self.l:max_w()
+	if self._valid then
+		assert(self.state >= STATE_SHAPED)
+		if self._max_w == -inf then
+			self._max_w = self.l:max_w()
+		end
+		return self._max_w
+	else
+		return 0
 	end
-	return self._max_w
 end
 
 terra Layout:get_baseline(): num --for page layouting baseline alignment.
-	assert(self.state >= STATE_ALIGNED)
-	return self.l.baseline
+	if self._valid then
+		assert(self.state >= STATE_ALIGNED)
+		return self.l.baseline
+	else
+		return 0
+	end
 end
 
 terra Layout:get_spaced_h(): num --for page layouting min-size constraints.
-	assert(self.state >= STATE_SPACED)
-	return self.l.spaced_h
+	if self._valid then
+		assert(self.state >= STATE_WRAPPED)
+		return self.l.spaced_h
+	else
+		return 0
+	end
 end
 
 terra Layout:bbox(): {num, num, num, num}
-	return self.l:bbox()
+	if self._valid then
+		assert(self.state >= STATE_ALIGNED)
+		return self.l:bbox()
+	else
+		return 0, 0, 0, 0
+	end
 end
 
 --cursor & selection API -----------------------------------------------------
@@ -1079,6 +1118,7 @@ terra Layout:set_cursor_x(c_i: int, v: num)
 end
 
 terra Layout:cursor_move_to(c_i: int, offset: int, which: enum, select: bool)
+	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
 	var c = self:_cursor(c_i)
 	if c:move_to(offset, which, select) then
@@ -1087,6 +1127,7 @@ terra Layout:cursor_move_to(c_i: int, offset: int, which: enum, select: bool)
 end
 
 terra Layout:cursor_move_to_point(c_i: int, x: num, y: num, select: bool)
+	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
 	var c = self:_cursor(c_i)
 	if c:move_to_point(x, y, select) then
@@ -1101,6 +1142,7 @@ terra Layout:cursor_move_near(
 		and self:checkrange('text cursor mode' , mode , CURSOR_MODE_MIN , CURSOR_MODE_MAX)
 		and self:checkrange('text cursor which', which, CURSOR_WHICH_MIN, CURSOR_WHICH_MAX)
 	then
+		if not self._valid then return end
 		assert(self.state >= STATE_ALIGNED)
 		var c = self:_cursor(c_i)
 		if c:move_near(dir, mode, which, select) then
@@ -1110,6 +1152,7 @@ terra Layout:cursor_move_near(
 end
 
 terra Layout:cursor_move_near_line(c_i: int, delta_lines: int, x: num, select: bool)
+	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
 	var c = self:_cursor(c_i)
 	if c:move_near_line(delta_lines, x, select) then
@@ -1118,6 +1161,7 @@ terra Layout:cursor_move_near_line(c_i: int, delta_lines: int, x: num, select: b
 end
 
 terra Layout:cursor_move_near_page(c_i: int, delta_pages: int, x: num, select: bool)
+	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
 	var c = self:_cursor(c_i)
 	if c:move_near_page(delta_pages, x, select) then
@@ -1155,6 +1199,8 @@ terra Layout:get_selection_first_span(c_i: int): int
 end
 
 terra Layout:load_cursor_xs(line_i: int)
+	self.l.r.xsbuf.len = 0
+	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
 	self.l:cursor_xs(line_i)
 end

@@ -1794,11 +1794,12 @@ function publish(modulename)
 				local d2 = m2.definition
 				assert(d1, 'method '..tostring(T)..':'..k1..' has no body')
 				assert(d2, 'method '..tostring(T)..':'..k2..' has no body')
-				if d1.filename == d2.filename then
-					return d1.linenumber < d2.linenumber
-				else
-					return d1.filename < d2.filename
-				end
+				return
+					d1.filename < d2.filename
+					or (d1.filename == d2.filename
+						and (d1.linenumber < d2.linenumber
+							or d1.linenumber == d2.linenumber
+								and k1 < k2))
 			end
 
 			for fname, func in sortedpairs(m, cmp) do

@@ -3,15 +3,17 @@
 	HTML-like box-model layouting and rendering engine in Terra with a C API.
 	Written by Cosmin Apreutesei. Public Domain.
 
-	Uses cairo for path filling, stroking, clipping, masking and blending.
-	Uses terra-tr for text shaping and rendering.
-	Uses terra-boxblur and boxblur for shadows.
+	Discuss at luapower.com/forum or at github.com/luapower/terra-layer/issues.
 
-	NOTE: this is the implementation module. In here, invalid input data is
-  	undefined behavior and changing layer properties does not keep the internal
-	state consistent. Use `layer_api` instead.
+	Uses `cairo` for path filling, stroking, clipping, masking and blending.
+	Uses `terra-tr` for text shaping and rendering.
+	Uses `terra-boxblur` and `boxblur` for shadows.
 
-	How this box model works (and how it differs from the web's box model):
+	NOTE: This is the implementation module. In here, invalid input data is
+	undefined behavior and changing layer properties does not keep the internal
+	state consistent. Use `layer_api` instead which takes care of all of that.
+
+	Box model:
 
 	* the "layer box" is defined by (x, y, w, h).
 	* paddings are applied to the layer box, creating the "content box".
@@ -23,12 +25,27 @@
 	* background can be clipped to the inside or outside of the border outline,
 	  subject to `background_clip_border_offset`.
 
-	Layout types currently implemented:
+	Layout types:
 
-		* none (default): manual positioning via x, y, w, h properties.
-		* textbox: content box grows to contain the text.
-		* flexbox: "css flexbox"-like layout type.
-		* grid: "css grid"-like layout type.
+	* none (default): manual positioning via x, y, w, h properties.
+	* textbox: content box grows to contain the text.
+	* flexbox: "css flexbox"-like layout type.
+	* grid: "css grid"-like layout type.
+
+	Content-wrapping in layout systems:
+
+	The presence of auto-wrapped content (text or wrapped flexbox items) in
+	content-based layout systems (i.e. layouts that expand based on the
+	content's minimum size) imposes that the layout be computed on the
+	content's main flow axis before being computed on the cross-axis. This is
+	because the minimum height of the content (assuming the main axis is the
+	x-axis) cannot be known until wrapping the content, but wrapping requires
+	knowing the final width of the container. This means that a layout that
+	contains a mix of both horizontally and vertically flowing wrapped content
+	cannot be computed correctly because such layout doesn't have a single
+	solution. The current implementation simply favors one axis over another
+	via `axis_order = AXIS_ORDER_XY` which means that vertically flowing
+	wrapped flexboxes aren't able to impose a minimum size on their container.
 
 ]]
 
@@ -1551,7 +1568,6 @@ end
 terra Layer:sync_text_wrap()
 	self.text.layout.align_w = self.cw
 	self.text.layout:wrap()
-	self.text.layout:spaceout()
 end
 
 terra Layer:sync_text_align()
@@ -1873,10 +1889,8 @@ terra Layer:sync_layout_y(b: bool) return self.layout_solver.sync_y(self, b) end
 AXIS_ORDER_XY = 1
 AXIS_ORDER_YX = 2
 
---used by layers that need to solve their layout on one axis completely
---before they can solve it on the other axis. any content-based layout with
---wrapped content is like that: can't know the height until wrapping the
---content which needs to know the width (and viceversa for vertical flow).
+--used by layout types that need to solve their layout on one axis completely
+--before they can solve it on the other axis.
 terra Layer:sync_layout_separate_axes(axis_order: enum, min_w: num, min_h: num)
 	axis_order = iif(axis_order ~= 0, axis_order, self.layout_solver.axis_order)
 	var sync_x = axis_order == AXIS_ORDER_XY
@@ -3056,8 +3070,7 @@ terra Lib:dump_stats()
 	pfn('GlyphRun cache count : %d', self.text_renderer.glyph_run_cache_count)
 end
 
---inlining invalidation one-liners just in case the compiler doesn't.
-
+--inlining invalidation one-liners just in case the compiler won't.
 setinlined(Layer.methods, function(s) return (s:find'^invalidate_') end)
 
 return _M

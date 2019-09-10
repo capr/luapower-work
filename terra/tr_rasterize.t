@@ -20,11 +20,6 @@ terra Font:load_glyph(font_size: num, glyph_index: uint)
 	return ft_glyph
 end
 
-terra Glyph:free(r: &Renderer)
-	if self.image.surface == nil then return end
-	self.image:free(r)
-end
-
 terra Glyph:rasterize(r: &Renderer)
 
 	var font = r.fonts:at(self.font_id)

@@ -1,19 +1,45 @@
 --[[
 
-	Layer C/ffi API.
+	Layer /Terra/C/ffi API.
 	Implements a flattened API tailored for LuaJIT ffi use.
+
+	This module adds input validation and state management to the raw
+	implementation in order to achieve the following goals:
+
+	* Invalid input should never cause fatal errors or crashes or affect other
+	non-child layers in the tree (except min_cw and min_ch which can affect
+	the whole geometry).
+
+	* The order in which layer properties are set is not important, in order to
+	avoid call-order dependencies, eg. you don't have to set `background_type`
+	to a gradient type before setting `background_color_stop_color`, and you
+	don't have to set `background_color_stop_count` either (the color stops
+	array is expanded automatically). There are exceeptions to this, eg.
+	setting `background_color_stop_count = 0` after adding some color stops
+	_will_ remove those colors stops.
+
+	Additional functionality:
 
 	- self-allocating constructors.
 	- non-fatal error checking and reporting.
 	- enum validation, number clamping to range.
 	- state invalidation when input values are changed.
 	- state resync'ing when computed values are read.
-	- uses doubles in place of ints for better range checking with ffi.
+	- uses doubles in place of ints for better range checking with LuaJIT ffi.
 
 	- simplified and enlarged number types for forward ABI compatibility.
 	- consecutive enum values for forward ABI compatibility.
 	- functions and types are renamed and prefixed to C conventions.
 	- methods and virtual properties are bound back to types via ffi.metatype.
+
+	Usage:
+
+	- make a layer lib object. make top layers from that or child layers from
+	  other top layers, constructing a tree. set properties on the layers.
+	- call draw(<cairo-context>) on the top layer. change any properties,
+	  check if `pixels_valid` is false, and issue a repaint if it is.
+	- hit test layers.
+	- navigate, hit-test, select and edit text with cursors.
 
 ]]
 
@@ -96,7 +122,7 @@ struct Layer (gettersandsetters) {
 }
 
 --layout sync'ing: called by computed-value accessors.
-terra Layer.methods.sync :: {&Layer} -> bool
+terra Layer.methods.sync :: {&Layer} -> {}
 
 --range limits ---------------------------------------------------------------
 
@@ -814,6 +840,10 @@ terra Layer:set_text_cursor_x          (c_i: int, v: num) self.l.text.layout:set
 
 do end --text span field get/set through current selection.
 
+terra Layer:get_text_valid()
+	return self.l.text.layout.valid
+end
+
 for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 
 	local T = tr.SPAN_FIELD_TYPES[FIELD]
@@ -1044,7 +1074,10 @@ terra Layer:sync()
 		layer:sync_layout()
 		layer.layout_valid = true
 	end
-	return not layer.pixels_valid
+end
+
+terra Layer:get_pixels_valid()
+	return self.l.top_layer.pixels_valid
 end
 
 terra Layer:draw(cr: &context)

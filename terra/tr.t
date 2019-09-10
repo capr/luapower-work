@@ -4,12 +4,17 @@
 	Written by Cosmin Apreutesei. Public Domain.
 
 	A pure-Lua prototype of this library is at github.com/luapower/tr.
+	Discuss at luapower.com/forum or at github.com/luapower/terra-tr/issues.
 
 	Leverages harfbuzz, freetype, fribidi and libunibreak for text shaping,
 	glyph rasterization, bidi reordering and line breaking respectively.
 
 	Scaling and blitting a raster image onto another is out of the scope of
-	the library. A module for doing that with cairo is included separately.
+	the library. A module for doing that with `cairo` is included separately.
+
+	NOTE: This is the implementation module. In here, invalid input data is
+	undefined behavior and changing layout properties does not keep the
+	internal state consistent. Use `tr_api` instead which takes care of that.
 
 ]]
 

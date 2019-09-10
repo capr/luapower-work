@@ -1,5 +1,5 @@
 
---tr's base module with dependencies, enums and types.
+--tr's base module where we include dependencies and declare enums and types.
 
 if not ... then require'terra/tr_test'; return end
 
@@ -112,6 +112,8 @@ struct Font (gettersandsetters) {
 	ascent: num;
 	descent: num;
 }
+
+terra Font.methods.free :: {&Font} -> {}
 
 FontLoadFunc = {int, &&opaque, &size_t} -> {}
 
@@ -329,7 +331,11 @@ struct GlyphImage {
 }
 GlyphImage.empty = `GlyphImage{surface = nil, x = 0, y = 0}
 
-terra GlyphImage.methods.free :: {&GlyphImage, &Renderer} -> {}
+terra GlyphImage:free(r: &Renderer)
+	if self.surface == nil then return end
+	self.surface:free()
+	self.surface = nil
+end
 
 struct GlyphRun (gettersandsetters) {
 	--cache key fields: no alignment holes allowed between fields `lang` and `rtl` !!!
@@ -388,7 +394,15 @@ terra GlyphRun:__memsize() --for lru cache
 		+ self.images_memsize
 end
 
-terra GlyphRun.methods.free :: {&GlyphRun, &Renderer} -> {}
+terra GlyphRun:free(r: &Renderer)
+	self.cursor_xs:free()
+	self.cursor_offsets:free()
+	self.text:free()
+	self.features:free()
+	self.glyphs:free()
+	self.images:free()
+	fill(self)
+end
 
 --glyph type -----------------------------------------------------------------
 
@@ -434,7 +448,10 @@ terra Glyph:__memsize() --for lru cache
 		1024 + self.image.surface:stride() * self.image.surface:height(), 0)
 end
 
-terra Glyph.methods.free :: {&Glyph, &Renderer} -> {}
+terra Glyph:free(r: &Renderer)
+	if self.image.surface == nil then return end
+	self.image:free(r)
+end
 
 --cursor type ----------------------------------------------------------------
 

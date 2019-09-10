@@ -8,30 +8,22 @@ return {
 		layout_type=1,
 		min_ch=222.5,
 		min_cw=255,
-		span_count=2,
+		span_count=1,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=17,
-				text_cursor_sel_offset=17,
-				text_cursor_sel_which=1,
-				text_cursor_which=1,
-				text_cursor_x=0/0
+				text_cursor_offset=2,
+				text_cursor_sel_offset=2,
+				text_cursor_x=124
 			}
 		},
 		text_spans={
 			{
 				span_font_id=1,
-				span_font_size=38
-			},
-			{
-				span_font_id=1,
-				span_font_size=38,
-				span_offset=9,
-				span_text_color=12975103
+				span_font_size=26
 			}
 		},
-		text_utf8='LuaJIT\'s ffi is the best!',
+		text_utf8='ffi',
 		w=255,
 		x=85,
 		y=78.5
