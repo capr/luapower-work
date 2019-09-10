@@ -50,7 +50,6 @@ require'terra/tr_paint'
 terra Layout:offset_at_cursor(p: Pos) -- O(1)
 	if p.seg ~= nil then
 		var run = self:glyph_run(p.seg)
-		print(p.i, run.cursor_offsets(p.i))
 		assert(p.i == run.cursor_offsets(p.i))
 		return p.seg.offset + p.i
 	else
@@ -601,9 +600,12 @@ terra Cursor:draw_selection(cr: &context, spaced: bool)
 	if self.is_selection_empty then
 		return
 	end
-	var p1 = self.pos
-	var p2 = self.sel_pos
-	assert(self.layout.segs:index(p1.seg) <= self.layout.segs:index(p2.seg))
+	var p1: Pos, p2: Pos
+	if self.state.offset < self.state.sel_offset then
+		p1, p2 = self.pos, self.sel_pos
+	else
+		p2, p1 = self.pos, self.sel_pos
+	end
 	var seg = p1.seg
 	while seg ~= nil and self.layout.segs:index(seg) <= self.layout.segs:index(p2.seg) do
 		var line_index = seg.line_index
@@ -617,7 +619,7 @@ terra Cursor:draw_selection(cr: &context, spaced: bool)
 				and seg.line_index == line_index
 			do
 				var i1 = iif(seg == p1.seg, p1.i, 0)
-				var i2 = iif(seg == p2.seg, p2.i, inf)
+				var i2 = iif(seg == p2.seg, p2.i, maxint)
 				var x1, w1 = self.layout:segment_xw(seg, i1, i2)
 				var failed: bool
 				x1, w1, failed = merge_xw(x, w, x1, w1)

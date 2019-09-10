@@ -12,9 +12,9 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=2,
-				text_cursor_sel_offset=2,
-				text_cursor_x=124
+				text_cursor_offset=23,
+				text_cursor_sel_offset=18,
+				text_cursor_x=232
 			}
 		},
 		text_spans={
@@ -23,7 +23,7 @@ return {
 				span_font_size=26
 			}
 		},
-		text_utf8='ffi',
+		text_utf8='LuaJIT\'s ffi is the best!',
 		w=255,
 		x=85,
 		y=78.5
