@@ -1,6 +1,6 @@
 --[[
 
-	Layer /Terra/C/ffi API.
+	Layer Terra/C/ffi API.
 	Implements a flattened API tailored for LuaJIT ffi use.
 
 	This module adds input validation and state management to the raw
@@ -840,9 +840,8 @@ terra Layer:set_text_cursor_x          (c_i: int, v: num) self.l.text.layout:set
 
 do end --text span field get/set through current selection.
 
-terra Layer:get_text_valid()
-	return self.l.text.layout.valid
-end
+terra Layer:get_text_valid() return self.l.text.layout.valid end
+terra Layer:get_text_offsets_valid() return self.l.text.layout.offsets_valid end
 
 for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 

@@ -1,6 +1,6 @@
 --[[
 
-	Text shaping & rendering engine in Terra with a C API.
+	Text shaping, layouting and rendering engine in Terra with a C API.
 	Written by Cosmin Apreutesei. Public Domain.
 
 	A pure-Lua prototype of this library is at github.com/luapower/tr.
@@ -16,12 +16,42 @@
 	undefined behavior and changing layout properties does not keep the
 	internal state consistent. Use `tr_api` instead which takes care of that.
 
+	Processing stages from rich text description to pixels on screen:
+
+	* itemization     : split text into an array of segments (or segs).
+	* shaping         : shape segments into an arrays of glyphs (called glyph runs).
+	* line-wrapping   : word-wrap segments and group them into an array of lines.
+	* bidi-reordering : re-order mixed-direction segments on each line.
+	* line-spacing    : compute each line's `y` based on the heights of its segments.
+	* aligning        : align lines horizontally and vertically inside a box.
+	* clipping        : mark which lines and segments as visible inside a box.
+	* rasterization   : convert glyph outlines into little bitmaps that are cached.
+	* painting        : draw the visible text plus any selections and carets.
+
+	The API for driving this process is:
+
+	tr_itemize.t   shape()     itemization and shaping.
+	tr_wrap.t      wrap()      line-wrapping.
+	tr_align.t     spaceout()  line-spacing.
+	tr_align.t     align()     justification and aligning.
+	tr_clip.t      clip()      clipping.
+	tr_paint.t     paint()     painting, with on-demand rasterization.
+
+	The renderer object keeps two bytesize-limited LRU caches: one for glyph
+	runs and one for glyph images. Shaping consults the glyph run cache
+	and rasterization consults the glyph image cache.
+
+	Also, there's two levels of rasterization: for glyph images and for entire
+	glyph runs. With subpixel resolution, more than one image might end up
+	being created for each subpixel offset encountered, which is why
+	rasterization is done on-demand by painting.
+
 ]]
 
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
-require'terra/tr_shape'
+require'terra/tr_itemize'
 require'terra/tr_wrap'
 require'terra/tr_align'
 require'terra/tr_clip'

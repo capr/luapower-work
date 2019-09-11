@@ -741,7 +741,9 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 	--API for getting/setting span properties on a text offset range.
 
 	Layout.methods['has_'..FIELD] = terra(self: &Layout, o1: int, o2: int)
-		if self.offsets_valid then
+		if self.l.spans.len == 0 then
+			return false
+		elseif self.offsets_valid then
 			var mask, span_i = self.l:get_span_same_mask(o1, o2)
 			return span_mask_has_bit(mask, FIELD)
 		else

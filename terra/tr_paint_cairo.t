@@ -1,6 +1,9 @@
+--[[
 
---Cairo graphics adapter for terra/tr.
---Paints (and scales) rasterized glyph runs into a cairo surface.
+	Cairo graphics adapter for terra/tr.
+	Paints (and scales) rasterized glyph runs into a cairo surface.
+
+]]
 
 if not ... then require'terra/tr_test'; return end
 
@@ -10,9 +13,12 @@ color = cairo_argb32_color_t
 surface = cairo_surface_t
 context = cairo_t
 
+OPERATOR_XOR  = CAIRO_OPERATOR_XOR
+OPERATOR_OVER = CAIRO_OPERATOR_OVER
+
 DEFAULT_TEXT_COLOR        = DEFAULT_TEXT_COLOR        or `color {0xffffffff}
 DEFAULT_SELECTION_COLOR   = DEFAULT_SELECTION_COLOR   or `color {0x6666ff66}
-DEFAULT_TEXT_OPERATOR     = DEFAULT_TEXT_OPERATOR     or CAIRO_OPERATOR_OVER
+DEFAULT_TEXT_OPERATOR     = DEFAULT_TEXT_OPERATOR     or OPERATOR_OVER
 DEFAULT_SELECTION_OPACITY = DEFAULT_SELECTION_OPACITY or 1
 
 terra create_surface(w: int, h: int)

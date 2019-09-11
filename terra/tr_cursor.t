@@ -18,24 +18,22 @@
 	and the one after "b".
 
 	`cursor_offsets` maps a codepoint offset to the codepoint offset for which
-	there actually is a cursor position, since in reality not every codepoint
-	can have its own unique cursor position. So `cursor_offsets` necessarily
-	contains duplicate values which can be assumed to be next to each other.
-	Don't assume that the array is monotonic however.
+	there is a cursor position that can be landed on, since not every codepoint
+	can have a cursor position. So `cursor_offsets` can have duplicate values.
+	(which are always clumped together; the array is not necessarily monotonic).
 
 	`cursor_xs` maps a codepoint offset to the x-coord of the cursor position
-	in-front-of that codepoint (or after-it for the last element). You can
-	assume that the x-coords of adjacent distinct cursor positions are
-	distinct	but don't assume that the array is monotonic.
+	in-front-of that codepoint (or after-it for the last element). Adjacent
+	but distinct cursor positions will always have different x-coords as well.
 
-	The last cursor position in a segment is the same as the first cursor
-	position in the next segment if the segments are on the same line.
-	In BiDi text however, even though these two positions correspond to the
-	same offset in logical text, they have entirely different positions on
-	screen because of BiDi reordering. You can navigate between these
-	visually-distinct-but-logically-the-same positions using CURSOR_MODE_POS,
-	or you can skip them with CURSOR_MODE_CHAR (which is the normal behavior
-	of most editors).
+	The mapping between text offsets and visually-distinct cursors is not 1:1
+	like it is on most (all?) text editors, but 1:2. There are two cases when
+	there's two visually-distinct cursors for the same text offset:
+	1. In mixed RTL/LTR lines, at the offsets where the direction changes.
+	2. At the offset right after the last character on a wrapped line.
+	You can navigate between these visually-distinct-but-logically-the-same
+	positions using CURSOR_MODE_POS, or you can skip them with CURSOR_MODE_CHAR
+	which brings back the normal behavior of most editors.
 
 ]]
 
@@ -529,7 +527,8 @@ terra Cursor:draw_caret(cr: &context)
 	y = snap(y, 1)
 	h = snap(h, 1)
 	var seg = self.pos.seg
-	var color = iif(seg ~= nil, seg.span.color, self.caret_color)
+	var color = iif(seg ~= nil, seg.span.color, self.layout.spans:at(0).color)
+	cr:operator(OPERATOR_XOR)
 	self.layout:paint_rect(cr, x, y, w, h, color, self.caret_opacity)
 end
 

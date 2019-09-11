@@ -1,6 +1,9 @@
+--[[
 
---Glyph caching & rasterization based on freetype's rasterizer.
---Written by Cosmin Apreutesei. Public Domain.
+	Glyph caching & rasterization based on the FreeType rasterizer.
+	Written by Cosmin Apreutesei. Public Domain.
+
+]]
 
 if not ... then require'terra/tr_test'; return end
 

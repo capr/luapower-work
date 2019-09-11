@@ -271,6 +271,7 @@ void layer_set_text_cursor_sel_offset(layer_t*, double, double);
 void layer_set_text_cursor_sel_which(layer_t*, double, double);
 void layer_set_text_cursor_x(layer_t*, double, double);
 bool layer_get_text_valid(layer_t*);
+bool layer_get_text_offsets_valid(layer_t*);
 bool layer_text_selection_has_color(layer_t*, double);
 bool layer_text_selection_has_features(layer_t*, double);
 bool layer_text_selection_has_font_id(layer_t*, double);
@@ -511,6 +512,7 @@ local getters = {
 	text_selectable = C.layer_get_text_selectable,
 	text_cursor_count = C.layer_get_text_cursor_count,
 	text_valid = C.layer_get_text_valid,
+	text_offsets_valid = C.layer_get_text_offsets_valid,
 	visible = C.layer_get_visible,
 	layout_type = C.layer_get_layout_type,
 	align_items_x = C.layer_get_align_items_x,

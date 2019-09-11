@@ -1,5 +1,8 @@
+--[[
 
---tr's base module where we include dependencies and declare enums and types.
+	Base module in which we include dependencies and declare enums and types.
+
+]]
 
 if not ... then require'terra/tr_test'; return end
 
@@ -80,9 +83,10 @@ DIR_MIN = DIR_AUTO
 DIR_MAX = DIR_WRTL
 
 --linebreak codes
-BREAK_NONE = 0 --soft line-break from line-wrapping
-BREAK_LINE = 1 --explicit line break (CR, LF, etc.)
-BREAK_PARA = 2 --explicit paragraph break (PS).
+BREAK_NONE = 0 --wrapping not allowed
+BREAK_WRAP = 1 --wrapping allowed
+BREAK_LINE = 2 --explicit line break (CR, LF, etc.)
+BREAK_PARA = 3 --explicit paragraph break (PS).
 
 --base types -----------------------------------------------------------------
 
@@ -121,9 +125,10 @@ FontLoadFunc = {int, &&opaque, &size_t} -> {}
 
 hb_feature_arr_t = arr(hb_feature_t)
 
---a span is a set of rendering properties for a specific part of the text.
---spans are kept in an array and cover the whole text without holes by virtue
---of their `offset` field alone: a span ends where the next one begins.
+-- A span is a set of rendering properties for a specific part of the text.
+-- spans are kept in an array and cover the whole text without holes by virtue
+-- of their `offset` field alone: a span ends where the next one begins.
+
 struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
 	font_id: font_id_t;
@@ -188,11 +193,12 @@ struct SubSeg {
 
 struct Layout;
 
---a segment is the result of shaping a single shaping-unit i.e. a single
---word as delimited by soft-breaks per unicode line-breaking algorithm.
---because shaping is expensive, shaping results are cached in a struct
---called "glyph run" which the segment references via its `glyph_run_id`.
---segs are kept in an array in logical text order.
+-- A segment is the result of shaping a single shaping-unit i.e. a single
+-- word as delimited by soft-breaks per unicode line-breaking algorithm.
+-- because shaping is expensive, shaping results are cached in a struct
+-- called "glyph run" which the segment references via its `glyph_run_id`.
+-- segs are kept in an array in logical text order.
+
 struct Seg {
 	--filled by shaping
 	glyph_run_id: int;
@@ -216,9 +222,10 @@ terra Seg:free()
 	self.subsegs:free()
 end
 
---a line is the result of line-wrapping the text. line segments can be
---iterated in visual order via `line.first_vis/seg.next_vis` or in logical
---order via `line.first/layout.segs:next(seg)`.
+-- A line is the result of line-wrapping the text. line segments can be
+-- iterated in visual order via `line.first_vis/seg.next_vis` or in logical
+-- order via `line.first/layout.segs:next(seg)`.
+
 struct Line (gettersandsetters) {
 	first: &Seg;     --first segment in text order
 	first_vis: &Seg; --first segment in visual order
@@ -245,8 +252,9 @@ Line.metamethods.__for = function(self, body)
 	end
 end
 
---a layout is a unit of multi-paragraph rich text to be shaped, layouted,
---rendered, navigated, hit-tested, edited, updated, re-rendered and so on.
+-- A layout is a unit of multi-paragraph rich text to be shaped, layouted,
+-- rendered, navigated, hit-tested, edited, updated, re-rendered and so on.
+
 struct Layout (gettersandsetters) {
 	r: &Renderer;
 	spans: arr(Span);       --shape/in
@@ -303,17 +311,17 @@ end
 
 --glyph run type -------------------------------------------------------------
 
---glyph runs hold the results of shaping individual words and are kept in a
---special LRU cache that can also ref-count its objects so that they're not
---evicted from the cache when the cache memory size limit is reached. segs
---keep their glyph run alive by holding a ref to it while they're alive.
+-- Glyph runs hold the results of shaping individual words and are kept in a
+-- special LRU cache that can also ref-count its objects so that they're not
+-- evicted from the cache when the cache memory size limit is reached. Segs
+-- keep their glyph run alive by holding a ref to it while they're alive.
 
---glyph runs are rasterized on-demand and the images are cached in the
---`images` array, one image for each subpixel offset, so for a 1/4 subpixel
---resolution the array will hold at most 4 images at indices 0, 1, 2, 3
---corresponding to subpixel offsets 0, 1/4, 2/4, 3/4 respectively.
---glyph runs are rasterized because cairo is too slow at blitting glyphs
---individually from their individual image surfaces.
+-- Glyph runs are rasterized on-demand and the images are cached in the
+-- `images` array, one image for each subpixel offset, so for a 1/4 subpixel
+-- resolution the array will hold at most 4 images at indices 0, 1, 2, 3
+-- corresponding to subpixel offsets 0, 1/4, 2/4, 3/4 respectively.
+-- Glyph runs are rasterized because cairo is too slow at blitting glyphs
+-- individually from their individual image surfaces.
 
 struct GlyphInfo (gettersandsetters) {
 	glyph_index: int; --in the font's charmap
@@ -510,7 +518,6 @@ struct Cursor (gettersandsetters) {
 
 	--drawing attributes
 	caret_visible: bool; --alternate this for blinking.
-	caret_color: color;
 	caret_opacity: num;
 	caret_thickness: num;
 
@@ -537,7 +544,6 @@ Cursor.empty = constant(`Cursor {
 	insert_mode = true,
 
 	caret_visible = true,
-	caret_color = DEFAULT_TEXT_COLOR,
 	caret_opacity = 1,
 	caret_thickness = 1,
 

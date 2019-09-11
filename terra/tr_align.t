@@ -4,6 +4,7 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
+require'terra/tr_wrap'
 
 terra Line:_update_vertical_metrics(
 	line_spacing: num,
@@ -107,13 +108,35 @@ terra Layout:spaceout()
 
 end
 
+local struct line_nowrap_segments_iter { layout: &Layout; line: &Line; }
+
+line_nowrap_segments_iter.metamethods.__for = function(self, body)
+	if self:islvalue() then self = &self end
+	return quote
+		var line = self.line
+		var self = self.layout
+		var seg_i = self.segs:index(line.first_vis)
+		var line_i = self.lines:index(line)
+		repeat
+			var segs_wx, segs_ax, next_seg_i = self:nowrap_segments(seg_i)
+			var next_seg = self.segs:at(next_seg_i, nil)
+			var last = next_seg == nil or next_seg.line_index ~= line_i
+			[ body(seg_i, next_seg_i, segs_wx, segs_ax, last) ]
+			seg_i = next_seg_i
+		until last
+	end
+end
+
+terra Layout:line_nowrap_segments(line: &Line)
+	return line_nowrap_segments_iter {layout = self, line = line}
+end
+
 terra Layout:justify(line: &Line)
-	var w: num = 0 --total width of between-segments whitespace
-	var n = 0 --total number of between-segments places
-	for seg in line do
-		if seg.next_vis ~= nil then
-			var gr = self:glyph_run(seg)
-			inc(w, gr.advance_x - gr.wrap_advance_x)
+	var w: num = 0 --width of total justifiable whitespace
+	var n = 0 --total number of gaps
+	for _, __, segs_wx, segs_ax, last in self:line_nowrap_segments(line) do
+		if not last then
+			inc(w, segs_ax - segs_wx)
 			inc(n)
 		else
 			inc(w, self.align_w - line.advance_x)
@@ -121,10 +144,14 @@ terra Layout:justify(line: &Line)
 	end
 	var sp = w / n
 	var ax: num = 0
-	for seg in line do
-		var gr = self:glyph_run(seg)
-		seg.x = ax
-		ax = ax + gr.wrap_advance_x + sp
+	for seg_i, next_seg_i, segs_wx, _, last in self:line_nowrap_segments(line) do
+		var ax1 = ax
+		for i = seg_i, next_seg_i do
+			var seg = self.segs:at(i)
+			seg.x = ax1
+			ax1 = ax1 + seg.advance_x
+		end
+		ax = ax + segs_wx + sp
 	end
 end
 
@@ -158,7 +185,7 @@ terra Layout:align()
 		--compute line's aligned x position relative to the textbox origin.
 		if align_x == ALIGN_JUSTIFY then
 			line.x = 0
-			if line.linebreak == BREAK_NONE and line_i < self.lines.len-1 then
+			if line.linebreak < BREAK_LINE and line_i < self.lines.len-1 then
 				self:justify(line)
 			else
 				self:unjustify(line)

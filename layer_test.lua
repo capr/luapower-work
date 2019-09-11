@@ -878,21 +878,19 @@ function testui:repaint()
 			slide('text_cursor_sel_offset', -1, e.text_len + 1, 1, i)
 			slide('text_cursor_sel_which', -1, 2, 1, i)
 
-			if self.text_valid then
+			if e.text_valid then
 				choose('text_selection_font_id', font_map, font_names, i, 'text_selection_has_font_id')
 				slide ('text_selection_font_size', -10, 100, 1, i, 'text_selection_has_font_size')
 				----TODO: slide ('features',
 				----TODO: choose('script', i)
 				----TODO: choose('lang'             , i)
 				choose('text_selection_paragraph_dir', 'dir_',
-					{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i,
-					'text_selection_has_paragraph_dir')
+					{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i, 'text_selection_has_paragraph_dir')
 				toggle('text_selection_nowrap'  , i, 'text_selection_has_nowrap')
 				pickcolor('text_selection_color', i, 'text_selection_has_color')
 				slideo('text_selection_opacity' , i, 'text_selection_has_opacity')
 				choose('text_selection_operator', 'operator_',
-					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i,
-					'text_selection_has_operator')
+					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i, 'text_selection_has_operator')
 			else
 				self:heading'TEXT INVALID'
 			end
@@ -1067,11 +1065,12 @@ function testui:repaint()
 
 		function self.ewindow:keypress(key)
 			local shift = self.app:key'shift'
+			local ctrl = self.app:key'ctrl'
 			if key == 'right' or key == 'left' then
 				assert(e ~= nil)
 				e:text_cursor_move_near(0,
 					key == 'right' and layer.CURSOR_DIR_NEXT or layer.CURSOR_DIR_PREV,
-					layer.CURSOR_MODE_CHAR,
+					ctrl and layer.CURSOR_MODE_WORD or layer.CURSOR_MODE_CHAR,
 					layer.CURSOR_WHICH_FIRST, shift)
 			elseif key == 'up' or key == 'down' then
 				assert(e ~= nil)
