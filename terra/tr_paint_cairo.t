@@ -27,7 +27,7 @@ end
 
 setfenv(1, require'terra/tr_types')
 
-terra Renderer:wrap_glyph(glyph: &Glyph, bmp: &FT_Bitmap)
+terra Renderer:create_glyph_surface(glyph: &Glyph, bmp: &FT_Bitmap, font: &Font)
 
 	var w = bmp.width
 	var h = bmp.rows
@@ -38,7 +38,6 @@ terra Renderer:wrap_glyph(glyph: &Glyph, bmp: &FT_Bitmap)
 	var sr0 = cairo_image_surface_create_for_data(
 		bmp.buffer, format, w, h, bmp.pitch)
 
-	var font = self.fonts:at(glyph.font_id)
 	if font.scale ~= 1 then
 		--scale raster glyphs which freetype cannot scale by itself.
 		var bw = font.size

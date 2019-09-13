@@ -60,10 +60,11 @@ return {
 				layout_type=1,
 				min_ch=183,
 				min_cw=61,
+				span_count=1,
+				text_cursor_count=1,
 				text_selectable=true,
 				text_spans={
 					{
-						span_font_id=0,
 						span_font_size=55,
 						span_text_color=2912214015,
 						span_text_opacity=0.81700000000000006,
@@ -84,6 +85,15 @@ return {
 				h=11,
 				min_ch=11,
 				min_cw=93,
+				span_count=1,
+				text_cursor_count=1,
+				text_cursors={
+					{
+						text_cursor_offset=3,
+						text_cursor_sel_offset=3,
+						text_cursor_x=101
+					}
+				},
 				text_selectable=true,
 				text_spans={
 					{
@@ -124,6 +134,7 @@ return {
 				shadow_y=15.5
 			}
 		},
+		span_count=1,
 		text_spans={
 			{
 				span_font_size=20
@@ -134,5 +145,7 @@ return {
 		y=229
 	},
 	selected_layer_path={
-	}
+		1
+	},
+	tab='Text'
 }

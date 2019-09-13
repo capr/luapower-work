@@ -16,11 +16,10 @@ require'terra/tr_rle'
 
 terra GlyphRun.methods.compute_cursors :: {&GlyphRun, &Renderer, &Font} -> {}
 
-terra GlyphRun:shape(r: &Renderer)
+terra GlyphRun:shape(r: &Renderer, font: &Font)
 	if self.font_size <= 0 then
 		return false
 	end
-	var font = r.fonts:at(self.font_id)
 	font:setsize(self.font_size)
 	self.text = self.text:copy()
 	self.features = self.features:copy()
@@ -66,17 +65,17 @@ terra GlyphRun:shape(r: &Renderer)
 	self.ascent = font.ascent
 	self.descent = font.descent
 
-	self.images:init(r)
+	self.images:init()
 	self.images_memsize = 0
 
 	self:compute_cursors(r, font)
 end
 
-terra Renderer:shape_word(glyph_run: GlyphRun)
+terra Renderer:shape_word(glyph_run: GlyphRun, font: &Font)
 	--get the shaped run from cache or shape it and cache it.
 	var glyph_run_id, pair = self.glyph_runs:get(glyph_run)
 	if pair == nil then
-		glyph_run:shape(self)
+		glyph_run:shape(self, font)
 		glyph_run_id, pair = self.glyph_runs:put(glyph_run, {})
 		assert(pair ~= nil)
 	end

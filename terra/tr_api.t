@@ -33,7 +33,9 @@
 
 	Usage:
 
-	- make a renderer object. make a layout object from said renderer.
+	- make a renderer object, supplying font load and unload callbacks.
+	- make font objects, getting font ids for each of them.
+	- make a layout object from said renderer.
 	- set the text and text properties on the layout object.
 	- add text spans and set text span properties on the layout object.
 	- call layout() then paint(<cairo-context>). change any properties,
@@ -167,20 +169,24 @@ terra Renderer:set_glyph_run_cache_max_size (size: int)    self.r.glyph_runs.max
 terra Renderer:get_glyph_cache_max_size(): int return self.r.glyphs.max_size end
 terra Renderer:set_glyph_cache_max_size(size: int)    self.r.glyphs.max_size = size end
 
+terra Renderer:get_mem_font_cache_max_size(): int return self.r.mem_fonts.max_size end
+terra Renderer:set_mem_font_cache_max_size(size: int)    self.r.mem_fonts.max_size = size end
+
+terra Renderer:get_mmapped_font_cache_max_count(): int return self.r.mmapped_fonts.max_count end
+terra Renderer:set_mmapped_font_cache_max_count(n: int)       self.r.mmapped_fonts.max_count = n end
+
 --Renderer statistics API ----------------------------------------------------
 
-terra Renderer:get_glyph_run_cache_size (): int return self.r.glyph_runs.size end
-terra Renderer:get_glyph_run_cache_count(): int return self.r.glyph_runs.count end
-terra Renderer:get_glyph_cache_size     (): int return self.r.glyphs.size end
-terra Renderer:get_glyph_cache_count    (): int return self.r.glyphs.count end
+terra Renderer:get_glyph_run_cache_size        (): int return self.r.glyph_runs.size end
+terra Renderer:get_glyph_run_cache_count       (): int return self.r.glyph_runs.count end
+terra Renderer:get_glyph_cache_size            (): int return self.r.glyphs.size end
+terra Renderer:get_glyph_cache_count           (): int return self.r.glyphs.count end
+terra Renderer:get_mem_font_cache_size         (): int return self.r.mem_fonts.size end
+terra Renderer:get_mem_font_cache_count        (): int return self.r.mem_fonts.count end
+terra Renderer:get_mmapped_font_cache_count    (): int return self.r.mmapped_fonts.count end
 
 terra Renderer:get_paint_glyph_num(): int return self.r.paint_glyph_num end
 terra Renderer:set_paint_glyph_num(n: int)       self.r.paint_glyph_num = n end
-
---Renderer font API ----------------------------------------------------------
-
-terra Renderer:font() return self.r:font() end
-terra Renderer:free_font(font_id: int) self.r:free_font(font_id) end
 
 --non-fatal error checking and reporting -------------------------------------
 
@@ -273,7 +279,7 @@ end
 
 --check that there's at least one span and it has offset zero.
 --check that spans have monotonically increasing, in-range offsets.
---check that all spans can be displayed (font and font size it set).
+--check that all spans can be displayed (font loaded and font size > 0).
 terra Layout:_do_validate()
 	if self.l.spans.len == 0 or self.l.spans:at(0).offset ~= 0 then
 		self._offsets_valid = false
@@ -289,8 +295,8 @@ terra Layout:_do_validate()
 				self._offsets_valid = false
 				self._valid = false
 			end
-			if s.font_id == -1      --font not set
-				or s.font_size <= 0  --font size not set
+			if s.font == nil --font not set or load failed
+				or s.font_size <= 0 --font size not set
 			then
 				self._valid = false
 			end
@@ -369,7 +375,7 @@ end
 local change = macro(function(self, FIELD, v)
 	FIELD = FIELD:asvalue()
 	return quote
-		var changed = (self.[FIELD] ~= v)
+		var changed = self.[FIELD] ~= v
 		if changed then
 			self.[FIELD] = v
 		end
@@ -645,19 +651,6 @@ terra tr.Layout:get_span_same_mask(o1: int, o2: int)
 	return mask, i
 end
 
-terra Span:load_features(layout: &tr.Layout, s: rawstring)
-	self.features.len = 0
-	var sview = rawstringview(s)
-	var j = 0
-	var gs = sview:gsplit' '
-	for i,len in gs do
-		var feat: hb_feature_t
-		if hb_feature_from_string(sview:at(i), len, &feat) ~= 0 then
-			self.features:add(feat)
-		end
-	end
-end
-
 terra Span:save_features(layout: &tr.Layout)
 	var sbuf = &layout.r.sbuf
 	sbuf.len = 0
@@ -675,8 +668,31 @@ terra Span:save_features(layout: &tr.Layout)
 	return iif(sbuf.len > 1, sbuf.elements, nil)
 end
 
+terra Span:load_features(layout: &tr.Layout, s: rawstring)
+	var s0 = self:save_features(layout)
+	if s0 == s then --both nil
+		return false
+	end
+	var sv0 = rawstringview(s0)
+	var sv  = rawstringview(s)
+	if sv0 == sv then --same contents
+		return false
+	end
+	self.features.len = 0
+	var j = 0
+	var gs = sv:gsplit' '
+	for i,len in gs do
+		var feat: hb_feature_t
+		if hb_feature_from_string(sv:at(i), len, &feat) ~= 0 then
+			self.features:add(feat)
+		end
+	end
+	return true
+end
+
 terra Span:load_lang(layout: &tr.Layout, s: rawstring)
-	self.lang = hb_language_from_string(s, -1)
+	var lang = hb_language_from_string(s, -1)
+	return change(self, 'lang', lang)
 end
 
 terra Span:save_lang(layout: &tr.Layout)
@@ -684,7 +700,8 @@ terra Span:save_lang(layout: &tr.Layout)
 end
 
 terra Span:load_script(layout: &tr.Layout, s: rawstring)
-	self.script = hb_script_from_string(s, -1)
+	var script = hb_script_from_string(s, -1)
+	return change(self, 'script', script)
 end
 
 terra Span:save_script(layout: &tr.Layout)
@@ -695,13 +712,25 @@ terra Span:save_script(layout: &tr.Layout)
 	return iif(sbuf(0) ~= 0, sbuf.elements, nil)
 end
 
-terra Span:load_font_id(layout: &tr.Layout, font_id: font_id_t)
-	var cur_font = layout.r.fonts:at(self.font_id, nil)
-	if cur_font ~= nil then
-		cur_font:unref()
+terra Span:load_font_id(layout: &tr.Layout, font_id: int)
+	if self.font_id ~= font_id or self.font == nil then
+		if self.font ~= nil then
+			forget_font(layout.r, self.font_id)
+		end
+		self.font_id = font_id
+		self.font = layout.r:font(font_id)
+		return true
+	else
+		return false
 	end
-	var font = layout.r.fonts:at(font_id, nil)
-	self.font_id = iif(font ~= nil, iif(font:ref(), font_id, -1), -1)
+end
+
+terra Span:save_color(layout: &tr.Layout)
+	return self.color.uint
+end
+
+terra Span:load_color(layout: &tr.Layout, v: uint32)
+	return change(self.color, 'uint', v)
 end
 
 SPAN_FIELD_TYPES = {
@@ -753,19 +782,23 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 	end
 
 	local LOAD = Span:getmethod('load_'..FIELD)
-		or macro(function(self, layout, val) return quote self.[FIELD] = val end end)
+		or macro(function(self, layout, val)
+			return `change(self, FIELD, val)
+		end)
 
 	Layout.methods['set_'..FIELD] = terra(self: &Layout, o1: int, o2: int, val: T)
 		if self.l.spans.len == 0 or self.offsets_valid then
 			o1, o2 = self.l:offset_range(o1, o2)
 			var i1 = self:split_spans(o1, true)
 			var i2 = self:split_spans(o2, false)
+			--print(i1, i2)
 			for i = i1, i2 do
 				var span = self.l.spans:at(i)
-				LOAD(span, &self.l, val)
+				if LOAD(span, &self.l, val) then
+					self:invalidate(INVALIDATE)
+				end
 			end
 			self:remove_duplicate_spans(i1-1, i2+1)
-			self:invalidate(INVALIDATE)
 		else
 			self.r:error('set_%s() error: invalid span offsets', FIELD)
 		end
@@ -780,8 +813,9 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 
 	Layout.methods['set_span_'..FIELD] = terra(self: &Layout, span_i: int, val: T)
 		var span = self.l.spans:getat(span_i, [Span.empty])
-		LOAD(span, &self.l, val)
-		self:invalidate(INVALIDATE)
+		if LOAD(span, &self.l, val) then
+			self:invalidate(INVALIDATE)
+		end
 	end
 
 end
@@ -1248,7 +1282,10 @@ end
 if not ... then
 	print'Building non-optimized...'
 	build(false)
-	print('sizeof Layout', sizeof(Layout))
+	print('sizeof Layout ', sizeof(Layout))
+	print('sizeof Span   ', sizeof(Span))
+	print('sizeof Seg    ', sizeof(Seg))
+	print('sizeof Line   ', sizeof(Line))
 end
 
 return _M

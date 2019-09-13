@@ -22,7 +22,7 @@ end)
 
 --declaring this this way to avoid triggering addmethods().
 rawstringview.methods.onrawstring = terra(self: &rawstringview, s: rawstring)
-	self.len = strnlen(s, [size_t:max()]-1)
+	self.len = iif(s ~= nil, strnlen(s, [size_t:max()]-1), 0)
 	self.elements = s
 	return self
 end

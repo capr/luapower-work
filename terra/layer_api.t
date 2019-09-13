@@ -174,12 +174,6 @@ terra Lib:set_glyph_cache_size           (v: int) self.l.text_renderer.glyph_cac
 terra Lib:set_glyph_run_cache_size       (v: int) self.l.text_renderer.glyph_run_cache_max_size = v end
 terra Lib:set_error_function             (v: ErrorFunction) self.l.text_renderer.error_function = v end
 
-do end --font registration
-
-terra Lib:font(): int
-	return self.l.text_renderer:font()
-end
-
 do end --layer new/release
 
 terra Layer:init(lib: &Lib, parent: &Layer)
@@ -1081,9 +1075,9 @@ end
 
 terra Layer:draw(cr: &context)
 	self:sync()
-	var layer = self.l.top_layer
-	layer:draw(cr, false)
-	layer.pixels_valid = true
+	var top_layer = self.l.top_layer
+	top_layer:draw(cr, false)
+	top_layer.pixels_valid = true
 end
 
 terra Layer:get_hit_test_mask(): enum return self.l.hit_test_mask end

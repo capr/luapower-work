@@ -597,7 +597,7 @@ local map_type = function(key_t, val_t, size_t)
 		local t = key_t
 		key_t, val_t, size_t = t.key_t, t.val_t, t.size_t
 		hash, equal, deref, deref_key_t, state_t, context_t, own_keys, own_vals =
-			t.hash, t.equal, t.deref, t.deref_key_t, t.state_t, t.context_t, t.own_keys, t.own_vals
+			t.hash, t.equal, t.deref, t.deref_key_t, t.state_t, t.context_t, t.own_keys, t.own_values
 	end
 	assert(key_t, 'key type missing')
 	val_t = val_t or tuple()
@@ -606,6 +606,8 @@ local map_type = function(key_t, val_t, size_t)
 	size_t = size_t or int --it's faster to use 64bit hashes for 64bit keys
 	state_t = state_t or tuple()
 	context_t = context_t or tuple()
+	if own_keys then assert(cancall(T, 'free'), 'own_keys specified but ', T, ' has no free method') end
+	if own_vals then assert(cancall(T, 'free'), 'own_values specified but ', T, ' has no free method') end
 	own_keys = own_keys ~= false
 	own_vals = own_vals ~= false
 	return map_type(

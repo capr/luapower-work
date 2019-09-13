@@ -120,29 +120,33 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 				@self = [arr.empty]
 				self.context = context
 			end
-			if has_free then
-				terra arr:free_element(i: size_t)
-					call(@self:at(i), 'free', 1, self.context)
+			if not cancall(arr, 'free_element') then
+				if has_free then
+					terra arr:free_element(e: &T)
+						call(@e, 'free', 1, self.context)
+					end
+				else
+					arr.methods.free_element = noop
 				end
-			else
-				arr.methods.free_element = noop
 			end
 		else
 			terra arr:init()
 				@self = [arr.empty]
 			end
-			if has_free then
-				terra arr:free_element(i: size_t)
-					call(@self:at(i), 'free')
+			if not cancall(arr, 'free_element') then
+				if has_free then
+					terra arr:free_element(e: &T)
+						call(@e, 'free')
+					end
+				else
+					arr.methods.free_element = noop
 				end
-			else
-				arr.methods.free_element = noop
 			end
 		end
 
 		terra arr:free_elements()
 			for i = 0, self.len do
-				self:free_element(i)
+				self:free_element(self:at(i))
 			end
 		end
 
@@ -185,7 +189,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			if own_elements then
 				if len < self.len then --shrink
 					for i = len, self.len do
-						self:free_element(i)
+						self:free_element(self:at(i))
 					end
 				end
 			end
@@ -214,7 +218,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		arr.methods.set:adddefinition(terra(self: &arr, i: size_t)
 			self:index(i)
 			if own_elements then
-				self:free_element(i)
+				self:free_element(self:at(i))
 			end
 			return &self.elements[i]
 		end)
@@ -367,7 +371,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			if n <= 0 then return 0 end
 			if own_elements then
 				for i = i, min(self.len, i+n) do
-					self:free_element(i)
+					self:free_element(self:at(i))
 				end
 			end
 			return self:leak(i, n)
@@ -467,8 +471,7 @@ local arr_type = function(T, size_t)
 	context_t = context_t or tuple()
 	cmp = cmp or getmethod(T, '__cmp')
 	if own_elements then
-		assert(cancall(T, 'free'),
-			'own_elements specified but T has no free method')
+		assert(cancall(T, 'free'), 'own_elements specified but ', T, ' has no free method')
 	end
 	own_elements = own_elements ~= false
 	return arr_type(T, size_t, context_t, cmp, own_elements)

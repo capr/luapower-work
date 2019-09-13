@@ -25,14 +25,19 @@ int32_t tr_get_glyph_run_cache_max_size(renderer_t*);
 void tr_set_glyph_run_cache_max_size(renderer_t*, int32_t);
 int32_t tr_get_glyph_cache_max_size(renderer_t*);
 void tr_set_glyph_cache_max_size(renderer_t*, int32_t);
+int32_t tr_get_mem_font_cache_max_size(renderer_t*);
+void tr_set_mem_font_cache_max_size(renderer_t*, int32_t);
+int32_t tr_get_mmapped_font_cache_max_count(renderer_t*);
+void tr_set_mmapped_font_cache_max_count(renderer_t*, int32_t);
 int32_t tr_get_glyph_run_cache_size(renderer_t*);
 int32_t tr_get_glyph_run_cache_count(renderer_t*);
 int32_t tr_get_glyph_cache_size(renderer_t*);
 int32_t tr_get_glyph_cache_count(renderer_t*);
+int32_t tr_get_mem_font_cache_size(renderer_t*);
+int32_t tr_get_mem_font_cache_count(renderer_t*);
+int32_t tr_get_mmapped_font_cache_count(renderer_t*);
 int32_t tr_get_paint_glyph_num(renderer_t*);
 void tr_set_paint_glyph_num(renderer_t*, int32_t);
-int32_t tr_font(renderer_t*);
-void tr_free_font(renderer_t*, int32_t);
 renderer_t* tr_get_r(layout_t*);
 void tr_init(layout_t*, renderer_t*);
 void tr_free(layout_t*);
@@ -172,10 +177,15 @@ local getters = {
 	font_size_resolution = C.tr_get_font_size_resolution,
 	glyph_run_cache_max_size = C.tr_get_glyph_run_cache_max_size,
 	glyph_cache_max_size = C.tr_get_glyph_cache_max_size,
+	mem_font_cache_max_size = C.tr_get_mem_font_cache_max_size,
+	mmapped_font_cache_max_count = C.tr_get_mmapped_font_cache_max_count,
 	glyph_run_cache_size = C.tr_get_glyph_run_cache_size,
 	glyph_run_cache_count = C.tr_get_glyph_run_cache_count,
 	glyph_cache_size = C.tr_get_glyph_cache_size,
 	glyph_cache_count = C.tr_get_glyph_cache_count,
+	mem_font_cache_size = C.tr_get_mem_font_cache_size,
+	mem_font_cache_count = C.tr_get_mem_font_cache_count,
+	mmapped_font_cache_count = C.tr_get_mmapped_font_cache_count,
 	paint_glyph_num = C.tr_get_paint_glyph_num,
 }
 local setters = {
@@ -184,6 +194,8 @@ local setters = {
 	font_size_resolution = C.tr_set_font_size_resolution,
 	glyph_run_cache_max_size = C.tr_set_glyph_run_cache_max_size,
 	glyph_cache_max_size = C.tr_set_glyph_cache_max_size,
+	mem_font_cache_max_size = C.tr_set_mem_font_cache_max_size,
+	mmapped_font_cache_max_count = C.tr_set_mmapped_font_cache_max_count,
 	paint_glyph_num = C.tr_set_paint_glyph_num,
 }
 local methods = {
@@ -191,8 +203,6 @@ local methods = {
 	free = C.tr_free,
 	release = C.tr_release,
 	layout = C.tr_layout,
-	font = C.tr_font,
-	free_font = C.tr_free_font,
 }
 ffi.metatype('renderer_t', {
 	__index = function(self, k)

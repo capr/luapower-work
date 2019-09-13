@@ -26,7 +26,6 @@ void layerlib_set_word_subpixel_x_resolution(layerlib_t*, double);
 void layerlib_set_glyph_cache_size(layerlib_t*, double);
 void layerlib_set_glyph_run_cache_size(layerlib_t*, double);
 void layerlib_set_error_function(layerlib_t*, error_function_t);
-double layerlib_font(layerlib_t*);
 layer_t* layerlib_layer(layerlib_t*);
 void layer_init(layer_t*, layerlib_t*, layer_t*);
 void layer_free(layer_t*);
@@ -397,7 +396,6 @@ local methods = {
 	init = C.layerlib_init,
 	free = C.layerlib_free,
 	release = C.layerlib_release,
-	font = C.layerlib_font,
 	layer = C.layerlib_layer,
 }
 ffi.metatype('layerlib_t', {

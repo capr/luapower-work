@@ -4,6 +4,7 @@
 if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
+require'terra/tr_font'
 require'terra/tr_wrap'
 
 terra Line:_update_vertical_metrics(
@@ -55,7 +56,7 @@ terra Layout:spaceout()
 		var seg = line.first_vis
 		if seg == nil then --special case for empty text: use font's metrics.
 			var span = self.spans:at(0, nil)
-			var font = iif(span ~= nil, self.r.fonts:at(span.font_id, nil), nil)
+			var font = iif(span ~= nil, self.r:font(span.font_id), nil)
 			assert(line_i == 0)
 			if font ~= nil then
 				line:_update_vertical_metrics(

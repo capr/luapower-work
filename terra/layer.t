@@ -1556,7 +1556,8 @@ terra Layer:invalidate_text()
 		self:invalidate'parent_layout'
 	elseif not self.text.layout.align_valid then
 		self.text.layout:align()
-	elseif not self.text.layout.pixels_valid then
+	end
+	if not self.text.layout.pixels_valid then
 		self:invalidate'pixels content_shadows parent_content_shadows'
 	end
 end

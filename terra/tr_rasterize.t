@@ -23,9 +23,8 @@ terra Font:load_glyph(font_size: num, glyph_index: uint)
 	return ft_glyph
 end
 
-terra Glyph:rasterize(r: &Renderer)
+terra Glyph:rasterize(r: &Renderer, font: &Font)
 
-	var font = r.fonts:at(self.font_id)
 	var glyph = font:load_glyph(self.font_size, self.glyph_index)
 
 	if glyph == nil then
@@ -55,15 +54,15 @@ terra Glyph:rasterize(r: &Renderer)
 	then
 		var tmp_bitmap: FT_Bitmap
 		FT_Bitmap_Init(&tmp_bitmap)
-		FT_Bitmap_Convert(font.r.ft_lib, bitmap, &tmp_bitmap, 4)
+		FT_Bitmap_Convert(r.ft_lib, bitmap, &tmp_bitmap, 4)
 		assert(tmp_bitmap.pixel_mode == FT_PIXEL_MODE_GRAY)
 		assert((tmp_bitmap.pitch and 3) == 0)
 
-		font.r:wrap_glyph(self, &tmp_bitmap)
+		r:create_glyph_surface(self, &tmp_bitmap, font)
 
-		FT_Bitmap_Done(font.r.ft_lib, &tmp_bitmap)
+		FT_Bitmap_Done(r.ft_lib, &tmp_bitmap)
 	else
-		font.r:wrap_glyph(self, bitmap)
+		r:create_glyph_surface(self, bitmap, font)
 	end
 
 	self.image.x = glyph.bitmap_left * font.scale + 0.5
@@ -73,7 +72,7 @@ end
 local empty_glyph = constant(Glyph.empty)
 
 terra Renderer:rasterize_glyph(
-	font_id: font_id_t, font_size: num,
+	font_id: int, font: &Font, font_size: num,
 	glyph_index: uint, ax: num, ay: num
 )
 	if glyph_index == 0 then --freetype code for "missing glyph"
@@ -94,7 +93,7 @@ terra Renderer:rasterize_glyph(
 
 	var glyph_id, pair = self.glyphs:get(glyph)
 	if pair == nil then
-		glyph:rasterize(self)
+		glyph:rasterize(self, font)
 		glyph_id, pair = self.glyphs:put(glyph, {})
 	end
 	self.glyphs:forget(glyph_id)
@@ -109,6 +108,7 @@ end
 local struct glyph_surfaces {
 	r: &Renderer;
 	gr: &GlyphRun;
+	font: &Font;
 	i: int; j: int;
 	ax: num; ay: num;
 }
@@ -116,12 +116,12 @@ glyph_surfaces.metamethods.__for = function(self, body)
 	return quote
 		var self = self --workaround for terra issue #368
 		var gr = self.gr
-		var font = self.r.fonts:at(gr.font_id)
+		var font = self.font
 		font:setsize(gr.font_size)
 		for i = self.i, self.j do
 			var g = gr.glyphs:at(i)
 			var glyph, sx, sy = self.r:rasterize_glyph(
-				gr.font_id, gr.font_size, g.glyph_index,
+				gr.font_id, font, gr.font_size, g.glyph_index,
 				self.ax + g.x + g.image_x,
 				self.ay + g.image_y
 			)
@@ -131,20 +131,20 @@ glyph_surfaces.metamethods.__for = function(self, body)
 		end
 	end
 end
-terra Renderer:glyph_surfaces(gr: &GlyphRun, i: int, j: int, ax: num, ay: num)
-	return glyph_surfaces {r = self, gr = gr, i = i, j = j, ax = ax, ay = ay}
+terra Renderer:glyph_surfaces(gr: &GlyphRun, font: &Font, i: int, j: int, ax: num, ay: num)
+	return glyph_surfaces {r = self, gr = gr, font = font, i = i, j = j, ax = ax, ay = ay}
 end
 
-terra Renderer:glyph_run_bbox(gr: &GlyphRun, ax: num, ay: num)
+terra Renderer:glyph_run_bbox(gr: &GlyphRun, font: &Font, ax: num, ay: num)
 	var bx: num, by: num, bw: num, bh: num = 0, 0, 0, 0
-	var surfaces = self:glyph_surfaces(gr, 0, gr.glyphs.len, ax, ay)
+	var surfaces = self:glyph_surfaces(gr, font, 0, gr.glyphs.len, ax, ay)
 	for sr, sx, sy in surfaces do
 		bx, by, bw, bh = rect.bbox(bx, by, bw, bh, sx, sy, sr:width(), sr:height())
 	end
 	return bx, by, bw, bh
 end
 
-terra Renderer:rasterize_glyph_run(gr: &GlyphRun, ax: num, ay: num)
+terra Renderer:rasterize_glyph_run(gr: &GlyphRun, font: &Font, ax: num, ay: num)
 	var sx = floor(ax)
 	var sy = floor(ay)
 	var ox = snap(ax - sx, self.word_subpixel_x_resolution)
@@ -153,7 +153,7 @@ terra Renderer:rasterize_glyph_run(gr: &GlyphRun, ax: num, ay: num)
 
 	var gsp = gr.images:at(si, nil)
 	if gsp == nil or gsp.surface == nil then
-		var bx, by, bw, bh = self:glyph_run_bbox(gr, ax, ay)
+		var bx, by, bw, bh = self:glyph_run_bbox(gr, font, ax, ay)
 		var bx1 = floor(bx)
 		var by1 = floor(by)
 		var bx2 = ceil(bx + bw)
@@ -161,7 +161,7 @@ terra Renderer:rasterize_glyph_run(gr: &GlyphRun, ax: num, ay: num)
 		var sr = create_surface(bx2-bx1, by2-by1)
 		var cr = sr:context()
 		cr:translate(-bx1, -by1)
-		var surfaces = self:glyph_surfaces(gr, 0, gr.glyphs.len, ax, ay)
+		var surfaces = self:glyph_surfaces(gr, font, 0, gr.glyphs.len, ax, ay)
 		for gsr, gsx, gsy in surfaces do
 			self:paint_surface(cr, gsr, gsx, gsy, false, 0, 0)
 		end

@@ -388,7 +388,7 @@ terra Layout:shape()
 		gr.text.view = self.text:sub(offset, offset + len)
 		--^^fake a dynarray to avoid copying.
 
-		var glyph_run_id = r:shape_word(gr)
+		var glyph_run_id = r:shape_word(gr, span.font)
 
 		var seg = segs:add()
 		seg.glyph_run_id = glyph_run_id

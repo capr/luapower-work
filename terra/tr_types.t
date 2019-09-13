@@ -92,7 +92,6 @@ BREAK_PARA = 3 --explicit paragraph break (PS).
 
 num = float --using floats on the glyph runs saves 25% memory.
 rect = rect(num)
-font_id_t = int16 --max 64k fonts can be used at the same time.
 
 struct Renderer;
 struct Font;
@@ -100,11 +99,10 @@ struct Font;
 --font type ------------------------------------------------------------------
 
 struct Font (gettersandsetters) {
-	r: &Renderer;
+	id: int;
 	--loading and unloading
-	file_data: &opaque;
-	file_size: size_t;
-	refcount: int; --each Span keeps a ref. caches don't keep a ref.
+	file_data: &opaque; --leave file_data nil to signal loading failure.
+	file_size: size_t;  --set file_size to 0 if it's a mem-mapped font.
 	--freetype & harfbuzz font objects
 	ft_face: FT_Face;
 	hb_font: &hb_font_t; --represents a ft_face at a particular size.
@@ -117,9 +115,13 @@ struct Font (gettersandsetters) {
 	descent: num;
 }
 
-terra Font.methods.free :: {&Font} -> {}
+terra Font.methods.free :: {&Font, &Renderer} -> {}
 
 FontLoadFunc = {int, &&opaque, &size_t} -> {}
+
+terra Font:__memsize() --for lru cache
+	return self.file_size
+end
 
 --layout type ----------------------------------------------------------------
 
@@ -131,22 +133,24 @@ hb_feature_arr_t = arr(hb_feature_t)
 
 struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
-	font_id: font_id_t;
+	font_id: int;
+	font: &Font;
 	font_size_16_6: uint16;
 	features: hb_feature_arr_t;
 	script: hb_script_t;
 	lang: hb_language_t;
-	paragraph_dir: enum; --bidi dir override for current paragraph.
-	nowrap: bool; --disable word wrapping for this span.
 	opacity: double; --the opacity level in 0..1.
 	color: color;
-	operator: int; --blending operator.
+	operator: enum; --blending operator.
+	paragraph_dir: enum; --bidi dir override for current paragraph.
+	nowrap: bool; --disable word wrapping for this span.
 }
 fixpointfields(Span)
 
 Span.empty = constant(`Span {
 	offset = 0;
 	font_id = -1;
+	font = nil;
 	font_size_16_6 = 0;
 	features = [hb_feature_arr_t.empty];
 	script = 0;
@@ -162,8 +166,14 @@ terra Span:init()
 	@self = [Span.empty]
 end
 
-terra Span:free()
+terra forget_font :: {&Renderer, int} -> {}
+
+terra Span:free(r: &Renderer)
 	self.features:free()
+	if self.font ~= nil then
+		forget_font(r, self.font_id)
+		self.font = nil
+	end
 end
 
 terra Span:copy() --for splitting spans
@@ -218,6 +228,13 @@ struct Seg {
 	subsegs: arr(SubSeg);
 }
 
+terra forget_glyph_run :: {&Renderer, int} -> {}
+
+--can't bundle this into Seg:free() because the Seg array doesn't have a Renderer context.
+terra Seg:forget_glyph_run(r: &Renderer)
+	forget_glyph_run(r, self.glyph_run_id)
+end
+
 terra Seg:free()
 	self.subsegs:free()
 end
@@ -255,9 +272,11 @@ end
 -- A layout is a unit of multi-paragraph rich text to be shaped, layouted,
 -- rendered, navigated, hit-tested, edited, updated, re-rendered and so on.
 
+local arr_Span = arr(Span)
+
 struct Layout (gettersandsetters) {
 	r: &Renderer;
-	spans: arr(Span);       --shape/in
+	spans: arr_Span;        --shape/in
 	embeds: arr(Embed);     --shape/in
 	text: arr(codepoint);   --shape/in
 	align_w: num;           --wrap+align/in
@@ -287,6 +306,10 @@ struct Layout (gettersandsetters) {
 	_min_w: num;             --get_min_w/cache
 	_max_w: num;             --get_max_w/cache
 }
+
+terra arr_Span:free_element(span: &Span)
+	span:free(structptr(self, Layout, 'spans').r)
+end
 
 --a span's ending offset is the starting offset of the next span.
 terra Layout:span_end_offset(span_i: int)
@@ -339,7 +362,7 @@ struct GlyphImage {
 }
 GlyphImage.empty = `GlyphImage{surface = nil, x = 0, y = 0}
 
-terra GlyphImage:free(r: &Renderer)
+terra GlyphImage:free()
 	if self.surface == nil then return end
 	self.surface:free()
 	self.surface = nil
@@ -351,7 +374,7 @@ struct GlyphRun (gettersandsetters) {
 	features        : hb_feature_arr_t;
 	lang            : hb_language_t;     --8
 	script          : hb_script_t;       --4
-	font_id         : font_id_t;         --2
+	font_id         : int;               --4
 	font_size_16_6  : uint16;            --2
 	rtl             : bool;              --1
 	--resulting glyphs and glyph metrics
@@ -362,7 +385,7 @@ struct GlyphRun (gettersandsetters) {
 	advance_x       : num;
 	wrap_advance_x  : num;
 	--pre-rendered images for each subpixel offset.
-	images          : arr{T = GlyphImage, context_t = &Renderer};
+	images          : arr(GlyphImage);
 	images_memsize  : int;
 	--for cursor positioning and hit testing.
 	--these arrays hold exactly text.len+1 items, one for each position in
@@ -375,6 +398,12 @@ fixpointfields(GlyphRun)
 
 local key_offset = offsetof(GlyphRun, 'lang')
 local key_size = offsetafter(GlyphRun, 'rtl') - key_offset
+assert(key_size ==
+	  sizeof(hb_language_t)
+	+ sizeof(hb_script_t)
+	+ sizeof(int)
+	+ sizeof(uint16)
+	+ sizeof(bool)) --no gaps
 
 terra GlyphRun:__hash32(h: uint32) --for hashmap
 	h = hash(uint32, [&char](self) + key_offset, h, key_size)
@@ -421,9 +450,9 @@ end
 
 struct Glyph (gettersandsetters) {
 	--cache key fields: no alignment holes allowed between cache key fields !!!
-	font_id         : font_id_t;   --2
-	font_size_16_6  : uint16;      --2
 	glyph_index     : uint;        --4
+	font_id         : int;         --4
+	font_size_16_6  : uint16;      --2
 	subpixel_offset_x_8_6 : uint8; --1
 	--glyph image
 	image: GlyphImage;
@@ -438,8 +467,13 @@ Glyph.empty = `Glyph {
 	image = [GlyphImage.empty];
 }
 
-local key_offset = offsetof(Glyph, 'font_id')
+local key_offset = offsetof(Glyph, 'glyph_index')
 local key_size = offsetafter(Glyph, 'subpixel_offset_x_8_6') - key_offset
+assert(key_size ==
+	  sizeof(uint)
+	+ sizeof(int)
+	+ sizeof(uint16)
+	+ sizeof(uint8)) --no gaps
 
 terra Glyph:__hash32(h: uint32) --for hashmap
 	return hash(uint32, [&char](self) + key_offset, h, key_size)
@@ -458,7 +492,7 @@ end
 
 terra Glyph:free(r: &Renderer)
 	if self.image.surface == nil then return end
-	self.image:free(r)
+	self.image:free()
 end
 
 --cursor type ----------------------------------------------------------------
@@ -567,8 +601,12 @@ struct SegRange {
 }
 RangesFreelist = fixedfreelist(SegRange)
 
-GlyphRunCache = lrucache {key_t = GlyphRun, context_t = &Renderer}
-GlyphCache = lrucache {key_t = Glyph, context_t = &Renderer}
+GlyphRunCache    = lrucache {key_t = GlyphRun, context_t = &Renderer}
+GlyphCache       = lrucache {key_t = Glyph,                    context_t = &Renderer}
+MemFontCache     = lrucache {key_t = int, val_t = &Font, context_t = &Renderer, own_values = true}
+MMappedFontCache = lrucache {key_t = int, val_t = &Font, context_t = &Renderer, own_values = true}
+
+--GlyphRunCache
 
 struct Renderer (gettersandsetters) {
 
@@ -579,12 +617,13 @@ struct Renderer (gettersandsetters) {
 
 	ft_lib: FT_Library;
 
-	fonts: arrayfreelist(Font, font_id_t);
 	load_font: FontLoadFunc;
 	unload_font: FontLoadFunc;
 
 	glyphs: GlyphCache;
 	glyph_runs: GlyphRunCache;
+	mem_fonts: MemFontCache;
+	mmapped_fonts: MMappedFontCache;
 
 	--temporary arrays that grow as long as the longest input text.
 	cpstack:         arr(codepoint);
@@ -616,6 +655,5 @@ struct Renderer (gettersandsetters) {
 terra Layout:glyph_run(seg: &Seg)
 	return &self.r.glyph_runs:pair(seg.glyph_run_id).key
 end
-
 
 return _M

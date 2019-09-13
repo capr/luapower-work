@@ -8,18 +8,18 @@ require'terra/tr_rasterize'
 
 --NOTE: clip_left and clip_right are relative to glyph run's origin.
 terra Renderer:paint_glyph_run(
-	cr: &context, gr: &GlyphRun, i: int, j: int,
+	cr: &context, gr: &GlyphRun, font: &Font, i: int, j: int,
 	ax: num, ay: num, clip: bool, clip_left: num, clip_right: num
 ): {}
 
 	if not clip and j > 2 and gr.font_size < 50 then
-		var sr, sx, sy = self:rasterize_glyph_run(gr, ax, ay)
+		var sr, sx, sy = self:rasterize_glyph_run(gr, font, ax, ay)
 		self:paint_surface(cr, sr, sx, sy, false, 0, 0)
 		inc(self.paint_glyph_num, j)
 		return
 	end
 
-	var surfaces = self:glyph_surfaces(gr, i, j, ax, ay)
+	var surfaces = self:glyph_surfaces(gr, font, i, j, ax, ay)
 	for sr, sx, sy in surfaces do
 		if clip then
 			--make clip_left and clip_right relative to bitmap's left edge.
@@ -43,8 +43,7 @@ terra Layout:paint_text(cr: &context)
 		var ax = self.x + line.x
 		var ay = self.y + self.baseline + line.y
 
-		var seg = line.first_vis --can be nil
-		while seg ~= nil do
+		for seg in line do
 			if seg.visible then
 
 				var gr = self:glyph_run(seg)
@@ -62,11 +61,10 @@ terra Layout:paint_text(cr: &context)
 				]]
 
 				self.r:setcontext(cr, seg.span)
-				self.r:paint_glyph_run(cr, gr, 0, gr.glyphs.len, x, y, false, 0, 0)
+				self.r:paint_glyph_run(cr, gr, seg.span.font, 0, gr.glyphs.len, x, y, false, 0, 0)
 				--end
 
 			end
-			seg = seg.next_vis
 		end
 	end
 end

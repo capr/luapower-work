@@ -5,55 +5,46 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 
-terra Font:init(r: &Renderer)
+terra Font:init(r: &Renderer, id: int)
 	fill(self)
-	self.r = r
+	self.id = id
+
 	self.ft_load_flags =
 		   FT_LOAD_COLOR
 		or FT_LOAD_PEDANTIC
 		--or FT_LOAD_NO_HINTING
 		--or FT_LOAD_NO_AUTOHINT
 		--or FT_LOAD_FORCE_AUTOHINT
+
 	self.ft_render_flags = FT_RENDER_MODE_LIGHT
-end
 
-terra Font:get_id()
-	return self.r.fonts:index(self)
-end
+	r.load_font(self.id, &self.file_data, &self.file_size)
+	assert(self.file_size >= 0) --should be zero for a mem-mapped font.
 
-terra Font:ref()
-	if self.refcount == 0 then
-
-		self.r.load_font(self.id, &self.file_data, &self.file_size)
-
-		if self.file_data == nil then
-			self:free()
-			return false
-		end
-
-		if FT_New_Memory_Face(self.r.ft_lib,
-			[&uint8](self.file_data),
-			self.file_size, 0, &self.ft_face) ~= 0
-		then
-			self:free()
-			return false
-		end
-
-		self.hb_font = hb_ft_font_create_referenced(self.ft_face)
-		if self.hb_font == nil then
-			self:free()
-			return false
-		end
-
-		hb_ft_font_set_load_flags(self.hb_font, self.ft_load_flags)
+	if self.file_data == nil then
+		return
 	end
 
-	inc(self.refcount)
-	return true
+	if FT_New_Memory_Face(r.ft_lib,
+		[&uint8](self.file_data),
+		self.file_size, 0, &self.ft_face) ~= 0
+	then
+		self:free(r)
+		return
+	end
+
+	self.hb_font = hb_ft_font_create_referenced(self.ft_face)
+	if self.hb_font == nil then
+		self:free(r)
+		return
+	end
+
+	hb_ft_font_set_load_flags(self.hb_font, self.ft_load_flags)
 end
 
-terra Font:free()
-	assert(self.refcount == 0)
+terra Font:free(r: &Renderer)
+	assert(self.file_data ~= nil)
+	assert(self.file_size >= 0)
 	if self.hb_font ~= nil then
 		hb_font_destroy(self.hb_font)
 		self.hb_font = nil
@@ -62,18 +53,10 @@ terra Font:free()
 		FT_Done_Face(self.ft_face)
 		self.ft_face = nil
 	end
-	if self.file_data ~= nil then
-		self.r.unload_font(self.id, &self.file_data, &self.file_size)
-		self.file_data = nil
-	end
-end
-
-terra Font:unref()
-	assert(self.refcount > 0)
-	dec(self.refcount)
-	if self.refcount == 0 then
-		self:free()
-	end
+	r.unload_font(self.id, &self.file_data, &self.file_size)
+	self.file_data = nil
+	self.file_size = -1
+	dealloc(self)
 end
 
 terra Font:setsize(size: num)
@@ -109,3 +92,45 @@ terra Font:setsize(size: num)
 
 	hb_ft_font_changed(self.hb_font)
 end
+
+--font cache -----------------------------------------------------------------
+
+terra Renderer:font(font_id: int)
+	var font_i, pair = self.mem_fonts:get(font_id)
+	if font_i == -1 then
+		font_i, pair = self.mmapped_fonts:get(font_id)
+	end
+	if font_i == -1 then
+		var font: Font
+		font:init(self, font_id)
+		if font.file_data ~= nil then
+			var cache = iif(font.file_size == 0,
+				&self.mmapped_fonts, &self.mem_fonts)
+			var mfont = alloc(Font)
+			@mfont = font
+			cache:put(font_id, mfont)
+			return mfont
+		else
+			return nil
+		end
+	else
+		return pair.val
+	end
+end
+
+terra forget_font(self: &Renderer, font_id: int)
+	var font_i, _ = self.mem_fonts:get(font_id)
+	if font_i ~= -1 then
+		self.mem_fonts:forget(font_i)
+		self.mem_fonts:forget(font_i)
+		return
+	end
+	font_i, _ = self.mmapped_fonts:get(font_id)
+	if font_i ~= -1 then
+		self.mmapped_fonts:forget(font_i)
+		self.mmapped_fonts:forget(font_i)
+		return
+	end
+	assert(false)
+end
+

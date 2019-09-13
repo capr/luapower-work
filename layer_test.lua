@@ -51,9 +51,6 @@ assert(layer.memtotal() == 0)
 
 local lib = layer.layerlib(load_font, unload_font)
 
-local opensans = lib:font()
-local amiri    = lib:font()
-
 local default_e = lib:layer()
 
 local lorem_ipsum = bundle.load('lorem_ipsum.txt')
@@ -892,7 +889,7 @@ function testui:repaint()
 				choose('text_selection_operator', 'operator_',
 					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i, 'text_selection_has_operator')
 			else
-				self:heading'TEXT INVALID'
+				self:heading'SPANS ARE INVALID'
 			end
 		end
 
@@ -1043,7 +1040,7 @@ function testui:repaint()
 			local draw_t0 = time.clock()
 			top_e:draw(cr)
 			local draw_t = time.clock()
-			--sel_e:draw(cr)
+			sel_e:draw(cr)
 			local repaint_t = draw_t
 			local draw_dt    = draw_t    - draw_t0
 			local repaint_dt = repaint_t - repaint_t0
@@ -1133,8 +1130,8 @@ function testui:repaint()
 
 	end
 
-	if not top_e.pixels_valid then self.ewindow:invalidate(); self.window:invalidate() end
-	if not sel_e.pixels_valid then self.ewindow:invalidate(); self.window:invalidate() end
+	if not top_e.pixels_valid then self.ewindow:invalidate() end
+	if not sel_e.pixels_valid then self.ewindow:invalidate() end
 
 	self.x = self.win_w - 1200
 	self.y = 10

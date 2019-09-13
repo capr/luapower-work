@@ -13,7 +13,7 @@ local font_paths_list = {
 local font_paths = constant(`array([font_paths_list]))
 
 terra load_font(font_id: int, file_data: &&opaque, file_size: &size_t)
-	var font_path = font_paths[font_id]
+	var font_path = font_paths[font_id-1]
 	@file_data, @file_size = readfile(font_path)
 end
 
@@ -49,12 +49,10 @@ terra test()
 	r.glyph_cache_max_size = 1024*1024
 	r.glyph_run_cache_max_size = 1024*1024
 
-	var layouts: arr(&Layout)
+	var layouts: arr{T = &Layout, own_elements = false}
 	layouts:init()
 
-	for font_i = 0, font_paths_count do --go through all fonts
-
-		var font_id = r:font()
+	for font_id = 1, font_paths_count + 1 do --go through all fonts
 
 		for text_i = 0, texts_count do --go through all sample texts
 
@@ -124,8 +122,6 @@ terra test()
 
 		end
 
-		--layouts.len = 0
-
 	end
 
 	print('layouts: ', layouts.len)
@@ -138,6 +134,9 @@ terra test()
 	pfn('Glyph cache count    : %7d', r.glyph_cache_count)
 	pfn('GlyphRun cache size  : %7.2fmB', r.glyph_run_cache_size / 1024.0 / 1024.0)
 	pfn('GlyphRun cache count : %7d', r.glyph_run_cache_count)
+	pfn('Mem Font cache size  : %7.2fmB', r.mem_font_cache_size / 1024.0 / 1024.0)
+	pfn('Mem Font cache count : %7d', r.mem_font_cache_count)
+	pfn('MMap Font cache count: %7d', r.mmapped_font_cache_count)
 
 	r:release()
 	cr:free()

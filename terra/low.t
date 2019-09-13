@@ -358,10 +358,14 @@ end
 
 --terralib extensions
 
+function gettype(t)
+	return type(t) == 'terratype' and t or t:istype() and t:astype() or t:gettype()
+end
+
 --make sizeof work with values too
 local terra_sizeof = sizeof
 sizeof = macro(function(t)
-	local T = t:istype() and t:astype() or t:gettype()
+	local T = gettype(t)
 	return `terra_sizeof(T)
 end, terra_sizeof)
 
@@ -386,6 +390,14 @@ function offsetafter(T, field)
 	return offsetof(T, field) + sizeof(T:getfield(field).type)
 end
 
+--given that `self` is `&e.field` where `e` is of type `T`, return `&e'.
+structptr = macro(function(self, T, field)
+	field = field:asvalue()
+	local T = gettype(T)
+	assert(self:gettype():ispointer())
+	return `[&T]([&char](self) - [offsetof(T, field)])
+end)
+
 --args packing that don't allocate a table for zero args.
 local empty = {}
 function args(...) return select('#',...) > 0 and {...} or empty end
@@ -400,7 +412,7 @@ end)
 --getmethod that works on primitive types and pointers too -------------------
 
 function getmethod(t, name)
-	local T = type(t) == 'terratype' and t or t:istype() and t:astype() or t:gettype()
+	local T = gettype(t)
 	if T:ispointer() then T = T.type end
 	return T.getmethod and T:getmethod(name) or nil
 end
@@ -410,7 +422,7 @@ local function cancall_lua(T, method)
 end
 cancall = macro(function(t, method)
 	method = method:asvalue()
-	local T = type(t) == 'terratype' and t or t:istype() and t:astype() or t:gettype()
+	local T = gettype(t)
 	return cancall_lua(T, method)
 end, cancall_lua)
 

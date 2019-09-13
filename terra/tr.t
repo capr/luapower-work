@@ -62,7 +62,10 @@ terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
 	self.font_size_resolution  = 1.0/8  --in pixels
 	self.subpixel_x_resolution = 1.0/16 --1/64 pixels is max with freetype
 	self.word_subpixel_x_resolution = 1.0/4
-	self.fonts:init()
+	self.mem_fonts:init(self)
+	self.mem_fonts.max_size = 1024 * 1024 * 20 --20 MB net (arbitrary default)
+	self.mmapped_fonts:init(self)
+	self.mmapped_fonts.max_count = 1000 -- (arbitrary default)
 	self.load_font = load_font
 	self.unload_font = unload_font
 	self.glyphs:init(self)
@@ -80,7 +83,8 @@ end
 terra Renderer:free()
 	self.glyphs          :free()
 	self.glyph_runs      :free()
-	self.fonts           :free()
+	self.mem_fonts       :free()
+	self.mmapped_fonts   :free()
 	self.cpstack         :free()
 	self.scripts         :free()
 	self.langs           :free()
@@ -98,31 +102,16 @@ terra Renderer:free()
 	FT_Done_FreeType(self.ft_lib)
 end
 
+terra forget_glyph_run(self: &Renderer, glyph_run_id: int)
+	self.glyph_runs:forget(glyph_run_id)
+end
+
 terra Layout:free()
 	self.lines:free()
-	for _,seg in self.segs do
-		self.r.glyph_runs:forget(seg.glyph_run_id)
-	end
+	self.segs:call('forget_glyph_run', self.r)
 	self.segs:free()
 	self.text:free()
-	for _,span in self.spans do
-		if span.font_id ~= -1 then
-			self.r.fonts:at(span.font_id):unref()
-		end
-	end
 	self.spans:free()
-end
-
-terra Renderer:font()
-	assert(self.fonts.items.len <= 32000)
-	var font, font_id = self.fonts:alloc()
-	font:init(self)
-	return [int](font_id)
-end
-
-terra Renderer:free_font(font_id: int)
-	assert(self.fonts:at(font_id).refcount == 0)
-	self.fonts:release(font_id)
 end
 
 return _M

@@ -37,9 +37,9 @@ return {
 				shadow_y=0.5
 			}
 		},
+		span_count=1,
 		text_spans={
 			{
-				span_font_id=0,
 				span_font_size=100
 			}
 		},
