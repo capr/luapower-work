@@ -155,6 +155,20 @@ local function view_type(T, size_t, cmp)
 			self.elements[self:index(i)] = val
 		end
 
+		view.methods.get_first = macro(function(self) --returns a lvalue
+			return quote
+				assert(self.len > 0, 'first: array empty')
+				in self.elements[0]
+			end
+		end)
+
+		view.methods.get_last = macro(function(self) --returns a lvalue
+			return quote
+				assert(self.len > 0, 'last: array empty')
+				in self.elements[self.len-1]
+			end
+		end)
+
 		--iteration
 
 		terra view:backwards() return backwards_iter {@self} end

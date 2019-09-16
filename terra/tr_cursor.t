@@ -337,10 +337,32 @@ CURSOR_MODE_MAX = LINE
 local terra valid(obj: &opaque, p: Pos)
 	var self = [&Cursor](obj)
 	var run = self.layout:glyph_run(p.seg)
-	return
-		not (run.trailing_space and p.i == run.cursor_xs.len-1) --after trailing space
-		or self.layout.segs:next(p.seg, nil) == nil --last seg
-		or (self.wrapped_space and p.seg.wrapped)
+	--any position but the last position in a segment is always valid.
+	if p.i ~= run.cursor_xs.len-1 then
+		return true
+	end
+	--the last position on a hardbreak line is always valid.
+	if p.seg.linebreak >= BREAK_LINE then
+		return true
+	end
+	--the last position on a wrapped line in `wrapped_space` mode is valid
+	--even when that position is a trailing space.
+	if self.wrapped_space and p.seg.wrapped then
+		return true
+	end
+	--the last position of a segment that is a duplicate of the first position
+	--of the next segment is invalid, unless bidi direction changes.
+	--normally we wouldn't care about that but justify-align makes these two
+	--positions visually distinct so we have to invalide one of them.
+	var next_seg = self.layout.segs:next(p.seg, nil)
+	if next_seg ~= nil then
+		var next_run = self.layout:glyph_run(next_seg)
+		if run.rtl == next_run.rtl then
+			return false
+		end
+	end
+	--last position, duplicate but bidi direction changes so keep it.
+	return true
 end
 
 local terra distinct(obj: &opaque, p: Pos, p0: Pos, dir: enum, mode: enum)

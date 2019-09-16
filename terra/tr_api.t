@@ -610,48 +610,59 @@ terra tr.Layout:span_at_offset(offset: int)
 	return self.spans:binsearch(Span{offset = offset}, cmp_spans) - 1
 end
 
---NOTE: -1 is two positions outside the text, not one. This allows
---range (0, -1) on empty text to have length 1 otherwise setting span
---attributes on range (0, -1) would not have any effect on empty text.
+--NOTE: -1 is one position outside the text, not the last position in the text.
 terra tr.Layout:offset_range(o1: int, o2: int)
-	if o1 < 0 then o1 = self.text.len + o1 + 2 end
-	if o2 < 0 then o2 = self.text.len + o2 + 2 end
+	if o1 < 0 then o1 = self.text.len + o1 + 1 end
+	if o2 < 0 then o2 = self.text.len + o2 + 1 end
+	o1 = clamp(o1, 0, self.text.len)
+	o2 = clamp(o2, 0, self.text.len)
 	if o2 < o1 then o1, o2 = o2, o1 end
 	return o1, o2
 end
 
-terra Layout:split_spans(offset: int, allow_add: bool)
-	if allow_add and self.l.spans.len == 0 then
-		self.l.spans:add([Span.empty])
-		self:invalidate()
+terra tr.Layout:split_spans_at_offset(offset: int)
+	if offset >= self.text.len then --don't create an empty span.
+		return self.spans.len
 	end
-	if not allow_add and self.l.spans:at(self.l.spans.len-1).offset < offset then
-		return self.l.spans.len --return that span that would have been added
-	end
-	var i = self.l:span_at_offset(offset)
-	var s = self.l.spans:at(i)
+	var i = self:span_at_offset(offset)
+	var s = self.spans:at(i)
 	if s.offset < offset then
 		inc(i)
 		var s1 = s:copy()
 		s1.offset = offset
-		self.l.spans:insert(i, s1)
-		self:invalidate()
+		self.spans:insert(i, s1)
 	else
 		assert(s.offset == offset)
 	end
 	return i
 end
 
-terra Layout:remove_duplicate_spans(i1: int, i2: int)
-	i1 = self.l.spans:clamp(i1)
-	i2 = self.l.spans:clamp(i2)
-	var s = self.l.spans:at(i2)
+terra tr.Layout:split_spans(o1: int, o2: int)
+	--create the first span automatically.
+	if self.spans.len == 0 then
+		self.spans:add([Span.empty])
+	end
+	var o1, o2 = self:offset_range(o1, o2)
+	--empty selection: return the span _covering_ the cursor position.
+	if o1 == o2 then
+		var i = self:span_at_offset(o1)
+		return i, i+1
+	end
+	--non-empty selection, non-empty text, at least one span: split spans.
+	var i1 = self:split_spans_at_offset(o1)
+	var i2 = self:split_spans_at_offset(o2)
+	return i1, i2
+end
+
+terra tr.Layout:remove_duplicate_spans(i1: int, i2: int)
+	i1 = self.spans:clamp(i1)
+	i2 = self.spans:clamp(i2)
+	var s = self.spans:at(i2)
 	var i = i2 - 1
 	while i >= i1 do
-		var d = self.l.spans:at(i)
+		var d = self.spans:at(i)
 		if compare_spans(d, s) == BIT_ALL then
-			self.l.spans:remove(i+1) --TODO: remove in chunks to avoid O(n^2)
-			self:invalidate()
+			self.spans:remove(i+1) --TODO: remove in chunks to avoid O(n^2)
 		end
 		s = d
 		dec(i)
@@ -808,6 +819,8 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 
 	Layout.methods['has_'..FIELD] = terra(self: &Layout, o1: int, o2: int)
 		if self.l.spans.len == 0 then
+			--it's not an error to use has_*() with no spans because set_*()
+			--creates spans automatically.
 			return false
 		elseif self.offsets_valid then
 			var mask, span_i = self.l:get_span_same_mask(o1, o2)
@@ -825,17 +838,22 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 
 	Layout.methods['set_'..FIELD] = terra(self: &Layout, o1: int, o2: int, val: T)
 		if self.l.spans.len == 0 or self.offsets_valid then
-			o1, o2 = self.l:offset_range(o1, o2)
-			var i1 = self:split_spans(o1, true)
-			var i2 = self:split_spans(o2, false)
-			--print(i1, i2)
+			var n = self.l.spans.len
+			var i1, i2 = self.l:split_spans(o1, o2)
+			if self.l.spans.len ~= n then
+				self:invalidate()
+			end
 			for i = i1, i2 do
 				var span = self.l.spans:at(i)
 				if LOAD(span, &self.l, val) then
 					self:invalidate(INVALIDATE)
 				end
 			end
-			self:remove_duplicate_spans(i1-1, i2+1)
+			n = self.l.spans.len
+			self.l:remove_duplicate_spans(i1-1, i2+1)
+			if self.l.spans.len ~= n then
+				self:invalidate()
+			end
 		else
 			self.r:error('set_%s() error: invalid span offsets', FIELD)
 		end
@@ -997,78 +1015,6 @@ function text_runs:insert(i, s, sz, charset, maxlen)
 end
 ]]
 
---[[
-
---Layout API
-
-terra Layout:get_bidi()
-	assert(self.state >= STATE_SHAPE)
-	return self.l.bidi
-end
-
-terra Layout:get_dir(): enum
-	assert(self.state >= STATE_SHAPE)
-	return self.l.dir
-end
-
-terra Layout:get_line_count(): int
-	assert(self.state >= STATE_WRAP)
-	return self.l.lines.len
-end
-
-terra Layout:get_max_ax(): num
-	assert(self.state >= STATE_WRAP)
-	return self.l.max_ax
-end
-
-terra Layout:get_h(): num
-	assert(self.state >= STATE_WRAP)
-	return self.l.h
-end
-
-terra Layout:get_min_x(): num
-	assert(self.state >= STATE_WRAP)
-	return self.l.min_x
-end
-
-terra Layout:get_first_visible_line(): int
-	assert(self.state >= STATE_CLIP)
-	return self.l.first_visible_line
-end
-
-terra Layout:get_last_visible_line(): int
-	assert(self.state >= STATE_CLIP)
-	return self.l.last_visible_line
-end
-
---line API
-
-terra Layout:cursor_xs(line_i: int)
-	var xs = self.l:cursor_xs(line_i)
-	return xs.elements, xs.len
-end
-
-terra Layout:get_line_x             (line_i: int): num return self.l.lines:at(line_i).x end
-terra Layout:get_line_y             (line_i: int): num return self.l.lines:at(line_i).y end
-terra Layout:get_line_advance_x     (line_i: int): num return self.l.lines:at(line_i).advance_x end
-terra Layout:get_line_ascent        (line_i: int): num return self.l.lines:at(line_i).ascent end
-terra Layout:get_line_descent       (line_i: int): num return self.l.lines:at(line_i).descent end
-terra Layout:get_line_spaced_ascent (line_i: int): num return self.l.lines:at(line_i).spaced_ascent end
-terra Layout:get_line_spaced_descent(line_i: int): num return self.l.lines:at(line_i).spaced_descent end
-
---segment API
-
-terra Layout:get_seg_line_num  (seg_i: int) end
-terra Layout:get_seg_linebreak (seg_i: int) end
-terra Layout:get_seg_span      (seg_i: int) end
-terra Layout:get_seg_offset    (seg_i: int) end
-terra Layout:get_seg_line      (seg_i: int) end
-terra Layout:get_seg_x         (seg_i: int) end
-terra Layout:get_seg_advance_x (seg_i: int) end
-terra Layout:get_seg_wrapped   (seg_i: int) end
-terra Layout:get_seg_visible   (seg_i: int) end
-terra Layout:get_seg_next_vis  (seg_i: int) end
-]]
 
 --layouting helper APIs ------------------------------------------------------
 

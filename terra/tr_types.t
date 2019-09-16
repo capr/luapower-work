@@ -601,10 +601,9 @@ struct SegRange {
 }
 RangesFreelist = fixedfreelist(SegRange)
 
-GlyphRunCache    = lrucache {key_t = GlyphRun, context_t = &Renderer}
-GlyphCache       = lrucache {key_t = Glyph,                    context_t = &Renderer}
-MemFontCache     = lrucache {key_t = int, val_t = &Font, context_t = &Renderer, own_values = true}
-MMappedFontCache = lrucache {key_t = int, val_t = &Font, context_t = &Renderer, own_values = true}
+GlyphRunCache = lrucache {key_t = GlyphRun, context_t = &Renderer, own_keys = true}
+GlyphCache    = lrucache {key_t = Glyph, context_t = &Renderer, own_keys = true}
+FontCache     = lrucache {key_t = int, val_t = &Font, context_t = &Renderer, own_values = true}
 
 --GlyphRunCache
 
@@ -620,10 +619,10 @@ struct Renderer (gettersandsetters) {
 	load_font: FontLoadFunc;
 	unload_font: FontLoadFunc;
 
-	glyphs: GlyphCache;
-	glyph_runs: GlyphRunCache;
-	mem_fonts: MemFontCache;
-	mmapped_fonts: MMappedFontCache;
+	glyphs        : GlyphCache;
+	glyph_runs    : GlyphRunCache;
+	mem_fonts     : FontCache;
+	mmapped_fonts : FontCache;
 
 	--temporary arrays that grow as long as the longest input text.
 	cpstack:         arr(codepoint);

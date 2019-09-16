@@ -64,7 +64,7 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal, own_keys
 		T = pair,
 		size_t = size_t,
 		context_t = context_t,
-		own_elements = own_elements,
+		own_elements = own_keys or own_vals,
 	}
 
 	local deref = macro(function(self, i)
@@ -74,16 +74,18 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal, own_keys
 	local indices_set = set{
 		key_t = size_t,
 		size_t = size_t,
-		hash = hash, equal = equal,
-		deref = deref, deref_key_t = key_t,
+		hash = hash,
+		equal = equal,
+		deref = deref,
+		deref_key_t = key_t,
 		state_t = &pair_list,
 		own_keys = false,
 		context_t = context_t,
 	}
 
 	local struct cache (gettersandsetters) {
-		max_size: size_t;
-		max_count: size_t;
+		_max_size: size_t;
+		_max_count: size_t;
 		size: size_t;
 		count: size_t;
 		pairs: pair_list; --linked list of key/val pairs
@@ -107,7 +109,7 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal, own_keys
 		local init = macro(function(self, context)
 			return quote
 				fill(self)
-				self.max_count = [size_t:max()]
+				self._max_count = [size_t:max()]
 				escape if context_t then emit quote
 					self.pairs:init(context)
 					self.indices:init(context)
@@ -190,7 +192,7 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal, own_keys
 
 		terra cache:put(k: key_t, v: val_t)
 			var pair_size = pair_memsize(k, v)
-			self:shrink(self.max_size - pair_size, self.max_count - 1)
+			self:shrink(self._max_size - pair_size, self._max_count - 1)
 			var i, link = self.pairs:insert_before(self.pairs.first)
 			link.item.key = k
 			link.item.val = v
@@ -215,6 +217,21 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal, own_keys
 					self.pairs:move_after(self.first_active_index, i)
 				end
 			end
+		end
+
+		--configuration
+
+		terra cache:get_max_size() return self._max_size end
+		terra cache:get_max_count() return self._max_count end
+
+		terra cache:set_max_size(v: size_t)
+			self._max_size = v
+			self:shrink(self._max_size, self._max_count)
+		end
+
+		terra cache:set_max_count(v: size_t)
+			self._max_count = v
+			self:shrink(self._max_size, self._max_count)
 		end
 
 	end)

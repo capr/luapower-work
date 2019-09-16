@@ -87,8 +87,6 @@ double tr_get_x(layout_t*);
 double tr_get_y(layout_t*);
 void tr_set_x(layout_t*, double);
 void tr_set_y(layout_t*, double);
-int32_t tr_split_spans(layout_t*, int32_t, bool);
-void tr_remove_duplicate_spans(layout_t*, int32_t, int32_t);
 void tr_remove_trailing_spans(layout_t*);
 bool tr_has_color(layout_t*, int32_t, int32_t);
 bool tr_has_features(layout_t*, int32_t, int32_t);
@@ -286,8 +284,6 @@ local methods = {
 	get_text_utf8 = C.tr_get_text_utf8,
 	set_text_utf8 = C.tr_set_text_utf8,
 	set_clip_extents = C.tr_set_clip_extents,
-	split_spans = C.tr_split_spans,
-	remove_duplicate_spans = C.tr_remove_duplicate_spans,
 	remove_trailing_spans = C.tr_remove_trailing_spans,
 	has_color = C.tr_has_color,
 	has_features = C.tr_has_features,

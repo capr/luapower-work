@@ -7,34 +7,34 @@ return {
 		h=431.5,
 		layout_type=1,
 		min_ch=431.5,
-		min_cw=304,
+		min_cw=376.5,
 		span_count=2,
 		text_align_x=4,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=25,
-				text_cursor_sel_offset=25,
-				text_cursor_x=79
+				text_cursor_offset=18,
+				text_cursor_sel_offset=18,
+				text_cursor_x=214
 			}
 		},
 		text_spans={
 			{
 				span_font_id=0,
-				span_font_size=25
+				span_font_size=44
 			},
 			{
 				span_font_id=0,
-				span_font_size=35,
-				span_offset=10
+				span_font_size=85,
+				span_offset=19
 			}
 		},
-		text_utf8='LuaJIT\'s ffi is the best!',
-		w=304,
+		text_utf8='Goodbye\nCruel World!',
+		w=376.5,
 		x=85,
 		y=78.5
 	},
 	selected_layer_path={
 	},
-	tab='Background'
+	tab='Text'
 }
