@@ -1,5 +1,11 @@
+--[[
 
---Font loading and unloading and setting the font size.
+	Font loading and unloading and setting the font size.
+
+	Fonts are kept in two LRU caches: one that is bytesize-limited for memory
+	fonts and one that is count-limited for memory-mapped fonts.
+
+]]
 
 if not ... then require'terra/tr_test'; return end
 

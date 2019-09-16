@@ -246,6 +246,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 		--TODO: find a better name for this pattern
 		arr.methods.getat = overload'getat'
 		arr.methods.getat:adddefinition(terra(self: &arr, i: size_t)
+			assert(i >= 0)
 			var new_elems = self:setlen(max(self.len, i+1))
 			return &self.elements[i], new_elems
 		end)
@@ -254,7 +255,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			for _,e in new_elems do
 				@e = empty_val
 			end
-			return &self.elements[i]
+			return elem
 		end)
 
 		arr.methods.push = overload'push'

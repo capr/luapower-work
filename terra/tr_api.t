@@ -34,10 +34,14 @@
 	Usage:
 
 	- make a renderer object, supplying font load and unload callbacks.
-	- make font objects, getting font ids for each of them.
 	- make a layout object from said renderer.
 	- set the text and text properties on the layout object.
 	- add text spans and set text span properties on the layout object.
+	- you can set any font_id except -1: the font load callback will be called
+	  with your font_ids, but note: never use the same font id for a different
+	  font because caches work on font_id! if you load files with embedded
+	  fonts like PDFs, always generate new font ids or perfect-hash the font
+	  contents and use that as an id.
 	- call layout() then paint(<cairo-context>). change any properties,
 	  check if `pixels_valid` is false and issue a repaint if it is.
 	- navigate, hit-test, select and edit the text with cursors.
@@ -136,6 +140,52 @@ terra Layout:release()
 	release(self)
 end
 
+--non-fatal error checking and reporting -------------------------------------
+
+Renderer.methods.error = macro(function(self, ...)
+	local args = args(...)
+	return quote
+		if self.error_function ~= nil then
+			var s: char[256]
+			snprintf(s, 256, [args])
+			self.error_function(s)
+		end
+	end
+end)
+
+Renderer.methods.check = macro(function(self, NAME, v, valid)
+	NAME = NAME:asvalue()
+	FORMAT = 'invalid '..NAME..': %d'
+	return quote
+		if not valid then
+			self:error(FORMAT, v)
+		end
+		in valid
+	end
+end)
+
+Renderer.methods.checkrange = macro(function(self, NAME, v, MIN, MAX)
+	NAME = NAME:asvalue()
+	MIN = MIN:asvalue()
+	MAX = MAX:asvalue()
+	FORMAT = 'invalid '..NAME..': %d (range: '..MIN..'..'..MAX..')'
+	return quote
+		var ok = v >= MIN and v <= MAX
+		if not ok then
+			self:error(FORMAT, v)
+		end
+		in ok
+	end
+end)
+
+Layout.methods.check = macro(function(self, NAME, v, valid)
+	return `self.r:check(NAME, v, valid)
+end)
+
+Layout.methods.checkrange = macro(function(self, NAME, v, MIN, MAX)
+	return `self.r:checkrange(NAME, v, MIN, MAX)
+end)
+
 --Renderer config ------------------------------------------------------------
 
 local terra subpixel_resolution(v: num)
@@ -163,17 +213,41 @@ terra Renderer:set_font_size_resolution(v: num)
 	self.r.font_size_resolution = subpixel_resolution(v)
 end
 
-terra Renderer:get_glyph_run_cache_max_size (): int return self.r.glyph_runs.max_size end
-terra Renderer:set_glyph_run_cache_max_size (size: int)    self.r.glyph_runs.max_size = size end
+terra Renderer:get_glyph_run_cache_max_size (): int
+	return self.r.glyph_runs.max_size
+end
+terra Renderer:set_glyph_run_cache_max_size (v: int)
+	if self:checkrange('glyph_run_cache_max_size', v, 0, maxint) then
+		self.r.glyph_runs.max_size = v
+	end
+end
 
-terra Renderer:get_glyph_cache_max_size(): int return self.r.glyphs.max_size end
-terra Renderer:set_glyph_cache_max_size(size: int)    self.r.glyphs.max_size = size end
+terra Renderer:get_glyph_cache_max_size(): int
+	return self.r.glyphs.max_size
+end
+terra Renderer:set_glyph_cache_max_size(v: int)
+	if self:checkrange('glyph_cache_max_size', v, 0, maxint) then
+		self.r.glyphs.max_size = v
+	end
+end
 
-terra Renderer:get_mem_font_cache_max_size(): int return self.r.mem_fonts.max_size end
-terra Renderer:set_mem_font_cache_max_size(size: int)    self.r.mem_fonts.max_size = size end
+terra Renderer:get_mem_font_cache_max_size(): int
+	return self.r.mem_fonts.max_size
+end
+terra Renderer:set_mem_font_cache_max_size(v: int)
+	if self:checkrange('mem_font_cache_max_size', v, 0, maxint) then
+		self.r.mem_fonts.max_size = v
+	end
+end
 
-terra Renderer:get_mmapped_font_cache_max_count(): int return self.r.mmapped_fonts.max_count end
-terra Renderer:set_mmapped_font_cache_max_count(n: int)       self.r.mmapped_fonts.max_count = n end
+terra Renderer:get_mmapped_font_cache_max_count(): int
+	return self.r.mmapped_fonts.max_count
+end
+terra Renderer:set_mmapped_font_cache_max_count(v: int)
+	if self:checkrange('mmapped_font_cache_max_count', v, 0, maxint) then
+		self.r.mmapped_fonts.max_count = v
+	end
+end
 
 --Renderer statistics API ----------------------------------------------------
 
@@ -187,44 +261,6 @@ terra Renderer:get_mmapped_font_cache_count    (): int return self.r.mmapped_fon
 
 terra Renderer:get_paint_glyph_num(): int return self.r.paint_glyph_num end
 terra Renderer:set_paint_glyph_num(n: int)       self.r.paint_glyph_num = n end
-
---non-fatal error checking and reporting -------------------------------------
-
-Renderer.methods.error = macro(function(self, ...)
-	local args = args(...)
-	return quote
-		if self.error_function ~= nil then
-			var s: char[256]
-			snprintf(s, 256, [args])
-			self.error_function(s)
-		end
-	end
-end)
-
-Layout.methods.check = macro(function(self, NAME, v, valid)
-	NAME = NAME:asvalue()
-	FORMAT = 'invalid '..NAME..': %d'
-	return quote
-		if not valid then
-			self.r:error(FORMAT, v)
-		end
-		in valid
-	end
-end)
-
-Layout.methods.checkrange = macro(function(self, NAME, v, MIN, MAX)
-	NAME = NAME:asvalue()
-	MIN = MIN:asvalue()
-	MAX = MAX:asvalue()
-	FORMAT = 'invalid '..NAME..': %d (range: '..MIN..'..'..MAX..')'
-	return quote
-		var ok = v >= MIN and v <= MAX
-		if not ok then
-			self.r:error(FORMAT, v)
-		end
-		in ok
-	end
-end)
 
 --state invalidation ---------------------------------------------------------
 
@@ -714,12 +750,13 @@ end
 
 terra Span:load_font_id(layout: &tr.Layout, font_id: int)
 	if self.font_id ~= font_id or self.font == nil then
-		if self.font ~= nil then
+		var was_set = self.font ~= nil
+		if was_set then
 			forget_font(layout.r, self.font_id)
 		end
 		self.font_id = font_id
 		self.font = layout.r:font(font_id)
-		return true
+		return was_set or self.font ~= nil
 	else
 		return false
 	end
@@ -1133,16 +1170,16 @@ terra Layout:get_cursor_sel_offset (c_i: int): int return self.cursors:at(c_i, &
 terra Layout:get_cursor_sel_which  (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.sel_which  end
 terra Layout:get_cursor_x          (c_i: int): num return self.cursors:at(c_i, &[Cursor.empty]).state.x          end
 
-terra Layout:set_cursor_offset(c_i: int, v: int)
-	self:change(self:_cursor(c_i).state, 'offset', v, 'paint')
+terra Layout:set_cursor_offset(c_i: int, v: num) --num to allow inf and -inf as offsets
+	self:change(self:_cursor(c_i).state, 'offset', clamp(v, 0, maxint), 'paint')
 end
 terra Layout:set_cursor_which(c_i: int, v: int)
 	if self:checkrange('cursor_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
 		self:change(self:_cursor(c_i).state, 'which', v, 'paint')
 	end
 end
-terra Layout:set_cursor_sel_offset(c_i: int, v: int)
-	self:change(self:_cursor(c_i).state, 'sel_offset', v, 'paint')
+terra Layout:set_cursor_sel_offset(c_i: int, v: num)
+	self:change(self:_cursor(c_i).state, 'sel_offset', clamp(v, 0, maxint), 'paint')
 end
 terra Layout:set_cursor_sel_which(c_i: int, v: int)
 	if self:checkrange('cursor_sel_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
@@ -1153,11 +1190,11 @@ terra Layout:set_cursor_x(c_i: int, v: num)
 	self:change(self:_cursor(c_i).state, 'x', v, 'paint')
 end
 
-terra Layout:cursor_move_to(c_i: int, offset: int, which: enum, select: bool)
+terra Layout:cursor_move_to(c_i: int, offset: num, which: enum, select: bool)
 	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
 	var c = self:_cursor(c_i)
-	if c:move_to(offset, which, select) then
+	if c:move_to(clamp(offset, 0, maxint), which, select) then
 		self:invalidate'paint'
 	end
 end

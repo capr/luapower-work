@@ -157,21 +157,21 @@ Layer.methods.change = macro(function(self, target, FIELD, v, WHAT)
 	end
 end)
 
-Layer.methods.changelen = macro(function(self, target, len, init, WHAT)
+Layer.methods.changelen = macro(function(self, arr, len, init, WHAT)
 	WHAT = WHAT or ''
 	return quote
-		var changed = target.len ~= len
+		var changed = arr.len ~= len
 		if changed then
 			escape
 				if type(init:asvalue()) == 'terramacro' then
 					emit quote
-						var new_elements = target:setlen(len)
+						var new_elements = arr:setlen(len)
 						for _,e in new_elements do
 							init(&self, e)
 						end
 					end
 				else --init is actually the default value
-					emit quote target:setlen(len, init) end
+					emit quote arr:setlen(len, init) end
 				end
 			end
 			self:invalidate(WHAT)

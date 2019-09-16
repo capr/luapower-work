@@ -6,10 +6,10 @@
 	This module adds input validation and state management to the raw
 	implementation in order to achieve the following goals:
 
-	* Invalid input should never cause fatal errors or crashes or affect other
-	non-child layers in the tree (except min_cw and min_ch which can affect
-	the whole geometry).
-
+	* Invalid input should never cause crashes.
+	* Programming errors should trigger asserts.
+	* Invalid input should not affect other non-child layers in the tree
+	except min_cw and min_ch which can affect the whole geometry.
 	* The order in which layer properties are set is not important, in order to
 	avoid call-order dependencies, eg. you don't have to set `background_type`
 	to a gradient type before setting `background_color_stop_color`, and you
@@ -21,11 +21,10 @@
 	Additional functionality:
 
 	- self-allocating constructors.
-	- non-fatal error checking and reporting.
+	- error checking and reporting, separating fatal from non-fatal errors.
 	- enum validation, number clamping to range.
 	- state invalidation when input values are changed.
 	- state resync'ing when computed values are read.
-	- uses doubles in place of ints for better range checking with LuaJIT ffi.
 
 	- simplified and enlarged number types for forward ABI compatibility.
 	- consecutive enum values for forward ABI compatibility.
@@ -34,8 +33,8 @@
 
 	Usage:
 
-	- make a layer lib object. make top layers from that or child layers from
-	  other top layers, constructing a tree. set properties on the layers.
+	- make a layer lib object. make top layers from that and then child layers
+	  from top layers, constructing a tree. set properties on the layers.
 	- call draw(<cairo-context>) on the top layer. change any properties,
 	  check if `pixels_valid` is false, and issue a repaint if it is.
 	- hit test layers.
@@ -84,32 +83,18 @@ Layer.methods.checkrange = macro(function(self, NAME, v, MIN, MAX)
 	end
 end)
 
+Layer.methods.checkindex = macro(function(self, NAME, i, MAX)
+	return `self:check(NAME, i, i >= 0) and i < MAX
+end)
+
 Layer.methods.change = macro(function(self, target, FIELD, v, WHAT)
 	return `self.l:change(target, FIELD, v, [WHAT or ''])
 end)
 
-Layer.methods.changelen = macro(function(self, target, len, init, WHAT)
-	return `self.l:changelen(target, len, init, [WHAT or ''])
+Layer.methods.changelen = macro(function(self, arr, NAME, len, MAXLEN, init, WHAT)
+	return `self:check(NAME, len, len >= 0) and len <= MAXLEN
+		and self.l:changelen(arr, len, init, [WHAT or ''])
 end)
-
---API types ------------------------------------------------------------------
-
-local real_int    = int
-local real_uint32 = uint32
-
---Using doubles in place of int types allows us to clamp out-of-range Lua
---numbers instead of the default x86 CPU behavior of converting them to -2^31.
---The downside is that this probably disables LuaJIT's number specialization.
-api_types = api_types or {
-	[num]    = double,
-	[int]    = double,
-	[uint32] = double,
-	[enum]   = double,
-}
-local num    = api_types[num]    or num
-local int    = api_types[int]    or int
-local uint32 = api_types[uint32] or uint32
-local enum   = api_types[enum]   or enum
 
 --Lib & Layer wrappers -------------------------------------------------------
 
@@ -160,19 +145,33 @@ end
 
 do end --text rendering engine configuration
 
-terra Lib:get_font_size_resolution       (): num return self.l.text_renderer.font_size_resolution end
-terra Lib:get_subpixel_x_resolution      (): num return self.l.text_renderer.subpixel_x_resolution end
-terra Lib:get_word_subpixel_x_resolution (): num return self.l.text_renderer.word_subpixel_x_resolution end
-terra Lib:get_glyph_cache_size           (): int return self.l.text_renderer.glyph_cache_size end
-terra Lib:get_glyph_run_cache_size       (): int return self.l.text_renderer.glyph_run_cache_size end
-terra Lib:get_error_function             (): ErrorFunction return self.l.text_renderer.error_function end
+terra Lib:get_font_size_resolution         (): num return self.l.text_renderer.font_size_resolution end
+terra Lib:get_subpixel_x_resolution        (): num return self.l.text_renderer.subpixel_x_resolution end
+terra Lib:get_word_subpixel_x_resolution   (): num return self.l.text_renderer.word_subpixel_x_resolution end
+terra Lib:get_glyph_cache_max_size         (): int return self.l.text_renderer.glyph_cache_size end
+terra Lib:get_glyph_run_cache_max_size     (): int return self.l.text_renderer.glyph_run_cache_size end
+terra Lib:get_mem_font_cache_max_size      (): int return self.l.text_renderer.mem_font_cache_max_size end
+terra Lib:get_mmapped_font_cache_max_count (): int return self.l.text_renderer.mmapped_font_cache_max_count end
+terra Lib:get_error_function               (): ErrorFunction return self.l.text_renderer.error_function end
 
-terra Lib:set_font_size_resolution       (v: num) self.l.text_renderer.font_size_resolution = v end
-terra Lib:set_subpixel_x_resolution      (v: num) self.l.text_renderer.subpixel_x_resolution = v end
-terra Lib:set_word_subpixel_x_resolution (v: num) self.l.text_renderer.word_subpixel_x_resolution = v end
-terra Lib:set_glyph_cache_size           (v: int) self.l.text_renderer.glyph_cache_max_size = v end
-terra Lib:set_glyph_run_cache_size       (v: int) self.l.text_renderer.glyph_run_cache_max_size = v end
-terra Lib:set_error_function             (v: ErrorFunction) self.l.text_renderer.error_function = v end
+terra Lib:set_font_size_resolution         (v: num) self.l.text_renderer.font_size_resolution = v end
+terra Lib:set_subpixel_x_resolution        (v: num) self.l.text_renderer.subpixel_x_resolution = v end
+terra Lib:set_word_subpixel_x_resolution   (v: num) self.l.text_renderer.word_subpixel_x_resolution = v end
+terra Lib:set_glyph_cache_max_size         (v: num) self.l.text_renderer.glyph_cache_max_size = v end
+terra Lib:set_glyph_run_cache_max_size     (v: num) self.l.text_renderer.glyph_run_cache_max_size = v end
+terra Lib:set_mem_font_cache_max_size      (v: num) self.l.text_renderer.mem_font_cache_max_size = v end
+terra Lib:set_mmapped_font_cache_max_count (v: num) self.l.text_renderer.mmapped_font_cache_max_count = v end
+terra Lib:set_error_function               (v: ErrorFunction) self.l.text_renderer.error_function = v end
+
+do end --text rendering engine stats
+
+terra Lib:get_glyph_run_cache_size        (): int return self.l.text_renderer.glyph_run_cache_size end
+terra Lib:get_glyph_run_cache_count       (): int return self.l.text_renderer.glyph_run_cache_count end
+terra Lib:get_glyph_cache_size            (): int return self.l.text_renderer.glyph_cache_size end
+terra Lib:get_glyph_cache_count           (): int return self.l.text_renderer.glyph_cache_count end
+terra Lib:get_mem_font_cache_size         (): int return self.l.text_renderer.mem_font_cache_size end
+terra Lib:get_mem_font_cache_count        (): int return self.l.text_renderer.mem_font_cache_count end
+terra Lib:get_mmapped_font_cache_count    (): int return self.l.text_renderer.mmapped_font_cache_count end
 
 do end --layer new/release
 
@@ -207,7 +206,7 @@ terra Layer:set_parent(parent: &Layer)
 	self.l:move(&parent.l, maxint) --does arg checking and invalidation
 end
 
-terra Layer:set_index(i: int)
+terra Layer:set_index(i: num) --num to allow inf and -inf
 	self.l:move(self.l.parent, i) --does arg checking and invalidation
 end
 
@@ -229,8 +228,7 @@ local new_child = macro(function(self, e)
 	return quote @e = new(layer.Layer, self.lib, self) end
 end)
 terra Layer:set_child_count(n: int)
-	self:changelen(self.l.children,
-		clamp(n, 0, MAX_CHILD_COUNT), new_child,
+	self:changelen(self.l.children, 'child_count', n, MAX_CHILD_COUNT, new_child,
 		'layout pixels content_shadows parent_content_shadows')
 end
 
@@ -418,15 +416,15 @@ end
 
 terra Layer:get_border_dash_count(): int return self.l.border.dash.len end
 terra Layer:set_border_dash_count(v: int)
-	self:changelen(self.l.border.dash, clamp(v, 0, MAX_BORDER_DASH_COUNT), 1,
-		'pixels parent_content_shadows')
+	self:changelen(self.l.border.dash, 'border_dash_count', v,
+		MAX_BORDER_DASH_COUNT, 1, 'pixels parent_content_shadows')
 end
 
 terra Layer:get_border_dash(i: int): int
 	return self.l.border.dash(i, 1)
 end
 terra Layer:set_border_dash(i: int, v: double)
-	if i >= 0 and i < MAX_BORDER_DASH_COUNT then
+	if self:checkindex('border_dash index', i, MAX_BORDER_DASH_COUNT) then
 		v = clamp(v, 0.0001, MAX_W)
 		if self.l.border.dash(i, 0) ~= v then
 			self.l.border.dash:set(i, v, 1)
@@ -529,7 +527,8 @@ end
 
 terra Layer:set_background_color_stop_count(n: int)
 	if self:changelen(self.l.background.pattern.gradient.color_stops,
-		clamp(n, 0, MAX_COLOR_STOP_COUNT), ColorStop{0, 0}, 'background')
+		'background_color_stop_count', n, MAX_COLOR_STOP_COUNT,
+		ColorStop{0, 0}, 'background')
 	then
 		if self.l.background.is_gradient then
 			self.l:invalidate'pixels parent_content_shadows'
@@ -546,7 +545,7 @@ terra Layer:get_background_color_stop_offset(i: int): num
 end
 
 terra Layer:set_background_color_stop_color(i: int, v: uint32)
-	if i >= 0 and i < MAX_COLOR_STOP_COUNT then
+	if self:checkindex('background_color_stop index', i, MAX_COLOR_STOP_COUNT) then
 		v = clamp(v, 0, MAX_U32)
 		if self:get_background_color_stop_color(i) ~= v then
 			self.l.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).color.uint = v
@@ -559,7 +558,7 @@ terra Layer:set_background_color_stop_color(i: int, v: uint32)
 end
 
 terra Layer:set_background_color_stop_offset(i: int, v: num)
-	if i >= 0 and i < MAX_COLOR_STOP_COUNT then
+	if self:checkindex('background_color_stop index', i, MAX_COLOR_STOP_COUNT) then
 		v = clamp(v, 0, 1)
 		if self:get_background_color_stop_offset(i) ~= v then
 			self.l.background.pattern.gradient.color_stops:getat(i, ColorStop{0, 0}).offset = v
@@ -650,9 +649,8 @@ local new_shadow = macro(function(self, s)
 	return quote s:init(self) end
 end)
 terra Layer:set_shadow_count(n: int)
-	self:changelen(self.l.shadows,
-		clamp(n, 0, MAX_SHADOW_COUNT), new_shadow,
-		'pixels parent_content_shadows')
+	self:changelen(self.l.shadows, 'shadow_count', n,
+		MAX_SHADOW_COUNT, new_shadow, 'pixels parent_content_shadows')
 end
 
 local terra shadow(self: &Layer, i: int)
@@ -670,7 +668,7 @@ terra Layer:get_shadow_content (i: int): bool   return shadow(self, i).content e
 local change_shadow = macro(function(self, i, FIELD, v, changed)
 	FIELD = FIELD:asvalue()
 	return quote
-		if i >= 0 and i < MAX_SHADOW_COUNT then
+		if self:checkindex('shadow index', i, MAX_SHADOW_COUNT) then
 			var s, new_shadows = self.l.shadows:getat(i)
 			for _,s in new_shadows do
 				s:init(&self.l)
@@ -763,7 +761,6 @@ local prefixed = {
 for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 
 	local T = tr.SPAN_FIELD_TYPES[FIELD]
-	local T = api_types[T] or T
 	local PFIELD = prefixed[FIELD] and 'text_'..FIELD or FIELD
 
 	Layer.methods['get_span_'..PFIELD] = terra(self: &Layer, span_i: int): T
@@ -771,7 +768,7 @@ for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 	end
 
 	Layer.methods['set_span_'..PFIELD] = terra(self: &Layer, span_i: int, v: T)
-		if span_i < MAX_SPAN_COUNT then
+		if self:checkindex('span index', span_i, MAX_SPAN_COUNT) then
 			self.l.text.layout:['set_span_'..FIELD](span_i, v)
 			self.l:invalidate'text'
 		end
@@ -826,9 +823,9 @@ terra Layer:get_text_cursor_sel_offset (c_i: int): int return self.l.text.layout
 terra Layer:get_text_cursor_sel_which  (c_i: int): int return self.l.text.layout:get_cursor_sel_which  (c_i) end
 terra Layer:get_text_cursor_x          (c_i: int): num return self.l.text.layout:get_cursor_x          (c_i) end
 
-terra Layer:set_text_cursor_offset     (c_i: int, v: int) self.l.text.layout:set_cursor_offset     (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_offset     (c_i: int, v: num) self.l.text.layout:set_cursor_offset     (c_i, v); self.l:invalidate'text' end
 terra Layer:set_text_cursor_which      (c_i: int, v: int) self.l.text.layout:set_cursor_which      (c_i, v); self.l:invalidate'text' end
-terra Layer:set_text_cursor_sel_offset (c_i: int, v: int) self.l.text.layout:set_cursor_sel_offset (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_sel_offset (c_i: int, v: num) self.l.text.layout:set_cursor_sel_offset (c_i, v); self.l:invalidate'text' end
 terra Layer:set_text_cursor_sel_which  (c_i: int, v: int) self.l.text.layout:set_cursor_sel_which  (c_i, v); self.l:invalidate'text' end
 terra Layer:set_text_cursor_x          (c_i: int, v: num) self.l.text.layout:set_cursor_x          (c_i, v); self.l:invalidate'text' end
 
@@ -840,7 +837,6 @@ terra Layer:get_text_offsets_valid() return self.l.text.layout.offsets_valid end
 for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 
 	local T = tr.SPAN_FIELD_TYPES[FIELD]
-	local T = api_types[T] or T
 
 	Layer.methods['text_selection_has_'..FIELD] = terra(self: &Layer, c_i: int)
 		var o1 = self.l.text.layout:get_cursor_offset(c_i)
@@ -863,7 +859,7 @@ end
 
 do end --text navigation & hit-testing
 
-terra Layer:text_cursor_move_to(c_i: int, offset: int, which: enum, select: bool)
+terra Layer:text_cursor_move_to(c_i: int, offset: num, which: enum, select: bool)
 	self:sync()
 	self.l.text.layout:cursor_move_to(c_i, offset, which, select)
 	self.l:invalidate'text'
@@ -990,17 +986,19 @@ terra Layer:get_grid_col_fr_count(): num return self.l.grid.col_frs.len end
 terra Layer:get_grid_row_fr_count(): num return self.l.grid.row_frs.len end
 
 terra Layer:set_grid_col_fr_count(n: int)
-	self:changelen(self.l.grid.col_frs, min(n, MAX_GRID_ITEM_COUNT), 1, 'layout')
+	self:changelen(self.l.grid.col_frs, 'grid_col_fr_count',
+		n, MAX_GRID_ITEM_COUNT, 1, 'layout')
 end
 terra Layer:set_grid_row_fr_count(n: int)
-	self:changelen(self.l.grid.row_frs, min(n, MAX_GRID_ITEM_COUNT), 1, 'layout')
+	self:changelen(self.l.grid.row_frs, 'grid_row_fr_count',
+		n, MAX_GRID_ITEM_COUNT, 1, 'layout')
 end
 
 terra Layer:get_grid_col_fr(i: int): num return self.l.grid.col_frs(i, 1) end
 terra Layer:get_grid_row_fr(i: int): num return self.l.grid.row_frs(i, 1) end
 
 terra Layer:set_grid_col_fr(i: int, v: num)
-	if i >= 0 and i < MAX_GRID_ITEM_COUNT then
+	if self:checkindex('grid_col_fr index', i, MAX_GRID_ITEM_COUNT) then
 		if self:get_grid_col_fr(i) ~= v then
 			self.l.grid.col_frs:set(i, v, 1)
 			self.l:invalidate'layout'
@@ -1008,7 +1006,7 @@ terra Layer:set_grid_col_fr(i: int, v: num)
 	end
 end
 terra Layer:set_grid_row_fr(i: int, v: num)
-	if i >= 0 and i < MAX_GRID_ITEM_COUNT then
+	if self:checkindex('grid_row_fr index', i, MAX_GRID_ITEM_COUNT) then
 		if self:get_grid_row_fr(i) ~= v then
 			self.l.grid.row_frs:set(i, v, 1)
 			self.l:invalidate'layout'
@@ -1032,12 +1030,12 @@ terra Layer:set_grid_flow(v: enum)
 end
 
 terra Layer:get_grid_wrap(): int return self.l.grid.wrap end
-terra Layer:set_grid_wrap(v: int)
+terra Layer:set_grid_wrap(v: num) --num to allow inf and -inf
 	self:change(self.l.grid, 'wrap', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout')
 end
 
 terra Layer:get_grid_min_lines(): int return self.l.grid.min_lines end
-terra Layer:set_grid_min_lines(v: int)
+terra Layer:set_grid_min_lines(v: num) --num to allow inf and -inf
 	self:change(self.l.grid, 'min_lines', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'layout')
 end
 
@@ -1050,14 +1048,14 @@ terra Layer:set_min_ch(v: num) self:change(self.l, 'min_ch', clamp(v, 0, MAX_W),
 terra Layer:get_grid_col(): int return self.l.grid_col end
 terra Layer:get_grid_row(): int return self.l.grid_row end
 
-terra Layer:set_grid_col(v: int) self:change(self.l, 'grid_col', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'parent_layout') end
-terra Layer:set_grid_row(v: int) self:change(self.l, 'grid_row', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'parent_layout') end
+terra Layer:set_grid_col(v: num) self:change(self.l, 'grid_col', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'parent_layout') end
+terra Layer:set_grid_row(v: num) self:change(self.l, 'grid_row', clamp(v, -MAX_GRID_ITEM_COUNT, MAX_GRID_ITEM_COUNT), 'parent_layout') end
 
 terra Layer:get_grid_col_span(): int return self.l.grid_col_span end
 terra Layer:get_grid_row_span(): int return self.l.grid_row_span end
 
-terra Layer:set_grid_col_span(v: int) self:change(self.l, 'grid_col_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'parent_layout') end
-terra Layer:set_grid_row_span(v: int) self:change(self.l, 'grid_row_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'parent_layout') end
+terra Layer:set_grid_col_span(v: num) self:change(self.l, 'grid_col_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'parent_layout') end
+terra Layer:set_grid_row_span(v: num) self:change(self.l, 'grid_row_span', clamp(v, 1, MAX_GRID_ITEM_COUNT), 'parent_layout') end
 
 do end --sync'ing, drawing & hit testing
 
@@ -1070,6 +1068,7 @@ terra Layer:sync()
 end
 
 terra Layer:get_pixels_valid()
+	self:sync()
 	return self.l.top_layer.pixels_valid
 end
 

@@ -37,9 +37,14 @@
 	tr_clip.t      clip()      clipping.
 	tr_paint.t     paint()     painting, with on-demand rasterization.
 
-	The renderer object keeps two bytesize-limited LRU caches: one for glyph
-	runs and one for glyph images. Shaping consults the glyph run cache
-	and rasterization consults the glyph image cache.
+	The renderer object keeps four LRU caches: one for glyph runs, one for
+	glyph images, one for memory fonts and one for memory-mapped fonts.
+	Shaping looks-into and adds-to the glyph run cache. Rasterization
+	looks-into and adds-to the glyph image cache. Fonts are loaded and cached
+	when the span's font_id is set in tr_api. Glyph runs and fonts are
+	ref-counted in the cache so while the layout is alive, even if the cache
+	size limit is reached, segs won't lose their glyph runs and fonts will
+	remain available for reshaping and rasterization.
 
 	Also, there's two levels of rasterization: for glyph images and for entire
 	glyph runs. With subpixel resolution, more than one image might end up

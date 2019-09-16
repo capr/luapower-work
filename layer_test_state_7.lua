@@ -7,14 +7,15 @@ return {
 		h=431.5,
 		layout_type=1,
 		min_ch=431.5,
-		min_cw=255,
+		min_cw=304,
 		span_count=2,
+		text_align_x=4,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=17,
-				text_cursor_sel_offset=10,
-				text_cursor_x=166
+				text_cursor_offset=25,
+				text_cursor_sel_offset=25,
+				text_cursor_x=79
 			}
 		},
 		text_spans={
@@ -29,11 +30,11 @@ return {
 			}
 		},
 		text_utf8='LuaJIT\'s ffi is the best!',
-		w=255,
+		w=304,
 		x=85,
 		y=78.5
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Background'
 }

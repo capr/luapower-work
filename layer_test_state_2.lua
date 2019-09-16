@@ -72,8 +72,8 @@ return {
 					}
 				},
 				text_utf8='Hello World!',
-				w=169,
-				x=310.5,
+				w=93,
+				x=348.5,
 				y=66.833333333333329
 			},
 			{
@@ -91,7 +91,7 @@ return {
 					{
 						text_cursor_offset=3,
 						text_cursor_sel_offset=3,
-						text_cursor_x=101
+						text_cursor_x=63
 					}
 				},
 				text_selectable=true,
@@ -102,8 +102,8 @@ return {
 					}
 				},
 				text_utf8='Hello World',
-				w=169,
-				x=310.5,
+				w=93,
+				x=348.5,
 				y=316.66666666666663
 			}
 		},
@@ -145,7 +145,7 @@ return {
 		y=229
 	},
 	selected_layer_path={
-		1
+		0
 	},
 	tab='Text'
 }

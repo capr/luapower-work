@@ -13,9 +13,10 @@
 
 	Each segment holds two parallel arrays, `cursor_xs` and `cursor_offsets`,
 	containing cursor position information for every codepoint in the segment
-	plus one, so their length is always seg.len+1, so for eg. the segment "ab"
-	has 3 cursor positions, the one in front of "a", the one in front of "b"
-	and the one after "b".
+	plus one, eg. the text "ab cd" results in segments "ab " and "cd" with
+	cursor positions "|a|b| |" and "|c|d|", so 4 and 3 cursor positions
+	respectively, and with the last position on segment "ab " being the same
+	as the first position on segment "cd".
 
 	`cursor_offsets` maps a codepoint offset to the codepoint offset for which
 	there is a cursor position that can be landed on, since not every codepoint
@@ -23,12 +24,11 @@
 	(which are always clumped together; the array is not necessarily monotonic).
 
 	`cursor_xs` maps a codepoint offset to the x-coord of the cursor position
-	in-front-of that codepoint (or after-it for the last element). Adjacent
-	but distinct cursor positions will always have different x-coords as well.
+	in front of that codepoint (or after it for the last element).
+	Adjacent offset-distinct cursor positions have different x-coords.
 
-	The mapping between text offsets and visually-distinct cursors is not 1:1
-	like it is on most (all?) text editors, but 1:2. There are two cases when
-	there's two visually-distinct cursors for the same text offset:
+	The mapping between text offsets and visually-distinct cursor positions is
+	not 1:1 like it is on most (all?) text editors, but 1:2, in two cases:
 	1. In mixed RTL/LTR lines, at the offsets where the direction changes.
 	2. At the offset right after the last character on a wrapped line.
 	You can navigate between these visually-distinct-but-logically-the-same
@@ -58,13 +58,13 @@ end
 
 --cursor navigation & hit-testing --------------------------------------------
 
---custom function that responds to the question:
--- "is a cursor position distinct from another cursor position?"
-distinct_t  = {&opaque, Pos, Pos, enum} -> {bool}
-
---custom function that responds to the question:
+--custom function that answers the question:
 --	"is this cursor position a valid cursor position?"
 valid_t = {&opaque, Pos} -> {bool}
+
+--custom function that answers the question:
+-- "is this valid cursor position distinct from the last valid cursor position?"
+distinct_t  = {&opaque, Pos, Pos, enum, enum} -> {bool}
 
 --cursor linear navigation ---------------------------------------------------
 
@@ -135,7 +135,7 @@ terra Layout:rel_cursor(
 		var p1 = self:rel_physical_cursor(p, dir, valid, obj)
 		if p1.seg == nil then --bot/eot
 			return p1
-		elseif not distinct(obj, p1, p, mode) then --still not distinct
+		elseif not distinct(obj, p1, p, dir, mode) then --still not distinct
 			p = p1
 			goto again
 		elseif which == iif(dir == NEXT, FIRST, LAST) then --already there
@@ -149,7 +149,7 @@ terra Layout:rel_cursor(
 		var p1 = self:rel_physical_cursor(p, dir, valid, obj)
 		if p1.seg == nil then --bot/eot
 			return p
-		elseif not distinct(obj, p1, p, mode) then --still not distinct
+		elseif not distinct(obj, p1, p, dir, mode) then --still not distinct
 			p = p1
 			goto again_curr
 		else
@@ -202,26 +202,26 @@ terra Layout:hit_test_cursors(
 )
 	var line_i = self.lines:clamp(line_i)
 	var line = self.lines:at(line_i)
-	x = clamp(x - self.x - line.x, 0, line.advance_x)
+	var x = x - self.x
 	var min_d: num = inf
 	var cp = Pos{nil, 0} --closest cursor position
-	var p0 = Pos{nil, 0}--previous cursor position
+	var p0 = Pos{nil, 0} --previous cursor position
 	var p  = Pos{line.first, 0}
 	while p.seg ~= nil and p.seg.line_index == line_i do
 		var xs = self:glyph_run(p.seg).cursor_xs.view
 		var x = x - p.seg.x
 		for i = 0, xs.len do
 			p.i = i
-			var d = abs(xs(i) - x)
-			if p0.seg == nil or (
-				d < min_d
-				and valid(obj, p)
-				and distinct(obj, p, p0, mode))
-			then
-				min_d = d
-				cp = p
+			if valid(obj, p) then
+				if distinct(obj, p, p0, NEXT, mode) then
+					var d = abs(xs(i) - x)
+					if d < min_d then
+						min_d = d
+						cp = p
+					end
+				end
+				p0 = p
 			end
-			p0 = p
 		end
 		p.seg = self.segs:next(p.seg, nil)
 	end
@@ -337,24 +337,19 @@ CURSOR_MODE_MAX = LINE
 local terra valid(obj: &opaque, p: Pos)
 	var self = [&Cursor](obj)
 	var run = self.layout:glyph_run(p.seg)
-	return not (
-		not self.wrapped_space
-		and p.seg.wrapped
-		and p.i == run.cursor_xs.len-1
-		and run.trailing_space
-	)
+	return
+		not (run.trailing_space and p.i == run.cursor_xs.len-1) --after trailing space
+		or self.layout.segs:next(p.seg, nil) == nil --last seg
+		or (self.wrapped_space and p.seg.wrapped)
 end
 
-local terra distinct(obj: &opaque, p: Pos, p0: Pos, mode: enum)
+local terra distinct(obj: &opaque, p: Pos, p0: Pos, dir: enum, mode: enum)
 	var self = [&Cursor](obj)
 	if p0.seg == nil then
 		return true
 	end
 	if mode == DEFAULT then
-		mode = POS
-	end
-	if mode == POS and self.unique_offsets then
-		mode = CHAR
+		mode = iif(self.unique_offsets, CHAR, POS)
 	end
 	if mode == POS then
 		return p.seg.line_index ~= p0.seg.line_index
@@ -366,6 +361,8 @@ local terra distinct(obj: &opaque, p: Pos, p0: Pos, mode: enum)
 			self.layout:offset_at_cursor(p0)
 	elseif mode == WORD then
 		return p.seg ~= p0.seg
+			and ((dir == NEXT and p0.seg.linebreak > BREAK_NONE)
+				or (dir == PREV and p.seg.linebreak > BREAK_NONE))
 	elseif mode == LINE then
 		return p.seg.line_num ~= p0.seg.line_num
 	else

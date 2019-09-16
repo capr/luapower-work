@@ -1068,7 +1068,8 @@ function testui:repaint()
 				e:text_cursor_move_near(0,
 					key == 'right' and layer.CURSOR_DIR_NEXT or layer.CURSOR_DIR_PREV,
 					ctrl and layer.CURSOR_MODE_WORD or layer.CURSOR_MODE_CHAR,
-					layer.CURSOR_WHICH_FIRST, shift)
+					ctrl and layer.CURSOR_WHICH_FIRST or layer.CURSOR_WHICH_LAST
+					, shift)
 			elseif key == 'up' or key == 'down' then
 				assert(e ~= nil)
 				e:text_cursor_move_near_line(0, key == 'up' and -1 or 1, 0/0, shift)
