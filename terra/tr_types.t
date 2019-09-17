@@ -176,12 +176,6 @@ terra Span:free(r: &Renderer)
 	end
 end
 
-terra Span:copy() --for splitting spans
-	var s = @self
-	s.features = self.features:copy()
-	return s
-end
-
 --an embed is a reserved visual space at a specific offset in text,
 --used to embed widgets and alike in the text.
 struct Embed {

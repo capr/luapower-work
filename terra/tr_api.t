@@ -628,7 +628,7 @@ terra tr.Layout:split_spans_at_offset(offset: int)
 	var s = self.spans:at(i)
 	if s.offset < offset then
 		inc(i)
-		var s1 = s:copy()
+		var s1 = s:copy(self)
 		s1.offset = offset
 		self.spans:insert(i, s1)
 	else
@@ -761,13 +761,12 @@ end
 
 terra Span:load_font_id(layout: &tr.Layout, font_id: int)
 	if self.font_id ~= font_id or self.font == nil then
-		var was_set = self.font ~= nil
-		if was_set then
-			forget_font(layout.r, self.font_id)
-		end
+		var was_set_before = self.font ~= nil
+		forget_font(layout.r, self.font_id)
 		self.font_id = font_id
 		self.font = layout.r:font(font_id)
-		return was_set or self.font ~= nil
+		var was_set_now = self.font ~= nil
+		return was_set_before or was_set_now
 	else
 		return false
 	end

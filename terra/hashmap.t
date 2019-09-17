@@ -589,7 +589,7 @@ keytype[int64] = {
 }
 keytype[uint64] = keytype[int64]
 
-local pass_through = macro(function(self, k) return k end)
+local deref_pass = macro(function(self, k) return k end)
 
 local map_type = function(key_t, val_t, size_t)
 	local hash, equal, deref, deref_key_t, state_t, context_t, own_keys, own_vals
@@ -601,7 +601,7 @@ local map_type = function(key_t, val_t, size_t)
 	end
 	assert(key_t, 'key type missing')
 	val_t = val_t or tuple()
-	deref = deref or pass_through
+	deref = deref or deref_pass
 	deref_key_t = deref_key_t or key_t
 	size_t = size_t or int --it's faster to use 64bit hashes for 64bit keys
 	state_t = state_t or tuple()

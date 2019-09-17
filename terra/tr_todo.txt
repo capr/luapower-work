@@ -1,11 +1,9 @@
 Bugs
 ==============================================================================
 
-- span splitting bug
+- text editing
 
 - cursor back-one-word from last position steps back 2 steps.
-
-- text editing
 
 - bring back subsegments, see https://github.com/luapower/tr/issues/1
 

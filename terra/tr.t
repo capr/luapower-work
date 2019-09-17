@@ -19,7 +19,7 @@
 	Processing stages from rich text description to pixels on screen:
 
 	* itemization     : split text into an array of segments (or segs).
-	* shaping         : shape segments into an arrays of glyphs (called glyph runs).
+	* shaping         : shape segments into arrays of glyphs (called glyph runs).
 	* line-wrapping   : word-wrap segments and group them into an array of lines.
 	* bidi-reordering : re-order mixed-direction segments on each line.
 	* line-spacing    : compute each line's `y` based on the heights of its segments.
@@ -109,6 +109,13 @@ end
 
 terra forget_glyph_run(self: &Renderer, glyph_run_id: int)
 	self.glyph_runs:forget(glyph_run_id)
+end
+
+terra Span:copy(layout: &Layout) --for splitting spans
+	var s = @self
+	s.features = self.features:copy()
+	s.font = layout.r:font(self.font_id)
+	return s
 end
 
 terra Layout:free()

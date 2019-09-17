@@ -101,7 +101,10 @@ end
 
 --font cache -----------------------------------------------------------------
 
-terra Renderer:font(font_id: int)
+terra Renderer:font(font_id: int): &Font
+	if font_id == -1 then
+		return nil --reserve -1 as default "font not set" value.
+	end
 	var font_i, pair = self.mem_fonts:get(font_id)
 	if font_i == -1 then
 		font_i, pair = self.mmapped_fonts:get(font_id)
@@ -114,7 +117,7 @@ terra Renderer:font(font_id: int)
 				&self.mmapped_fonts, &self.mem_fonts)
 			var mfont = alloc(Font)
 			@mfont = font
-			cache:put(font_id, mfont)
+			var font_i, pair = cache:put(font_id, mfont)
 			return mfont
 		else
 			return nil
@@ -125,13 +128,17 @@ terra Renderer:font(font_id: int)
 end
 
 terra forget_font(self: &Renderer, font_id: int)
-	var font_i, _ = self.mem_fonts:get(font_id)
+	if font_id == -1 then
+		return
+	end
+	var font_i, pair = self.mem_fonts:get(font_id)
+	--NOTE: we forget the font twice because get() increases refcount.
 	if font_i ~= -1 then
 		self.mem_fonts:forget(font_i)
 		self.mem_fonts:forget(font_i)
 		return
 	end
-	font_i, _ = self.mmapped_fonts:get(font_id)
+	font_i, pair = self.mmapped_fonts:get(font_id)
 	if font_i ~= -1 then
 		self.mmapped_fonts:forget(font_i)
 		self.mmapped_fonts:forget(font_i)
@@ -139,4 +146,3 @@ terra forget_font(self: &Renderer, font_id: int)
 	end
 	assert(false)
 end
-
