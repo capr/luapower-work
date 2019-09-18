@@ -14,12 +14,17 @@ for formatting. Unicode comprises 1,114,112 code points in the range
 
 UTF-8 is a variable-width encoding for Unicode where each codepoint is 1 to 4
 bytes wide. It is backwards-compatible with ASCII in that codepoints
-above 127 only use non-ASCII bytes that are > 127.
+above 127 only use non-ASCII bytes (bytes that are > 127).
 
 ### Unicode text
 
-An array of codepoints representing one or more paragraphs of text in one
-or more languages.
+For the purposes of text layouting, a unit of text is an array of codepoints
+representing one or more paragraphs of text in one or more languages.
+
+### Span
+
+In tr, a span is a set of properties for a specific sub-section of the text
+to be laid out. Spans must cover the whole text without holes.
 
 ### Glyph
 
@@ -27,7 +32,7 @@ A graphic element intended to represent a readable character.
 Glyphs is what fonts are all about. They usually come as vector outlines
 (closed paths of lines and quad beziers and a fill rule) but they can also
 come in raster form (in color or as alpha masks). The mapping between
-codepoints and glyphs is subject to all the complexities of text shaping.
+codepoints and glyphs is what _text shaping_ is all about.
 
 ### Cluster
 
@@ -52,24 +57,6 @@ However, it is important to recognize that there is a difference between
 graphemes and shaping clusters. The two concepts may overlap frequently,
 but there is no guarantee that they will be identical.
 
-### Script & Language
-
-In shaping lingo, a script is a writing system: a set of symbols, rules,
-and conventions that is used to represent a language or multiple languages.
-
-Scripts and languages are different things: most scripts are used to write
-a variety of different languages, and many languages may be written in more
-than one script.
-
-### Shaper
-
-In HarfBuzz, a shaper is a handler for a specific script-shaping model.
-HarfBuzz implements separate shapers for Indic, Arabic, Thai and Lao, Khmer,
-Myanmar, Tibetan, Hangul, Hebrew, the Universal Shaping Engine (USE),
-and a default shaper for non-complex scripts. A shaper is selected and
-configured automatically by HarfBuzz based on the script and language
-properties.
-
 ### Ligature
 
 A ligature occurs when two or more graphemes or letters are represented by
@@ -88,6 +75,24 @@ to use both combining diacritics and precomposed characters, at the user's
 choice. This leads to a requirement to perform Unicode normalization
 as part of shaping.
 
+### Script & Language
+
+In shaping lingo, a script is a writing system: a set of symbols, rules,
+and conventions that is used to represent a language or multiple languages.
+
+Scripts and languages are different things: most scripts are used to write
+a variety of different languages, and many languages may be written in more
+than one script.
+
+### Shaper
+
+In HarfBuzz, a shaper is a handler for a specific script-shaping model.
+HarfBuzz implements separate shapers for Indic, Arabic, Thai and Lao, Khmer,
+Myanmar, Tibetan, Hangul, Hebrew, the Universal Shaping Engine (USE),
+and a default shaper for non-complex scripts. A shaper is selected and
+configured automatically by HarfBuzz based on the script and language
+properties.
+
 ### Kerning
 
 Kering is about adjusting the spacing between some letter pairs so that the
@@ -101,7 +106,7 @@ How much the current point must advance to position the next glyph. Each
 glyph has an x-advance used for horizontal text flow and an y-advance used
 for vertical text flow.
 
-## Bidirectional text
+### Bidirectional text
 
 Bidirectional text is when a paragraph contains both left-to-right (LTR) text
 and right-to-left (RTL) text (Arabic, Hebrew, etc.). Such text must be
@@ -138,6 +143,29 @@ to reorder the segments in lines with mixed direction.
 In tr, the first part of the algorithm is outsourced to the FriBidi library.
 The reordering part is implemented in Terra as part of tr.
 
+### Line breaking
+
+Line breaking is about deciding on how to split the text into lines. The
+decision starts with the
+[Unicode Line Breaking Algorithm](https://unicode.org/reports/tr14/)
+(UAX#14 or LBA for short) which is about finding both mandatory line-breaking
+points as well as word-wrapping opportunities in the text. The text is then
+itemized at those breaking points.
+
+Mandatory breaking points aka hard line breaks are at CR, LF, LS and PS.
+
+Soft line breaks are informed by spaces and punctuation, but it gets more
+complicated for languages that don't use spaces between words (Thai, Lao,
+Khmer), languages that wrap syllables (Tibetan), languages that can wrap
+either syllabes or words based on user preference (Korean), languages that
+wrap characters (Japanese, Chinese) but contain exceptions, and it can get
+[even more complicated](http://w3c.github.io/i18n-drafts/articles/typography/linebreak.en).
+The LBA doesn't cover complex cases that require hyphenation dictionaries
+or advanced knowledge of the language. Needless to say, tr doesn't cover
+those either.
+
+In tr, the LBA is outsourced to the libunibreak library.
+
 ### Itemization
 
 Given a piece of Unicode text and a list of _spans_ containing semantic and
@@ -152,16 +180,16 @@ segment is cut whenever:
 
   * script and/or language changes from the previous span.
   * there's an opportunity for word-wrapping (a space, tab, etc. is encountered).
-  * a hard line break (CR, LF, LS, PS) is encountered.
+  * a hard line break is encountered.
   * the BiDi embedding level changes (more on that later).
   * the font and/or font size changes.
   * the list of specified OpenType features changes.
 
-Sub-segments inside a single segment are also created whenever the text color
-or opacity changes, but other properties don't. This is necessary because
-cutting segments at color-change boundaries and shaping those separately
-would not always lead to correct output (eg. ligatures would not be formed
-between segments).
+_Sub-segments_ inside a single segment are also created whenever the text
+color or opacity changes, but other properties don't. This is necessary
+because cutting segments at color-change boundaries and shaping those
+separately would not always lead to correct output (eg. ligatures would not
+be formed between segments).
 
 ### Shaping
 

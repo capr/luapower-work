@@ -127,8 +127,8 @@ end
 
 hb_feature_arr_t = arr(hb_feature_t)
 
--- A span is a set of rendering properties for a specific part of the text.
--- spans are kept in an array and cover the whole text without holes by virtue
+-- A span is a set of properties for a specific part of the text.
+-- Spans are kept in an array and cover the whole text without holes by virtue
 -- of their `offset` field alone: a span ends where the next one begins.
 
 struct Span (gettersandsetters) {

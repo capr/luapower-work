@@ -1,6 +1,6 @@
 --[[
 
-	Text shaping, layouting and rendering engine in Terra with a C API.
+	Unicode text layouting engine in Terra with a C API.
 	Written by Cosmin Apreutesei. Public Domain.
 
 	A pure-Lua prototype of this library is at github.com/luapower/tr.
