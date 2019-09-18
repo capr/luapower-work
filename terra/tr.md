@@ -145,21 +145,22 @@ The reordering part is implemented in Terra as part of tr.
 
 ### Line breaking
 
-Line breaking is about deciding on how to split the text into lines. The
-decision starts with the
-[Unicode Line Breaking Algorithm](https://unicode.org/reports/tr14/)
-(UAX#14 or LBA for short) which is about finding both mandatory line-breaking
-points as well as word-wrapping opportunities in the text. The text is then
-itemized at those breaking points.
+Line breaking is about finding all the points in the text where a line break
+can occur (aka soft line breaks aka soft-wrapping opportunities) as well as
+the points where a line break must occur (aka hard line breaks) and is
+subject to the [Unicode Line Breaking Algorithm](https://unicode.org/reports/tr14/)
+(UAX#14 or LBA for short).
 
-Mandatory breaking points aka hard line breaks are at CR, LF, LS and PS.
+Mandatory line breaking points (aka hard line breaks) are easy because they
+happen at CR, LF, CR+LF, LS and PS.
 
-Soft line breaks are informed by spaces and punctuation, but it gets more
-complicated for languages that don't use spaces between words (Thai, Lao,
-Khmer), languages that wrap syllables (Tibetan), languages that can wrap
-either syllabes or words based on user preference (Korean), languages that
-wrap characters (Japanese, Chinese) but contain exceptions, and it can get
-[even more complicated](http://w3c.github.io/i18n-drafts/articles/typography/linebreak.en).
+Finding the soft line breaks is another matter altogether. For simple scripts
+they are informed by spaces and punctuation, but it gets more complicated
+for languages that don't use spaces between words (Thai, Lao, Khmer),
+languages that wrap on syllables (Tibetan), languages that can wrap on either
+syllabes or words based on user preference (Korean), languages that wrap on
+characters (Japanese, Chinese) but with exceptions, and it can get
+[even more complicated than that](http://w3c.github.io/i18n-drafts/articles/typography/linebreak.en).
 The LBA doesn't cover complex cases that require hyphenation dictionaries
 or advanced knowledge of the language. Needless to say, tr doesn't cover
 those either.
@@ -171,15 +172,15 @@ In tr, the LBA is outsourced to the libunibreak library.
 Given a piece of Unicode text and a list of _spans_ containing semantic and
 stylistic information for each arbitrary sub-portion of the text, itemization
 is the process of breaking down the text into _segments_ for the purpose of
-shaping, line/word-wrapping and rasterization.
+shaping, line-wrapping and rasterization.
 
 The idea is to break down the text into the largest pieces that have enough
 relevant properties in common to be shaped as a unit, but are also the
-smallest pieces that are allowed to be word-wrapped. To that effect, a new
+smallest pieces that are allowed to be wrapped. To that effect, a new
 segment is cut whenever:
 
   * script and/or language changes from the previous span.
-  * there's an opportunity for word-wrapping (a space, tab, etc. is encountered).
+  * there's a soft-wrapping opportunity.
   * a hard line break is encountered.
   * the BiDi embedding level changes (more on that later).
   * the font and/or font size changes.
@@ -213,6 +214,29 @@ Shaping in tr is completely outsourced to the HarfBuzz shaping library.
 Shaping is applied separately on each itemized segment and the shaping
 results (glyph indices and their positioning) are cached in so-called
 _glyph runs_. Each segment keeps a counted reference to its glyph run.
+
+### Line wrapping
+
+Line wrapping is about choosing how to group shaped segments into lines to
+fill a fixed width. tr currently implements the greedy algorithm for this but
+an algorithm that minimizes raggedness might be implemented in the future.
+
+Wrapping can be disabled for sections of text with the `nowrap` span attribute.
+
+### Hyphenation
+
+Hyphenation is about creating additional soft-wrapping opportunities inside
+otherwise non-breakable words at syllable boundaries, usually using a
+dictionary. When wrapping at these points, a hyphen is automatically inserted
+in the rendered text even though not present in the source text.
+
+tr doesn't do hyphenation in its current version.
+
+### Justification
+
+Justification means distributing the _rag_ (i.e. the space between the end of
+the line and the word-wrapping width) evenly between words. Single-line
+paragraphs and the last line in a paragraph are never justified.
 
 ### Glyph Rasterization
 
