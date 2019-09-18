@@ -1,7 +1,7 @@
 
-## Things you need to know
+# Things you need to know
 
-### Codepoint
+## Codepoint
 
 Codepoints (or code point) in Unicode are numerical values that usually
 represent a single character but they can also have other meanings, such as
@@ -10,23 +10,23 @@ for formatting. Unicode comprises 1,114,112 code points in the range
 (the basic multilingual plane, and 16 supplementary planes), each with
 65,536 code points.
 
-### UTF-8 Encoding
+## UTF-8 Encoding
 
 UTF-8 is a variable-width encoding for Unicode where each codepoint is 1 to 4
 bytes wide. It is backwards-compatible with ASCII in that codepoints
 above 127 only use non-ASCII bytes (bytes that are > 127).
 
-### Unicode text
+## Unicode text
 
 For the purposes of text layouting, a unit of text is an array of codepoints
 representing one or more paragraphs of text in one or more languages.
 
-### Span
+## Span
 
 In tr, a span is a set of properties for a specific sub-section of the text
 to be laid out. Spans must cover the whole text without holes.
 
-### Glyph
+## Glyph
 
 A graphic element intended to represent a readable character.
 Glyphs is what fonts are all about. They usually come as vector outlines
@@ -34,7 +34,7 @@ Glyphs is what fonts are all about. They usually come as vector outlines
 come in raster form (in color or as alpha masks). The mapping between
 codepoints and glyphs is what _text shaping_ is all about.
 
-### Cluster
+## Cluster
 
 In text shaping, a cluster is a sequence of codepoints that must be treated
 as an indivisible unit. Clusters can include code-point sequences that form
@@ -44,7 +44,7 @@ important when shaping operations might separate or reorder codepoints.
 HarfBuzz provides three cluster levels that implement different approaches
 to the problem of preserving clusters during shaping operations.
 
-### Grapheme
+## Grapheme
 
 In linguistics, a grapheme is one of the indivisible units that make up a
 writing system or script. Often, graphemes are individual symbols (letters,
@@ -57,14 +57,14 @@ However, it is important to recognize that there is a difference between
 graphemes and shaping clusters. The two concepts may overlap frequently,
 but there is no guarantee that they will be identical.
 
-### Ligature
+## Ligature
 
 A ligature occurs when two or more graphemes or letters are represented by
 a single glyph. Ligatures may be only an aesthetic thing for Latin but they
 are essential in Arabic and other cursive scripts. Forming ligatures is part
 of shaping.
 
-### Combining Mark
+## Combining Mark
 
 These are codepoints (and glyphs) intended to modify (i.e. positioned on
 top of) other (base) codepoints (and glyphs). They include diacritics and
@@ -75,7 +75,7 @@ to use both combining diacritics and precomposed characters, at the user's
 choice. This leads to a requirement to perform Unicode normalization
 as part of shaping.
 
-### Script & Language
+## Script & Language
 
 In shaping lingo, a script is a writing system: a set of symbols, rules,
 and conventions that is used to represent a language or multiple languages.
@@ -84,7 +84,7 @@ Scripts and languages are different things: most scripts are used to write
 a variety of different languages, and many languages may be written in more
 than one script.
 
-### Shaper
+## Shaper
 
 In HarfBuzz, a shaper is a handler for a specific script-shaping model.
 HarfBuzz implements separate shapers for Indic, Arabic, Thai and Lao, Khmer,
@@ -93,20 +93,20 @@ and a default shaper for non-complex scripts. A shaper is selected and
 configured automatically by HarfBuzz based on the script and language
 properties.
 
-### Kerning
+## Kerning
 
 Kering is about adjusting the spacing between some letter pairs so that the
 negative space between letters is normalized. The usual suspects are the
 pairs "VA", "To", etc. These adjustment tables are stored in the font and are
 applied as part of shaping.
 
-### Advance
+## Advance
 
 How much the current point must advance to position the next glyph. Each
 glyph has an x-advance used for horizontal text flow and an y-advance used
 for vertical text flow.
 
-### Bidirectional text
+## Bidirectional text
 
 Bidirectional text is when a paragraph contains both left-to-right (LTR) text
 and right-to-left (RTL) text (Arabic, Hebrew, etc.). Such text must be
@@ -115,7 +115,7 @@ processed by the [Unicode Bidirectional Algorithm](https://unicode.org/reports/t
 and RTL segments are displayed on each line that contain both LTR and RTL
 parts.
 
-### Bidirectional embedding level
+## Bidirectional embedding level
 
 Bidi text can be seen as a nested tree of alternating LTR and RTL segments.
 The embedding level is a per-character number that tells the depth at which
@@ -123,7 +123,7 @@ the character is at in this tree. At level 0 the direction is same as the
 paragraph's base direction (whether that's LTR or RTL). At level 1 it's the
 opposite direction and so on.
 
-### Unicode Bidirectional Algorithm
+## Unicode Bidirectional Algorithm
 
 The bidi algorithm has two parts.
 
@@ -144,7 +144,7 @@ to reorder the segments in lines with mixed direction.
 In tr, the first part of the algorithm is outsourced to the FriBidi library.
 The reordering part is implemented in Terra as part of tr.
 
-### Line breaking
+## Line breaking
 
 Line breaking is about finding all the points in the text where a line break
 can occur (aka soft line breaks aka soft-wrapping opportunities) as well as
@@ -168,7 +168,7 @@ those either.
 
 In tr, the LBA is outsourced to the libunibreak library.
 
-### Itemization
+## Itemization
 
 Given a piece of Unicode text and a list of _spans_ containing semantic and
 stylistic information for each arbitrary sub-portion of the text, itemization
@@ -193,7 +193,7 @@ because cutting segments at color-change boundaries and shaping those
 separately would not always lead to correct output (eg. ligatures would not
 be formed between segments).
 
-### Shaping
+## Shaping
 
 Given a font at a selected size and a piece of Unicode text containing
 codepoints in a single script and language, shaping is the process of
@@ -216,7 +216,7 @@ Shaping is applied separately on each itemized segment and the shaping
 results (glyph indices and their positioning) are cached in so-called
 _glyph runs_. Each segment keeps a counted reference to its glyph run.
 
-### Line wrapping
+## Line wrapping
 
 Line wrapping is about choosing how to group shaped segments into lines to
 fill a fixed width. tr currently implements the greedy algorithm for this but
@@ -224,7 +224,7 @@ an algorithm that minimizes raggedness might be implemented in the future.
 
 Wrapping can be disabled for sections of text with the `nowrap` span attribute.
 
-### Hyphenation
+## Hyphenation
 
 Hyphenation is about creating additional soft-wrapping opportunities inside
 otherwise non-breakable words at syllable boundaries, usually using a
@@ -233,13 +233,13 @@ in the rendered text even though not present in the source text.
 
 tr doesn't do hyphenation in its current version.
 
-### Justification
+## Justification
 
 Justification means distributing the _rag_ (i.e. the space between the end of
 the line and the word-wrapping width) evenly between words. Single-line
 paragraphs and the last line in a paragraph are never justified.
 
-### Glyph Rasterization
+## Glyph Rasterization
 
 Rasterization is the process of converting vector glyph outlines into 8-bit
 alpha bitmaps that can be cached and reused many times. Rasterized bitmaps
@@ -252,7 +252,7 @@ probably split between the hashmap lookups into the glyph cache, the CPU
 cache misses from getting to each glyph image and the overhead of
 alpha-blending many small cairo surfaces onto the target surface.
 
-### Hinting
+## Hinting
 
 Font hinting is about adjusting the outlines of glyphs so that they line up
 with screen pixels to produce more legible text at small sizes.
@@ -266,7 +266,7 @@ dance funny when sled horizontally (eg. when resizing a window with justified
 or centered text), x-axis hinting is by default disabled. Vertical hinting is
 usually required on low-dpi screens so it's by default enabled.
 
-### Subpixel rendering
+## Subpixel rendering
 
 Subpixel rendering is a rendering technique that tries to effectively triple
 the perceived resolution of a RGB LCD display by taking advantage of the fact
@@ -277,7 +277,7 @@ ClearType. In practice this technique often creates visible color fringes
 not known by the rendering engine. FreeType can do subpixel rendering but
 in this is disabled by default in tr.
 
-### Subpixel antialiasing
+## Subpixel antialiasing
 
 Subpixel antialiasing (aka subpixel positioning) means that one glyph will
 have more than one rasterization based on the subpixel fraction of the
