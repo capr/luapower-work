@@ -175,7 +175,7 @@ terra Layout:align()
 			var dir = iif(line.first ~= nil, line.first.paragraph_dir, ALIGN_LEFT)
 			var left  = iif(align_x == ALIGN_START, ALIGN_LEFT, ALIGN_RIGHT)
 			var right = iif(align_x == ALIGN_START, ALIGN_RIGHT, ALIGN_LEFT)
-				 if dir == DIR_AUTO then align_x = left
+			    if dir == DIR_AUTO then align_x = left
 			elseif dir == DIR_LTR  then align_x = left
 			elseif dir == DIR_RTL  then align_x = right
 			elseif dir == DIR_WLTR then align_x = left

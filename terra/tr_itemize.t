@@ -232,7 +232,7 @@ terra Layout:shape()
 	--special-case empty text: we still want to set valid shaping output
 	--in order to properly display a cursor.
 	if self.text.len == 0 then
-		self.bidi = not (self.dir == DIR_RTL or self.dir == DIR_WRTL)
+		self.bidi = self.dir == DIR_RTL or self.dir == DIR_WRTL
 		return
 	end
 
@@ -318,7 +318,9 @@ terra Layout:shape()
 		assert(max_bidi_level >= 0)
 
 		dir = from_fribidi_dir(fb_dir)
-		self.bidi = self.bidi or max_bidi_level > iif(dir == DIR_RTL, 1, 0)
+		self.bidi = self.bidi
+			or max_bidi_level > 0 --mixed direction
+			or dir == DIR_RTL or dir == DIR_WRTL --needs reversing
 
 		r.paragraph_dirs:add(dir)
 	end
@@ -395,7 +397,7 @@ terra Layout:shape()
 		seg.line_num = line_num --physical line number (for code editors)
 		seg.linebreak = linebreak
 		seg.bidi_level = level --for bidi reordering
-		seg.paragraph_dir = para_dir --for ALIGN_AUTO
+		seg.paragraph_dir = para_dir --for ALIGN_START|_END
 		--for cursor positioning
 		seg.span = span --span of the first sub-seg
 		seg.offset = offset

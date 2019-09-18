@@ -101,19 +101,39 @@ How much the current point must advance to position the next glyph. Each
 glyph has an x-advance used for horizontal text flow and an y-advance used
 for vertical text flow.
 
-### BiDi Reordering
+## Bidirectional text
 
-Bidirectional text is when a paragraph contains both left-to-right (LTR) and
-right-to-left (RTL) text. Such text must be processed subject to the
-[Unicode Bidirectional Algorithm](https://unicode.org/reports/tr9/). The goal
-of the algorithm is to change the order in which the LTR and RTL parts of each
-line of text which contains both LTR and RTL parts are displayed.
+Bidirectional text is when a paragraph contains both left-to-right (LTR) text
+and right-to-left (RTL) text (Arabic, Hebrew, etc.). Such text must be
+processed by the [Unicode Bidirectional Algorithm](https://unicode.org/reports/tr9/)
+(UAX#9 for short) whose goal is to change the order in which the LTR and RTL
+segments are displayed on each line that contain both LTR and RTL parts.
 
-The bidi algorithm has two parts. First, when itemizing, the bidi algorithm
-analyzes the text and informs the itemizer of text flow direction changes so
-that it can break the text at those points. The second part of the algorithm
-is done after line-wrapping and it is applied on a line-by-line basis. It
-uses information left over from the first part (the bidi levels) to do its job.
+## Bidirectional embedding level
+
+Bidi text can be seen as a nested tree of alternating LTR and RTL segments.
+The embedding level is a per-character number that tells the depth at which
+the character is at in this tree. At level 0 the direction is same as the
+paragraph's base direction (whether that's LTR or RTL). At level 1 it's the
+opposite direction and so on.
+
+### Unicode Bidirectional Algorithm
+
+The bidi algorithm has two parts.
+
+The first part of the algorithm is run before itemization. It is applied on
+each paragraph and results in two bits of information: the paragraph's base
+direction and the _bidirectional embedding level_ of each character. This
+informs the itemizer of direction changes in the text so it can itemize at
+those points.
+
+Because a new segment is created at each direction-change boundary, the
+embedding level ends up being stored per segment, not for each character as
+computed by FriBidi.
+
+The second part of the algorithm happens after line-wrapping and it is applied
+on a line-by-line basis. It uses the embedding levels from the first part
+to reorder the segments in lines with mixed direction.
 
 In tr, the first part of the algorithm is outsourced to the FriBidi library.
 The reordering part is implemented in Terra as part of tr.

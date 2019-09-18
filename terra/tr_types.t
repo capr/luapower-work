@@ -206,12 +206,12 @@ struct Layout;
 struct Seg {
 	--filled by shaping
 	glyph_run_id: int;
-	line_num: int;             --physical line number
-	linebreak: enum;           --for line/paragraph breaking
-	bidi_level: int8;          --for bidi reordering
-	paragraph_dir: enum;       --computed paragraph bidi dir, for ALIGN_AUTO
-	span: &Span;               --span of the first sub-segment
-	offset: int;               --codepoint offset into the text
+	line_num: int;        --physical line number
+	linebreak: enum;      --for line/paragraph breaking
+	bidi_level: int8;     --for bidi reordering
+	paragraph_dir: enum;  --computed paragraph bidi dir, for ALIGN_START|END
+	span: &Span;          --span of the first sub-segment
+	offset: int;          --codepoint offset into the text
 	--filled by layouting
 	line_index: int;
 	x: num;
