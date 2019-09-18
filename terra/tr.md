@@ -259,6 +259,18 @@ probably split between the hashmap lookups into the glyph cache, the CPU
 cache misses from getting to each glyph image and the overhead of
 alpha-blending many small cairo surfaces onto the target surface.
 
+The parsing of font files for glyph outlines and the actual rasterization
+is done by FreeType, with the caveat that bitmap fonts (emoticons) must be
+scaled separately because FreeType doesn't handle that.
+
+## Painting
+
+Painting is about alpha-blending rasterized glyphs and/or glyph runs onto
+a target surface.
+
+In tr, raster scaling and alpha-blending is done using an abstract raster API
+that is currently implemented using cairo but other backends can be added.
+
 ## Hinting
 
 Font hinting is about adjusting the outlines of glyphs so that they line up
