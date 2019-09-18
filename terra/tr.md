@@ -84,6 +84,11 @@ Scripts and languages are different things: most scripts are used to write
 a variety of different languages, and many languages may be written in more
 than one script.
 
+In tr, the script is auto-detected from the Unicode General Category class
+of each character and the language is auto-detected from the script property
+of each character. The script and language can also be specified as span
+attributes.
+
 ## Shaper
 
 In HarfBuzz, a shaper is a handler for a specific script-shaping model.
@@ -166,7 +171,8 @@ The LBA doesn't cover complex cases that require hyphenation dictionaries
 or advanced knowledge of the language. Needless to say, tr doesn't cover
 those either.
 
-In tr, the LBA is outsourced to the libunibreak library.
+In tr, the LBA is done with the libunibreak library. The text is split by
+language in order to apply LBA because the algorithm depends on language.
 
 ## Itemization
 
@@ -175,10 +181,11 @@ stylistic information for each arbitrary sub-portion of the text, itemization
 is the process of breaking down the text into _segments_ for the purpose of
 shaping, line-wrapping and rasterization.
 
-The idea is to break down the text into the largest pieces that have enough
-relevant properties in common to be shaped as a unit, but are also the
-smallest pieces that are allowed to be wrapped. To that effect, a new
-segment is cut whenever:
+Segments are formed at the boundaries of property combinations that require
+separate shaping calls. The idea is to break down the text into the largest
+pieces that have enough relevant properties in common to be shaped as a unit,
+but are also the smallest pieces that are allowed to be wrapped. To that
+effect, a new segment is cut whenever:
 
   * script and/or language changes from the previous span.
   * there's a soft-wrapping opportunity.
@@ -188,9 +195,9 @@ segment is cut whenever:
   * the list of specified OpenType features changes.
 
 _Sub-segments_ inside a single segment are also created whenever the text
-color or opacity changes, but other properties don't. This is necessary
-because cutting segments at color-change boundaries and shaping those
-separately would not always lead to correct output (eg. ligatures would not
+color or opacity changes, but other properties don't. Sub-segments are needed
+because cutting new segments at color-change boundaries and shaping those
+separately would not always lead to correct output (eg. ligatures cannot
 be formed between segments).
 
 ## Shaping
