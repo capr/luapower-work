@@ -111,10 +111,11 @@ for vertical text flow.
 Bidirectional text is when a paragraph contains both left-to-right (LTR) text
 and right-to-left (RTL) text (Arabic, Hebrew, etc.). Such text must be
 processed by the [Unicode Bidirectional Algorithm](https://unicode.org/reports/tr9/)
-(UAX#9 for short) whose goal is to change the order in which the LTR and RTL
-segments are displayed on each line that contain both LTR and RTL parts.
+(UAX#9 or UBA for short) whose goal is to change the order in which the LTR
+and RTL segments are displayed on each line that contain both LTR and RTL
+parts.
 
-## Bidirectional embedding level
+### Bidirectional embedding level
 
 Bidi text can be seen as a nested tree of alternating LTR and RTL segments.
 The embedding level is a per-character number that tells the depth at which
