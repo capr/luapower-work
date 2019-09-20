@@ -71,7 +71,7 @@ terra GlyphRun:shape(r: &Renderer, font: &Font)
 	self:compute_cursors(r, font)
 end
 
-terra Renderer:shape_word(glyph_run: GlyphRun, font: &Font)
+terra Renderer:shape(glyph_run: GlyphRun, font: &Font)
 	--get the shaped run from cache or shape it and cache it.
 	var glyph_run_id, pair = self.glyph_runs:get(glyph_run)
 	if pair == nil then
@@ -79,25 +79,30 @@ terra Renderer:shape_word(glyph_run: GlyphRun, font: &Font)
 		glyph_run_id, pair = self.glyph_runs:put(glyph_run, {})
 		assert(pair ~= nil)
 	end
-	return glyph_run_id
+	return glyph_run_id, &pair.key
 end
 
 --computing cursor positions -------------------------------------------------
 
---iterate clusters in RLE-compressed form.
-local c1 = symbol(uint32)
-local c0 = symbol(uint32)
-local clusters_iter = rle_iterator{
-	state = &GlyphRun,
-	for_variables = {c0},
-	declare_variables = function()        return quote var [c1], [c0] end end,
-	save_values       = function()        return quote c0 = c1 end end,
-	load_values       = function(self, i) return quote c1 = self.glyphs:at(i).cluster end end,
-	values_different  = function()        return `c0 ~= c1 end,
-}
-GlyphRun.methods.cluster_runs = macro(function(self)
-	return `clusters_iter{&self, 0, self.glyphs.len}
-end)
+do --iterate clusters in RLE-compressed form.
+
+	local c1 = symbol(uint32)
+	local c0 = symbol(uint32)
+
+	local clusters_iter = rle_iterator{
+		state_t = &GlyphRun,
+		for_variables = {c0},
+		declare_variables = function()        return quote var [c1], [c0] end end,
+		save_values       = function()        return quote c0 = c1 end end,
+		load_values       = function(self, i) return quote c1 = self.glyphs:at(i).cluster end end,
+		values_different  = function()        return `c0 ~= c1 end,
+	}
+
+	GlyphRun.methods.cluster_runs = macro(function(self)
+		return `clusters_iter{&self, 0, self.glyphs.len}
+	end)
+
+end
 
 local terra count_graphemes(grapheme_breaks: arrview(char), start: int, len: int)
 	var n = 0

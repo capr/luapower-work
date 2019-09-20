@@ -20,7 +20,7 @@
 
 	`cursor_offsets` maps a codepoint offset to the codepoint offset for which
 	there is a cursor position that can be landed on, since not every codepoint
-	can have a cursor position. So `cursor_offsets` can have duplicate values.
+	can have a cursor position. So `cursor_offsets` can have duplicate values
 	(which are always clumped together; the array is not necessarily monotonic).
 
 	`cursor_xs` maps a codepoint offset to the x-coord of the cursor position
@@ -299,6 +299,7 @@ end
 terra Cursor.methods.at_pos :: {&Cursor, Pos} -> {int, enum}
 
 terra Cursor:set_to_pos(p: Pos, x: num, select: bool)
+	if isnan(x) then x = self.state.x end
 	var offset, which = self:at_pos(p)
 	if    self.state.offset ~= offset
 		or self.state.which  ~= which
@@ -401,7 +402,7 @@ end
 terra Cursor:at_pos(p: Pos)
 	var offset = self.layout:offset_at_cursor(p)
 	var first_p = self.layout:rel_cursor(p, CURR, DEFAULT, FIRST, distinct, valid, self)
-	return offset, enum(iif(first_p == p, FIRST, LAST))
+	return offset, enum(iif(first_p.seg == p.seg and first_p.i == p.i, FIRST, LAST))
 end
 
 terra Cursor:pos_at(offset: int, which: enum)
@@ -431,9 +432,8 @@ terra Cursor:pos_near(dir: enum, mode: enum, which: enum, clamp: bool)
 	return self:pos_near_pos(self.pos, dir, mode, which, clamp)
 end
 terra Cursor:move_near(dir: enum, mode: enum, which: enum, select: bool)
-	var p = self.pos
-	var x = self:abs_x(p)
-	return self:set_to_pos(self:pos_near_pos(p, dir, mode, which, true), x, select)
+	var p = self:pos_near_pos(self.pos, dir, mode, which, true)
+	return self:set_to_pos(p, self:abs_x(p), select)
 end
 
 ---cursor vertical navigation ------------------------------------------------
@@ -488,29 +488,6 @@ terra Cursor:move_to_point(x: num, y: num, select: bool)
 	return self:set_to_pos(self:pos_at_point(x, y), x, select)
 end
 
---cursor-based text editing --------------------------------------------------
-
---[[
-function cursor:insert(...) --insert text at cursor.
-	local offset = self.seg.offset + self.i
-	local offset, changed = self.segments:insert(offset, ...)
-	if changed then
-		self:move('offset', offset, 'first')
-	end
-	return changed
-end
-
-function cursor:remove(delta) --remove delta cursor positions of text.
-	local i1 = self.seg.offset + self.i
-	local i2 = self:next_cursor(delta, 'char')
-	local offset, changed = self.segments:remove(i1, i2)
-	if changed then
-		self:move('offset', offset)
-	end
-	return changed
-end
-]]
-
 --cursor geometry ------------------------------------------------------------
 
 terra Cursor:rect()
@@ -548,7 +525,7 @@ terra Cursor:draw_caret(cr: &context)
 	var seg = self.pos.seg
 	var color = iif(seg ~= nil, seg.span.color, self.layout.spans:at(0).color)
 	cr:operator(OPERATOR_XOR)
-	self.layout:paint_rect(cr, x, y, w, h, color, self.caret_opacity)
+	self.layout.r:paint_rect(cr, x, y, w, h, color, self.caret_opacity)
 end
 
 --selection drawing ----------------------------------------------------------
@@ -603,7 +580,7 @@ terra Layout:line_visible(line_i: int)
 end
 
 terra Cursor:paint_selection_rect(cr: &context, x: num, y: num, w: num, h: num)
-	self.layout:paint_rect(cr, x, y, w, h, self.selection_color, self.selection_opacity)
+	self.layout.r:paint_rect(cr, x, y, w, h, self.selection_color, self.selection_opacity)
 end
 
 terra Cursor:get_sel_pos()

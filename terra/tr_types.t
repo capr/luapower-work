@@ -125,6 +125,14 @@ end
 
 --layout type ----------------------------------------------------------------
 
+terra hb_feature_t:__eq(other: &hb_feature_t)
+	return
+		    self.tag     == other.tag
+		and self.value   == other.value
+		and self.start   == other.start
+		and self.['end'] == other.['end']
+end
+
 hb_feature_arr_t = arr(hb_feature_t)
 
 -- A span is a set of properties for a specific part of the text.
@@ -185,14 +193,15 @@ struct Embed {
 	advance_x: num;
 }
 
---a sub-segment is a clipped part of a glyph image, used when a single glyph
---image covers two spans, eg. when the letters in a ligature have diff. colors.
+--a sub-segment is a clipped part of a glyph run image, used when a single
+--glyph run is coverd by multiple spans.
 struct SubSeg {
-	i: int16;
-	j: int16;
 	span: &Span;
+	glyph_index1: int16;
+	glyph_index2: int16;
 	clip_left: num;
 	clip_right: num;
+	clip: bool;
 }
 
 struct Layout;
@@ -340,12 +349,18 @@ end
 -- Glyph runs are rasterized because cairo is too slow at blitting glyphs
 -- individually from their individual image surfaces.
 
+-- The glyphs on RTL runs are reversed (by HarfBuzz) so the `cluser` value
+-- is monotonically descending on those as opposed to LTR runs where it is
+-- monotonically ascending. In both cases however the cluser represents the
+-- _starting_ codepoint that the glyph represents, so eg. in a RTL glyph run
+-- with clusters (3, 0), the second glyph represents codepoints (0, 1, 2).
+
 struct GlyphInfo (gettersandsetters) {
 	glyph_index: int; --in the font's charmap
 	x: num; --glyph origin relative to glyph run's origin
 	image_x_16_6: int16; --glyph image origin relative to glyph origin
 	image_y_16_6: int16;
-	cluster: int;
+	cluster: int; --starting codepoint that this glyph represents
 }
 fixpointfields(GlyphInfo)
 
@@ -497,13 +512,6 @@ struct Pos {
 	i: int;
 }
 
-Pos.metamethods.__eq = macro(function(a, b)
-	return `a.seg == b.seg and a.i == b.i
-end)
-Pos.metamethods.__ne = macro(function(a, b)
-	return not (a == b)
-end)
-
 --NOTE: using enlarged types for forward-ABI compat since this is a public struct.
 struct CursorState {
 	--position in logical text and whether is the first or last visual
@@ -564,8 +572,8 @@ Cursor.empty = constant(`Cursor {
 		x = 0;
 	},
 
-	park_home = true,
-	park_end = true,
+	park_home = false,
+	park_end = false,
 
 	unique_offsets = true,
 	wrapped_space = false,

@@ -59,6 +59,7 @@ terra Layout:spaceout()
 			var font = iif(span ~= nil, self.r:font(span.font_id), nil)
 			assert(line_i == 0)
 			if font ~= nil then
+				font:setsize(span.font_size)
 				line:_update_vertical_metrics(
 					self.line_spacing,
 					font.ascent,
@@ -114,8 +115,9 @@ local struct line_nowrap_segments_iter { layout: &Layout; line: &Line; }
 line_nowrap_segments_iter.metamethods.__for = function(self, body)
 	if self:islvalue() then self = &self end
 	return quote
-		var line = self.line
-		var self = self.layout
+		var iter = self --workaround for terra issue #368
+		var line = iter.line
+		var self = iter.layout
 		var seg_i = self.segs:index(line.first_vis)
 		var line_i = self.lines:index(line)
 		repeat

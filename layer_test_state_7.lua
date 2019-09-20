@@ -7,30 +7,25 @@ return {
 		h=431.5,
 		layout_type=1,
 		min_ch=431.5,
-		min_cw=376.5,
-		span_count=2,
-		text_align_x=4,
+		min_cw=571,
+		span_count=1,
+		text_align_x=1,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=18,
-				text_cursor_sel_offset=18,
-				text_cursor_x=214
+				text_cursor_offset=172,
+				text_cursor_sel_offset=172,
+				text_cursor_x=190
 			}
 		},
 		text_spans={
 			{
 				span_font_id=0,
-				span_font_size=44
-			},
-			{
-				span_font_id=0,
-				span_font_size=85,
-				span_offset=19
+				span_font_size=24
 			}
 		},
-		text_utf8='Goodbye\nCruel World!',
-		w=376.5,
+		text_utf8='9 9 osi do aisd fi opo saod poa sdof 09 a9 sfa i fai ufg sdifug sdfiug sdiu gsidu isdu u sdufgiud fgiu dfug sdiufg isduf giusdfpiug psiduf us idu fgd ofia sodif o dspos dfgi odif gois.',
+		w=571,
 		x=85,
 		y=78.5
 	},

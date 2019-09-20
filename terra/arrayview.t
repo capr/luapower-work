@@ -74,7 +74,10 @@ local function view_type(T, size_t, cmp)
 	view.T = T
 	view.empty = `view{elements = nil, len = 0}
 
-	newcast(view, niltype, function(exp) return view.empty end)
+	newcast(view, niltype, function(exp)
+		view:getmethod'' --force creation of methods
+		return view.empty
+	end)
 
 	--debugging
 
@@ -278,9 +281,10 @@ local function view_type(T, size_t, cmp)
 
 		--make `==` and `~=` operators work too.
 		view.metamethods.__eq = view.methods.__eq
+
 		if view.metamethods.__eq then
 			view.metamethods.__ne = macro(function(self, other)
-				return not (self == other)
+				return `not (self == other)
 			end)
 		end
 

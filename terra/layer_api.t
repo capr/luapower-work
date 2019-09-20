@@ -1,35 +1,31 @@
 --[[
 
-	Layer Terra/C/ffi API.
-	Implements a flattened API tailored for LuaJIT ffi use.
-
-	This module adds input validation and state management to the raw
-	implementation in order to achieve the following goals:
-
-	* Invalid input should never cause crashes.
-	* Programming errors should trigger asserts.
-	* Invalid input should not affect other non-child layers in the tree
-	except min_cw and min_ch which can affect the whole geometry.
-	* The order in which layer properties are set is not important, in order to
-	avoid call-order dependencies, eg. you don't have to set `background_type`
-	to a gradient type before setting `background_color_stop_color`, and you
-	don't have to set `background_color_stop_count` either (the color stops
-	array is expanded automatically). There are exceeptions to this, eg.
-	setting `background_color_stop_count = 0` after adding some color stops
-	_will_ remove those colors stops.
-
-	Additional functionality:
+	Layers API for C, Terra and LuaJIT ffi use.
 
 	- self-allocating constructors.
 	- error checking and reporting, separating fatal from non-fatal errors.
-	- enum validation, number clamping to range.
-	- state invalidation when input values are changed.
-	- state resync'ing when computed values are read.
+	- validation and clamping of enums, indices, counts, sizes, offsets, etc.
+	- state invalidation when changing input values.
+	- state checking when accessing computed values.
 
-	- simplified and enlarged number types for forward ABI compatibility.
-	- consecutive enum values for forward ABI compatibility.
-	- functions and types are renamed and prefixed to C conventions.
-	- methods and virtual properties are bound back to types via ffi.metatype.
+	- using consecutive enum values for forward ABI compatibility.
+	- using enlarged number types for forward ABI compat. and clamping inf/-inf.
+	- renaming functions and types to C conventions for C use.
+	- binding methods and getters/setters via ffi.metatype for LuaJIT use.
+
+	Design considerations:
+
+	- invalid input should never cause crashes.
+	- programming errors should trigger asserts.
+	- invalid input should not affect other non-child layers in the tree
+	  except min_cw and min_ch which can affect the whole geometry.
+	- the order in which layer properties are set is not important in order to
+	  avoid call-order dependencies, eg. you don't have to set `background_type`
+	  to a gradient type before setting `background_color_stop_color`, and you
+	  don't have to set `background_color_stop_count` either (the color stops
+	  array is expanded automatically). There are exceeptions to this, eg.
+	  setting `background_color_stop_count = 0` after adding some color stops
+	  _will_ remove those colors stops.
 
 	Usage:
 
@@ -665,7 +661,7 @@ terra Layer:get_shadow_passes  (i: int): int    return shadow(self, i).blur_pass
 terra Layer:get_shadow_inset   (i: int): bool   return shadow(self, i).inset end
 terra Layer:get_shadow_content (i: int): bool   return shadow(self, i).content end
 
-local change_shadow = macro(function(self, i, FIELD, v, changed)
+local change_shadow = macro(function(self, i, FIELD, v)
 	FIELD = FIELD:asvalue()
 	return quote
 		if self:checkindex('shadow index', i, MAX_SHADOW_COUNT) then
@@ -673,6 +669,7 @@ local change_shadow = macro(function(self, i, FIELD, v, changed)
 			for _,s in new_shadows do
 				s:init(&self.l)
 			end
+			--TODO: use change()
 			if s.[FIELD] ~= v then
 				s.[FIELD] = v
 				self.l:invalidate'pixels parent_content_shadows'
@@ -877,16 +874,54 @@ terra Layer:text_cursor_move_near(c_i: int, dir: enum, mode: enum, which: enum, 
 	self.l:invalidate'text'
 end
 
-terra Layer:text_cursor_move_near_line(c_i: int, delta_lines: int, x: num, select: bool)
+terra Layer:text_cursor_move_near_line(c_i: int, delta_lines: num, x: num, select: bool)
 	self:sync()
 	self.l.text.layout:cursor_move_near_line(c_i, delta_lines, x, select)
 	self.l:invalidate'text'
 end
 
-terra Layer:text_cursor_move_near_page(c_i: int, delta_pages: int, x: num, select: bool)
+terra Layer:text_cursor_move_near_page(c_i: int, delta_pages: num, x: num, select: bool)
 	self:sync()
 	self.l.text.layout:cursor_move_near_page(c_i, delta_pages, x, select)
 	self.l:invalidate'text'
+end
+
+terra Layer:remove_selected_text(c_i: int)
+	self:sync()
+	self.l.text.layout:remove_selected_text(c_i)
+	self.l:invalidate'text'
+end
+
+terra Layer:insert_text_at_cursor(c_i: int, s: &codepoint, len: int)
+	self:sync()
+	self.l.text.layout:insert_text_at_cursor(c_i, s, len)
+	self.l:invalidate'text'
+end
+
+terra Layer:insert_text_utf8_at_cursor(c_i: int, s: rawstring, len: int)
+	self:sync()
+	self.l.text.layout:insert_text_utf8_at_cursor(c_i, s, len)
+	self.l:invalidate'text'
+end
+
+terra Layer:get_selected_text(c_i: int)
+	self:sync()
+	return self.l.text.layout:get_selected_text(c_i)
+end
+
+terra Layer:get_selected_text_len(c_i: int): int
+	self:sync()
+	return self.l.text.layout:get_selected_text_len(c_i)
+end
+
+terra Layer:get_selected_text_utf8(c_i: int, out: rawstring, max_outlen: int)
+	self:sync()
+	return self.l.text.layout:get_selected_text_utf8(c_i, out, max_outlen)
+end
+
+terra Layer:get_selected_text_utf8_len(c_i: int)
+	self:sync()
+	return self.l.text.layout:get_selected_text_utf8_len(c_i)
 end
 
 do end --layouts

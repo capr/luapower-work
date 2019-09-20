@@ -35,126 +35,132 @@ local FRIBIDI_IS_EXPLICIT_OR_BN_OR_WS = macro(function(p)
 	return `(p and (FRIBIDI_MASK_EXPLICIT or FRIBIDI_MASK_BN or FRIBIDI_MASK_WS)) ~= 0
 end)
 
---iterate text segments with the same language.
+do --iterate text segments with the same language.
 
-local lang1 = symbol(hb_language_t)
-local lang0 = symbol(hb_language_t)
+	local lang1 = symbol(hb_language_t)
+	local lang0 = symbol(hb_language_t)
 
-local langs_iter = rle_iterator{
-	state = arrview(hb_language_t),
-	for_variables = {lang0},
-	declare_variables = function()        return quote var [lang1], [lang0] end end,
-	save_values       = function()        return quote lang0 = lang1 end end,
-	load_values       = function(self, i) return quote lang1 = self(i) end end,
-	values_different  = function()        return `lang0 ~= lang1 end,
-}
+	local langs_iter = rle_iterator{
+		state_t = arrview(hb_language_t),
+		for_variables = {lang0},
+		declare_variables = function()        return quote var [lang1], [lang0] end end,
+		save_values       = function()        return quote lang0 = lang1 end end,
+		load_values       = function(self, i) return quote lang1 = self(i) end end,
+		values_different  = function()        return `lang0 ~= lang1 end,
+	}
 
-Renderer.methods.lang_spans = macro(function(self, len)
-	return `langs_iter{self.langs.view, 0, len}
-end)
+	Renderer.methods.lang_spans = macro(function(self, len)
+		return `langs_iter{self.langs.view, 0, len}
+	end)
 
---iterate paragraphs (empty paragraphs are kept separate).
-
-local c0 = symbol(codepoint)
-local c1 = symbol(codepoint)
-
-local para_iter = rle_iterator{
-	state = &Layout,
-	for_variables = {},
-	declare_variables = function()        return quote var [c0], [c1] end end,
-	save_values       = function()        return quote c0 = c1 end end,
-	load_values       = function(self, i) return quote c1 = self.text(i) end end,
-	values_different  = function()        return `c0 == PS end,
-}
-
-Layout.methods.paragraphs = macro(function(self)
-	return `para_iter{&self, 0, self.text.len}
-end)
-
---iterate text segments having the same shaping-relevant properties.
-
-local word_iter_state = struct {
-	layout: &Layout;
-	levels: arrview(FriBidiLevel);
-	scripts: arrview(hb_script_t);
-	langs: arrview(hb_language_t);
-	linebreaks: arrview(char);
-}
-
-local iter = {state = word_iter_state}
-
-local span_index = symbol(int)
-local span_eof   = symbol(int)
-local span_diff  = symbol(bool)
-local span0      = symbol(&Span)
-local span1      = symbol(&Span)
-local level0     = symbol(FriBidiLevel)
-local level1     = symbol(FriBidiLevel)
-local script0    = symbol(hb_script_t)
-local script1    = symbol(hb_script_t)
-local lang0      = symbol(hb_language_t)
-local lang1      = symbol(hb_language_t)
-
-iter.for_variables = {span0, level0, script0, lang0}
-
-iter.declare_variables = function(self)
-	return quote
-		var [span_index] = -1
-		var [span_eof] = 0 --load the first span on the first iteration.
-		var [span_diff] = false
-		var [span0], [level0], [script0], [lang0]
-		var [span1], [level1], [script1], [lang1]
-		span0 = nil
-	end
 end
 
-iter.save_values = function()
-	return quote
-		span0, level0, script0, lang0 =
-		span1, level1, script1, lang1
-	end
+do --iterate paragraphs (empty paragraphs are kept separate).
+
+	local c0 = symbol(codepoint)
+	local c1 = symbol(codepoint)
+
+	local para_iter = rle_iterator{
+		state_t = &Layout,
+		for_variables = {},
+		declare_variables = function()        return quote var [c0], [c1] end end,
+		save_values       = function()        return quote c0 = c1 end end,
+		load_values       = function(self, i) return quote c1 = self.text(i) end end,
+		values_different  = function()        return `c0 == PS end,
+	}
+
+	Layout.methods.paragraphs = macro(function(self)
+		return `para_iter{&self, 0, self.text.len}
+	end)
+
 end
 
-iter.load_values = function(self, i)
-	return quote
-		level1     = self.levels(i)
-		script1    = self.scripts(i)
-		lang1      = self.langs(i)
-		if i >= span_eof then --time to load a new span
-			inc(span_index)
-			span_eof = self.layout:span_end_offset(span_index)
-			span1 = self.layout.spans:at(span_index)
-			span_diff = span0 == nil
-				or span1.font_id         ~= span0.font_id
-				or span1.font_size_16_6  ~= span0.font_size_16_6
-				or span1.features        ~= span0.features
-		else
-			span_diff = false
+do --iterate text segments having the same shaping-relevant properties.
+
+	local word_iter_state = struct {
+		layout: &Layout;
+		levels: arrview(FriBidiLevel);
+		scripts: arrview(hb_script_t);
+		langs: arrview(hb_language_t);
+		linebreaks: arrview(char);
+	}
+
+	local iter = {state_t = word_iter_state}
+
+	local span_eof   = symbol(int)
+	local span_diff  = symbol(bool)
+	local span_i1    = symbol(int)
+	local span0      = symbol(&Span)
+	local span1      = symbol(&Span)
+	local level0     = symbol(FriBidiLevel)
+	local level1     = symbol(FriBidiLevel)
+	local script0    = symbol(hb_script_t)
+	local script1    = symbol(hb_script_t)
+	local lang0      = symbol(hb_language_t)
+	local lang1      = symbol(hb_language_t)
+
+	iter.for_variables = {span0, level0, script0, lang0}
+
+	iter.declare_variables = function(self)
+		return quote
+			var [span_i1] = -1
+			var [span_eof] = 0 --load the first span on the first iteration.
+			var [span_diff] = false
+			var [span0], [level0], [script0], [lang0]
+			var [span1], [level1], [script1], [lang1]
+			span0 = nil
 		end
 	end
+
+	iter.save_values = function()
+		return quote
+			span0, level0, script0, lang0 =
+			span1, level1, script1, lang1
+		end
+	end
+
+	iter.load_values = function(self, i)
+		return quote
+			level1     = self.levels(i)
+			script1    = self.scripts(i)
+			lang1      = self.langs(i)
+			if i >= span_eof then --time to load a new span
+				inc(span_i1)
+				span_eof = self.layout:span_end_offset(span_i1)
+				span1 = self.layout.spans:at(span_i1)
+				span_diff = span0 == nil
+					or span1.font_id         ~= span0.font_id
+					or span1.font_size_16_6  ~= span0.font_size_16_6
+					or span1.features        ~= span0.features
+			else
+				span_diff = false
+			end
+		end
+	end
+
+	iter.values_different = function(self, i)
+		return `
+			span_diff
+			or self.linebreaks(i-1) < 2 --0: required, 1: allowed, 2: not allowed
+			or level1  ~= level0
+			or script1 ~= script0
+			or lang1   ~= lang0
+	end
+
+	local word_iter = rle_iterator(iter)
+
+	Layout.methods.word_spans = macro(function(self, levels, scripts, langs, linebreaks)
+		return `word_iter{
+			word_iter_state{
+				layout = &self,
+				levels = levels,
+				scripts = scripts,
+				langs = langs,
+				linebreaks = linebreaks
+			}, 0, self.text.len}
+	end)
+
 end
-
-iter.values_different = function(self, i)
-	return `
-		span_diff
-		or self.linebreaks(i-1) < 2 --0: required, 1: allowed, 2: not allowed
-		or level1  ~= level0
-		or script1 ~= script0
-		or lang1   ~= lang0
-end
-
-local word_iter = rle_iterator(iter)
-
-Layout.methods.word_spans = macro(function(self, levels, scripts, langs, linebreaks)
-	return `word_iter{
-		word_iter_state{
-			layout = &self,
-			levels = levels,
-			scripts = scripts,
-			langs = langs,
-			linebreaks = linebreaks
-		}, 0, self.text.len}
-end)
 
 --for harfbuzz, language is a BCP 47 language code + country code,
 --but libunibreak only uses the language code part for a few languages.
@@ -345,7 +351,7 @@ terra Layout:shape()
 	--shape the segs individually and cache the shaped results.
 	--The splitting is two-level: each text seg that requires separate
 	--shaping can contain sub-segs that require separate styling.
-	--NOTE: Empty segs (len=0) are valid.
+	--NOTE: Empty segs array is valid.
 
 	var line_num = 0
 	var para_num = 0
@@ -375,7 +381,7 @@ terra Layout:shape()
 			and FRIBIDI_IS_EXPLICIT_OR_BN_OR_WS(r.bidi_types(offset + len - 1))
 
 		--shape the seg excluding trailing linebreak chars.
-		var gr = GlyphRun {
+		var run_key = GlyphRun {
 			--cache key
 			text            = arr(codepoint);
 			features        = span.features;
@@ -387,10 +393,10 @@ terra Layout:shape()
 			--info for shaping a new glyph run
 			trailing_space  = trailing_space;
 		}
-		gr.text.view = self.text:sub(offset, offset + len)
+		run_key.text.view = self.text:sub(offset, offset + len)
 		--^^fake a dynarray to avoid copying.
 
-		var glyph_run_id = r:shape_word(gr, span.font)
+		var glyph_run_id, run = r:shape(run_key, span.font)
 
 		var seg = segs:add()
 		seg.glyph_run_id = glyph_run_id
@@ -412,10 +418,70 @@ terra Layout:shape()
 			inc(line_num)
 			if linebreak == BREAK_PARA then
 				inc(para_num)
-				para_dir = r.paragraph_dirs(para_num, 0)
+				para_dir = r.paragraph_dirs(para_num)
 			end
 		end
 
+		self:create_subsegs(seg, run, span)
 	end
 
 end
+
+terra GlyphRun:glyph_index_at_offset(offset: int)
+	if self.rtl then
+		for i,g in self.glyphs:backwards() do
+			if g.cluster == offset then
+				return i, false
+			elseif g.cluster > offset then
+				return i - 1, true
+			end
+		end
+		return -1, false
+	else
+		for i,g in self.glyphs do
+			if g.cluster == offset then
+				return i, false
+			elseif g.cluster > offset then
+				return i - 1, true
+			end
+		end
+		return self.glyphs.len, false
+	end
+end
+
+terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
+	var bof = seg.offset
+	var eof = bof + run.text.len
+	var next_span = self.spans:next(span, nil)
+	if next_span == nil or next_span.offset >= eof then
+		return --this segment is only covered by one span.
+	end
+	while true do
+		var next_offset = iif(next_span ~= nil, next_span.offset, maxint)
+		var o1 = max(span.offset, bof) - bof
+		var o2 = min(next_offset, eof) - bof
+		--adjust the offsets to grapheme positions.
+		o1 = run.cursor_offsets(o1)
+		o2 = run.cursor_offsets(o2)
+		--find the glyph range covering o1..(o2-1).
+		var i1, clip1 = run:glyph_index_at_offset(o1)
+		var i2, clip2 = run:glyph_index_at_offset(o2)
+		if clip2 then inc(i2) end --think about it
+		var clip_left  = iif(clip1, run.cursor_xs(o1), -1e6)
+		var clip_right = iif(clip2, run.cursor_xs(o2),  1e6)
+		seg.subsegs:add(SubSeg {
+			span = span,
+			glyph_index1 = i1,
+			glyph_index2 = i2,
+			clip_left = clip_left,
+			clip_right = clip_right,
+			clip = clip1 or clip2,
+		})
+		if next_offset >= eof then
+			break
+		end
+		span = next_span
+		next_span = self.spans:next(span, nil)
+	end
+end
+

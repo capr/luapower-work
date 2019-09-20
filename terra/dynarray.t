@@ -86,6 +86,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 	function arr.metamethods.__cast(from, to, exp)
 		if to == arr then
 			if from == niltype then
+				arr:getmethod'' --force creation of methods
 				return arr.empty
 			elseif from == view then
 				return quote var a = arr(nil); a:add(v) in a end
@@ -434,7 +435,7 @@ local arr_type = memoize(function(T, size_t, context_t, cmp, own_elements)
 			end
 			arr.metamethods.__eq = arr.methods.__eq
 			arr.metamethods.__ne = macro(function(self, other)
-				return not (self == other)
+				return `not (self == other)
 			end)
 		end
 

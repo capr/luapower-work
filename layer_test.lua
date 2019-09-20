@@ -57,7 +57,7 @@ local lorem_ipsum = bundle.load('lorem_ipsum.txt')
 local test_texts = {
 	[''] = '',
 	lorem_ipsum = lorem_ipsum,
-	hello = 'LuaJIT\'s ffi is the best!',
+	hello = 'aaa ffi bbb',
 	bye = 'Goodbye\nCruel World!',
 	parbreak = u'Hey\nYou&ps;New Paragraph',
 }
@@ -1067,17 +1067,33 @@ function testui:repaint()
 				assert(e ~= nil)
 				e:text_cursor_move_near(0,
 					key == 'right' and layer.CURSOR_DIR_NEXT or layer.CURSOR_DIR_PREV,
-					ctrl and layer.CURSOR_MODE_WORD or layer.CURSOR_MODE_CHAR,
-					ctrl and layer.CURSOR_WHICH_FIRST or layer.CURSOR_WHICH_LAST
-					, shift)
+					ctrl and layer.CURSOR_MODE_WORD or layer.CURSOR_MODE_CHAR, 0, shift)
 			elseif key == 'up' or key == 'down' then
 				assert(e ~= nil)
 				e:text_cursor_move_near_line(0, key == 'up' and -1 or 1, 0/0, shift)
 			elseif key == 'pageup' or key == 'pagedown' then
 				assert(e ~= nil)
 				e:text_cursor_move_near_page(0, key == 'pageup' and -1 or 1, 0/0, shift)
+			elseif key == 'home' or key == 'end' then
+				assert(e ~= nil)
+				e:text_cursor_move_near_page(0, key == 'home' and -1/0 or 1/0, 0/0, shift)
+			elseif key == 'backspace' or key == 'delete' then
+				if e:get_selected_text_len(0) == 0 then
+					e:text_cursor_move_near(0,
+						key == 'backspace'
+							and layer.CURSOR_DIR_PREV
+							 or layer.CURSOR_DIR_NEXT,
+						layer.CURSOR_MODE_CHAR, 0, true)
+				end
+				e:remove_selected_text(0)
 			end
 			self:parent():invalidate()
+		end
+
+		function self.ewindow:keychar(c)
+			if c:byte(1, 1) > 31 or c:find'[\n\r\t]' then
+				e:insert_text_utf8_at_cursor(0, c, #c)
+			end
 		end
 
 		function self.ewindow:keyup(key)

@@ -878,6 +878,8 @@ nan    = 0/0
 maxint = int:max()
 minint = int:min()
 
+minmax = macro(function(x, y) return `iif(x < y, {x, y}, {y, x}) end)
+
 --find the next power-of-two number that is >= x.
 nextpow2 = macro(function(x)
 	local T = x:gettype()
@@ -1401,17 +1403,20 @@ equal = macro(function(p1, p2, len)
 			return `eq(p1, p2)
 		else
 			return quote
-				var equal = false
+				var equal = true
 				for i=0,len do
-					if eq(p1, p2) then
-						equal = true
+					if not eq(&p1[i], &p2[i]) then
+						equal = false
 						break
 					end
 				end
 				in equal
 			end
 		end
-	else --fallback to memcmp
+	else --fallback to memcmp.
+		--TODO: check that T is not an union (can't compare unions).
+		--TODO: check that T does not have alignment holes (can't memcmp with alignment holes).
+		--TODO: if T has alignment holes, generate code for element-by-element equality.
 		return `bitequal(p1, p2, len)
 	end
 end)

@@ -105,55 +105,60 @@ terra Renderer:rasterize_glyph(
 	return g, x, y
 end
 
-local struct glyph_surfaces {
-	r: &Renderer;
-	gr: &GlyphRun;
-	font: &Font;
-	i: int; j: int;
-	ax: num; ay: num;
-}
-glyph_surfaces.metamethods.__for = function(self, body)
-	return quote
-		var self = self --workaround for terra issue #368
-		var gr = self.gr
-		var font = self.font
-		font:setsize(gr.font_size)
-		for i = self.i, self.j do
-			var g = gr.glyphs:at(i)
-			var glyph, sx, sy = self.r:rasterize_glyph(
-				gr.font_id, font, gr.font_size, g.glyph_index,
-				self.ax + g.x + g.image_x,
-				self.ay + g.image_y
-			)
-			if glyph.image.surface ~= nil then
-				[ body(`glyph.image.surface, sx, sy) ]
+do
+	local struct glyph_surfaces_iter {
+		r: &Renderer;
+		run: &GlyphRun;
+		i: int;
+		j: int;
+		font: &Font;
+		ax: num; ay: num;
+	}
+
+	glyph_surfaces_iter.metamethods.__for = function(self, body)
+		return quote
+			var self = self --workaround for terra issue #368
+			var run, font, font_size, ax, ay =
+				self.run, self.font, self.run.font_size, self.ax, self.ay
+			font:setsize(font_size)
+			for i = self.i, self.j do
+				var g = run.glyphs:at(i)
+				var glyph, sx, sy = self.r:rasterize_glyph(
+					run.font_id, font, font_size, g.glyph_index,
+					ax + g.x + g.image_x,
+					ay + g.image_y
+				)
+				if glyph.image.surface ~= nil then
+					[ body(`glyph.image.surface, sx, sy) ]
+				end
 			end
 		end
 	end
-end
-terra Renderer:glyph_surfaces(gr: &GlyphRun, font: &Font, i: int, j: int, ax: num, ay: num)
-	return glyph_surfaces {r = self, gr = gr, font = font, i = i, j = j, ax = ax, ay = ay}
+
+	terra Renderer:glyph_surfaces(run: &GlyphRun, i: int, j: int, font: &Font, ax: num, ay: num)
+		return glyph_surfaces_iter {r = self, run = run, i = i, j = j, font = font, ax = ax, ay = ay}
+	end
 end
 
-terra Renderer:glyph_run_bbox(gr: &GlyphRun, font: &Font, ax: num, ay: num)
+terra Renderer:glyph_run_bbox(run: &GlyphRun, font: &Font, ax: num, ay: num)
 	var bx: num, by: num, bw: num, bh: num = 0, 0, 0, 0
-	var surfaces = self:glyph_surfaces(gr, font, 0, gr.glyphs.len, ax, ay)
+	var surfaces = self:glyph_surfaces(run, 0, run.glyphs.len, font, ax, ay)
 	for sr, sx, sy in surfaces do
 		bx, by, bw, bh = rect.bbox(bx, by, bw, bh, sx, sy, sr:width(), sr:height())
 	end
 	return bx, by, bw, bh
 end
 
-terra Renderer:rasterize_glyph_run(gr: &GlyphRun, font: &Font, ax: num, ay: num)
+terra Renderer:rasterize_glyph_run(run: &GlyphRun, font: &Font, ax: num, ay: num)
 	var sx = floor(ax)
 	var sy = floor(ay)
 	var ox = snap(ax - sx, self.word_subpixel_x_resolution)
 	if ox == 1 then inc(sx); ox = 0 end
 	var si: int = ox / self.word_subpixel_x_resolution
 
-	var gsp = gr.images:at(si, nil)
+	var gsp = run.images:at(si, nil)
 	if gsp == nil or gsp.surface == nil then
-		var bx, by, bw, bh = self:glyph_run_bbox(gr, font, ax, ay)
+		var bx, by, bw, bh = self:glyph_run_bbox(run, font, ax, ay)
 		var bx1 = floor(bx)
 		var by1 = floor(by)
 		var bx2 = ceil(bx + bw)
@@ -161,15 +166,15 @@ terra Renderer:rasterize_glyph_run(gr: &GlyphRun, font: &Font, ax: num, ay: num)
 		var sr = create_surface(bx2-bx1, by2-by1)
 		var cr = sr:context()
 		cr:translate(-bx1, -by1)
-		var surfaces = self:glyph_surfaces(gr, font, 0, gr.glyphs.len, ax, ay)
+		var surfaces = self:glyph_surfaces(run, 0, run.glyphs.len, font, ax, ay)
 		for gsr, gsx, gsy in surfaces do
-			self:paint_surface(cr, gsr, gsx, gsy, false, 0, 0)
+			self:paint_surface(cr, gsr, gsx, gsy)
 		end
 		cr:free()
-		gsp = gr.images:set(si,
+		gsp = run.images:set(si,
 			GlyphImage{surface = sr, x = bx1-sx, y = by1-sy},
 			GlyphImage{surface = nil, x = 0, y = 0})
-		inc(gr.images_memsize, 1024 + sr:height() * sr:stride())
+		inc(run.images_memsize, 1024 + sr:height() * sr:stride())
 	end
 	return gsp.surface, sx + gsp.x, sy + gsp.y
 end

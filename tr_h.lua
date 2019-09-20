@@ -133,6 +133,8 @@ void tr_set_span_offset(layout_t*, int32_t, int32_t);
 int32_t tr_get_span_count(layout_t*);
 void tr_set_span_count(layout_t*, int32_t);
 int32_t tr_span_at_offset(layout_t*, int32_t);
+double tr_remove_text(layout_t*, double, double);
+int32_t tr_insert_text(layout_t*, int32_t, uint32_t*, int32_t);
 bool tr_get_min_size_valid(layout_t*);
 bool tr_get_align_valid(layout_t*);
 bool tr_get_pixels_valid(layout_t*);
@@ -164,6 +166,13 @@ bool tr_get_selection_visible(layout_t*, int32_t);
 void tr_set_caret_visible(layout_t*, int32_t, bool);
 void tr_set_selection_visible(layout_t*, int32_t, bool);
 int32_t tr_get_selection_first_span(layout_t*, int32_t);
+void tr_remove_selected_text(layout_t*, int32_t);
+void tr_insert_text_at_cursor(layout_t*, int32_t, uint32_t*, int32_t);
+void tr_insert_text_utf8_at_cursor(layout_t*, int32_t, const char *, int32_t);
+int32_t tr_get_selected_text_len(layout_t*, int32_t);
+uint32_t* tr_get_selected_text(layout_t*, int32_t);
+int32_t tr_get_selected_text_utf8(layout_t*, int32_t, const char *, int32_t);
+int32_t tr_get_selected_text_utf8_len(layout_t*, int32_t);
 void tr_load_cursor_xs(layout_t*, int32_t);
 double* tr_get_cursor_xs(layout_t*);
 int32_t tr_get_cursor_xs_len(layout_t*);
@@ -328,6 +337,8 @@ local methods = {
 	get_span_offset = C.tr_get_span_offset,
 	set_span_offset = C.tr_set_span_offset,
 	span_at_offset = C.tr_span_at_offset,
+	remove_text = C.tr_remove_text,
+	insert_text = C.tr_insert_text,
 	bbox = C.tr_bbox,
 	get_cursor_offset = C.tr_get_cursor_offset,
 	get_cursor_which = C.tr_get_cursor_which,
@@ -349,6 +360,13 @@ local methods = {
 	set_caret_visible = C.tr_set_caret_visible,
 	set_selection_visible = C.tr_set_selection_visible,
 	get_selection_first_span = C.tr_get_selection_first_span,
+	remove_selected_text = C.tr_remove_selected_text,
+	insert_text_at_cursor = C.tr_insert_text_at_cursor,
+	insert_text_utf8_at_cursor = C.tr_insert_text_utf8_at_cursor,
+	get_selected_text_len = C.tr_get_selected_text_len,
+	get_selected_text = C.tr_get_selected_text,
+	get_selected_text_utf8 = C.tr_get_selected_text_utf8,
+	get_selected_text_utf8_len = C.tr_get_selected_text_utf8_len,
 	load_cursor_xs = C.tr_load_cursor_xs,
 }
 ffi.metatype('layout_t', {

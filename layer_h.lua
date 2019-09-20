@@ -315,8 +315,15 @@ void layer_set_text_selection_script(layer_t*, int32_t, const char *);
 void layer_text_cursor_move_to(layer_t*, int32_t, double, int8_t, bool);
 void layer_text_cursor_move_to_point(layer_t*, int32_t, double, double, bool);
 void layer_text_cursor_move_near(layer_t*, int32_t, int8_t, int8_t, int8_t, bool);
-void layer_text_cursor_move_near_line(layer_t*, int32_t, int32_t, double, bool);
-void layer_text_cursor_move_near_page(layer_t*, int32_t, int32_t, double, bool);
+void layer_text_cursor_move_near_line(layer_t*, int32_t, double, double, bool);
+void layer_text_cursor_move_near_page(layer_t*, int32_t, double, double, bool);
+void layer_remove_selected_text(layer_t*, int32_t);
+void layer_insert_text_at_cursor(layer_t*, int32_t, uint32_t*, int32_t);
+void layer_insert_text_utf8_at_cursor(layer_t*, int32_t, const char *, int32_t);
+uint32_t* layer_get_selected_text(layer_t*, int32_t);
+int32_t layer_get_selected_text_len(layer_t*, int32_t);
+int32_t layer_get_selected_text_utf8(layer_t*, int32_t, const char *, int32_t);
+int32_t layer_get_selected_text_utf8_len(layer_t*, int32_t);
 bool layer_get_visible(layer_t*);
 void layer_set_visible(layer_t*, bool);
 int8_t layer_get_layout_type(layer_t*);
@@ -779,6 +786,13 @@ local methods = {
 	text_cursor_move_near = C.layer_text_cursor_move_near,
 	text_cursor_move_near_line = C.layer_text_cursor_move_near_line,
 	text_cursor_move_near_page = C.layer_text_cursor_move_near_page,
+	remove_selected_text = C.layer_remove_selected_text,
+	insert_text_at_cursor = C.layer_insert_text_at_cursor,
+	insert_text_utf8_at_cursor = C.layer_insert_text_utf8_at_cursor,
+	get_selected_text = C.layer_get_selected_text,
+	get_selected_text_len = C.layer_get_selected_text_len,
+	get_selected_text_utf8 = C.layer_get_selected_text_utf8,
+	get_selected_text_utf8_len = C.layer_get_selected_text_utf8_len,
 	get_grid_col_fr = C.layer_get_grid_col_fr,
 	get_grid_row_fr = C.layer_get_grid_row_fr,
 	set_grid_col_fr = C.layer_set_grid_col_fr,

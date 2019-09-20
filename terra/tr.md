@@ -107,9 +107,28 @@ applied as part of shaping.
 
 ## Advance
 
-How much the current point must advance to position the next glyph. Each
-glyph has an x-advance used for horizontal text flow and an y-advance used
-for vertical text flow.
+How much the current point must advance to position the next glyph. Glyphs
+have an x-advance used for horizontal text flow and an y-advance used for
+vertical text flow.
+
+## Baseline
+
+The line that forms the base that the text sits on and that other vertical
+metrics are mesured from, for horizontally flowing text.
+
+## Ascent
+
+The general distance above the baseline for letters like "M", "t", etc.
+
+## Descent
+
+The general distance below the baseline for letters like "g", "j", etc.
+
+## Leading
+
+The distance between successive baselines. In tr, leading is variable because
+text can vary in size, but the spacing between lines can be adjusted
+with `line_spacing`, `hardline_spacing` and `paragraph_spacing` attributes.
 
 ## Bidirectional text
 

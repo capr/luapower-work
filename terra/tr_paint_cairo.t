@@ -69,29 +69,35 @@ terra Renderer:create_glyph_surface(glyph: &Glyph, bmp: &FT_Bitmap, font: &Font)
 	sr0:free()
 end
 
---NOTE: clip_left and clip_right are relative to bitmap's left edge.
-terra Renderer:paint_surface(
-	cr: &context, sr: &surface,
-	x: num, y: num,
-	clip: bool, clip_left: num, clip_right: num
-)
-	if clip then
-		cr:save()
-		cr:new_path()
-		var x1 = x + clip_left
-		var x2 = x + sr:width() + clip_right
-		cr:rectangle(x1, y, x2 - x1, sr:height())
-		cr:clip()
-	end
-	cr:mask(sr, x, y)
-	if clip then
-		cr:restore()
-	end
-end
-
 terra Renderer:setcontext(cr: &context, span: &Span)
 	var c = cairo_color_t(span.color)
 	c.alpha = c.alpha * span.opacity
 	cr:rgba(c)
 	cr:operator(span.operator)
+end
+
+terra Renderer:paint_surface(cr: &context, sr: &surface, x: num, y: num)
+	cr:mask(sr, x, y)
+end
+
+terra Renderer:paint_surface_clipped(
+	cr: &context, sr: &surface, x: num, y: num,
+	clip_left: num, clip_right: num
+)
+	cr:save()
+	cr:new_path()
+	cr:rectangle(clip_left, y, clip_right - clip_left, sr:height())
+	cr:clip()
+	cr:mask(sr, x, y)
+	cr:restore()
+end
+
+terra Renderer:paint_rect(cr: &context,
+	x: num, y: num, w: num, h: num,
+	color: color, opacity: num
+)
+	cr:rgba(color:apply_alpha(opacity))
+	cr:new_path()
+	cr:rectangle(x, y, w, h)
+	cr:fill()
 end

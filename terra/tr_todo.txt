@@ -1,11 +1,15 @@
 Bugs
 ==============================================================================
 
-- text editing
+- cursor vertical movement (x not preserved).
+
+- test script, lang, features.
+
+- test RTL: subsegs.
+
+- test BIDI: reorder, cursors, justify.
 
 - cursor back-one-word from last position steps back 2 steps.
-
-- bring back subsegments, see https://github.com/luapower/tr/issues/1
 
 
 High priority

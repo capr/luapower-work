@@ -1,35 +1,32 @@
 --[[
 
-	Text Renderer Terra/C/ffi API.
-	Implements a flat API tailored for C or Terra use.
-
-	This module adds input validation and state management to the raw
-	implementation in order to achieve the following goals:
-
-	- Invalid input should never cause fatal errors or crashes. At worst
-	(eg. on invalid span offsets), nothing is displayed and zero or something
-	sensible is returned for computed values. Invalid API _usage_ however
-	(eg. wrong call order or missing calls) should cause an assertion failure.
-
-	- The order in which layout and span properties are set is not important.
-
-	Additional functionality:
+	Text rendering API for C, Terra and LuaJIT ffi use.
 
 	- self-allocating constructors.
-	- non-fatal error checking and reporting.
-	- enum validation, number clamping to range.
-	- state invalidation when input values are changed.
-	- state checking when computed values are read.
-	- utf8 text input/output.
-	- text representation for: features, lang, script.
+	- fatal and non-fatal error checking and reporting.
+	- validation and clamping of enums, indices, counts, sizes, offsets, etc.
+	- state invalidation when changing input values.
+	- state checking when accessing computed values.
+	- utf8 text input and output.
+	- text representation for features, lang, script.
 	- checking if a span property has the same value across an offset range.
-	- updating a span property for an offset range with auto-collapsing
-	  of duplicate spans.
+	- updating span properties on an offset range with removing duplicate spans.
+	- inserting and removing text at an offset with adjusting span offsets.
+	- text navigation, selection and editing through cursor objects.
 
-	- simplified and enlarged number types for forward ABI compatibility.
-	- consecutive enum values for forward ABI compatibility.
-	- functions and types are renamed and prefixed to C conventions.
-	- methods and virtual properties are bound back to types via ffi.metatype.
+	- using consecutive enum values for forward ABI compatibility.
+	- using enlarged number types for forward ABI compat. and clamping inf/-inf.
+	- renaming functions and types to C conventions for C use.
+	- binding methods and getters/setters via ffi.metatype for LuaJIT use.
+
+	Design considerations:
+
+	- invalid input data should never cause fatal errors or crashes. At worst
+	  (eg. on invalid span offsets), nothing is displayed and some sensible
+	  default is returned for computed values. Invalid API _usage_ however
+	  (eg. wrong call order or missing calls) should cause an assertion failure.
+	- the order in which layout and span properties are set is not important
+	  in order to avoid call-order dependencies.
 
 	Usage:
 
@@ -186,6 +183,10 @@ Layout.methods.checkrange = macro(function(self, NAME, v, MIN, MAX)
 	return `self.r:checkrange(NAME, v, MIN, MAX)
 end)
 
+Layout.methods.checkindex = macro(function(self, NAME, i, MAX)
+	return `self:check(NAME, i, i >= 0) and i < MAX
+end)
+
 --Renderer config ------------------------------------------------------------
 
 local terra subpixel_resolution(v: num)
@@ -323,20 +324,22 @@ terra Layout:_do_validate()
 	else
 		self._offsets_valid = true
 		self._valid = true
-		var prev_offset = -1
-		for _,s in self.l.spans do
-			if s.offset <= prev_offset         --offset overlapping
-				or s.offset >= self.l.text.len  --offset out-of-range
-			then
-				self._offsets_valid = false
-				self._valid = false
+		if self.l.text.len > 0 then
+			var prev_offset = -1
+			for _,s in self.l.spans do
+				if s.offset <= prev_offset         --offset overlapping
+					or s.offset >= self.l.text.len  --offset out-of-range
+				then
+					self._offsets_valid = false
+					self._valid = false
+				end
+				if s.font == nil --font not set or load failed
+					or s.font_size <= 0 --font size not set
+				then
+					self._valid = false
+				end
+				prev_offset = s.offset
 			end
-			if s.font == nil --font not set or load failed
-				or s.font_size <= 0 --font size not set
-			then
-				self._valid = false
-			end
-			prev_offset = s.offset
 		end
 	end
 end
@@ -457,17 +460,21 @@ terra Layout:set_text(s: &codepoint, len: int)
 	self:invalidate()
 end
 
-terra Layout:get_text_utf8(out: rawstring, max_outlen: int)
+terra Layout:_get_utf8(s: arrview(codepoint), out: rawstring, max_outlen: int): int
 	if max_outlen < 0 then
 		max_outlen = maxint
 	end
 	if out == nil then --out buffer size requested
-		return utf8.encode.count(self.l.text.elements, self.l.text.len,
+		return utf8.encode.count(s.elements, s.len,
 			max_outlen, utf8.REPLACE, utf8.INVALID)._0
 	else
-		return utf8.encode.tobuffer(self.l.text.elements, self.l.text.len, out,
+		return utf8.encode.tobuffer(s.elements, s.len, out,
 			max_outlen, utf8.REPLACE, utf8.INVALID)._0
 	end
+end
+
+terra Layout:get_text_utf8(out: rawstring, max_outlen: int): int
+	return self:_get_utf8(self.l.text.view, out, max_outlen)
 end
 
 terra Layout:get_text_utf8_len(): int
@@ -902,118 +909,82 @@ end
 
 --text editing ---------------------------------------------------------------
 
---[[
---remove text between two offsets. return offset at removal point.
-local terra cmp_remove_first(s1: &Span, s2: &Span)
-	return s1.offset < s2.offset  -- < < [=] = > >
-end
-local terra cmp_remove_last(s1: &Span, s2: &Span)
-	return s1.offset <= s2.offset  -- < < = = [>] >
-end
-terra Layout:remove(i1: int, i2: int)
-	i1 = self.spans:clamp(i1)
-	i2 = self.spans:clamp(i2)
-	self.text:remove(i1, i2-i1)
-	--adjust/remove affected spans.
-	--NOTE: this includes all zero-length text runs at both ends.
+--remove text between two subsequent offsets. return the offset at removal point.
+terra Layout:remove_text(o1: num, o2: num) --num to allow -inf and inf
 
-	--1. find the first and last text runs which need to be entirely removed.
-	local tr_i1 = self.spans:binsearch(Span{offset = i1}, cmp_remove_first) or #self + 1
-	local tr_i2 = self.spans:binsearch(Span{offset = i2}, cmp_remove_last) or #self + 1) - 1
-	--NOTE: clamping to #self-1 so that the last text run cannot be removed.
-	local tr_remove_count = clamp(tr_i2 - tr_i1 + 1, 0, #self-1)
-
-	local offset = 0
-
-	--2. adjust the length of the run before the first run that needs removing.
-	if tr_i1 > 1 then
-		local run = self[tr_i1-1]
-		local part_before_i1 = i1 - run.offset
-		local part_after_i2 = max(run.offset + run.len - i2, 0)
-		local new_len = part_before_i1 + part_after_i2
-		changed = changed or run.len ~= new_len
-		run.len = new_len
-		offset = run.offset + run.len
+	if not self.offsets_valid then
+		self.r:error('remove: invalid span offsets')
+		return -1
 	end
 
-	if tr_remove_count > 0 then
+	var eof = self.l.text.len
+	var o1 = clamp(o1, 0, eof)
+	var o2 = clamp(o2, 0, eof)
+	var len = o2 - o1
+	if len <= 0 then return o1 end
 
-		--3. adjust the offset of all runs after the last run that needs removing.
-		for tr_i = tr_i2+1, #self do
-			self[tr_i].offset = offset
-			offset = offset + self[tr_i].len
+	--find the span range s1..s2-1 that needs to be removed.
+	--find the span range s3..last that needs its offset adjusted.
+	var s1 = self.l:span_at_offset(o1) -- s1.o <= o1
+	var s2 = self.l:span_at_offset(o2) -- s2.o <= o2
+	var s3 = s2
+	if s2 > s1 then
+		if o2 == eof then -- s2 can't cover beyond o2, remove it.
+			inc(s2)
+		else -- s2 covers beyond o2, move it to o2.
+			self.l.spans:at(s2).offset = o2
 		end
-
-		--4. remove all text runs that need removing from the text run list.
-		shift(self, tr_i1, -tr_remove_count)
-		for tr_i = #self, tr_i1 + tr_remove_count, -1 do
-			self[tr_i] = nil
-		end
-
-		changed = true
-	end
-
-	return i1, changed
-end
-]]
-
---[[
---insert text at offset. return offset after inserted text.
-local function cmp_insert(text_runs, i, offset)
-	return text_runs[i].offset <= offset -- < < = = [>] >
-end
-function text_runs:insert(i, s, sz, charset, maxlen)
-	sz = sz or #s
-	charset = charset or 'utf8'
-	if sz <= 0 then return i, false end
-
-	--get the length of the inserted text in codepoints.
-	local len
-	if charset == 'utf8' then
-		maxlen = maxlen and max(0, floor(maxlen))
-		len = utf8.decode(s, sz, false, maxlen) or maxlen
-	elseif charset == 'utf32' then
-		len = sz
+		s3 = s2
 	else
-		assert(false, 'Invalid charset: %s', charset)
+		s3 = s1 + 1
 	end
-	if len <= 0 then return i, false end
-
-	--reallocate the codepoints buffer and copy over the existing codepoints
-	--and copy/convert the new codepoints at the insert point.
-	local old_len = self.len
-	local old_str = self.codepoints
-	local new_len = old_len + len
-	local new_str = self.alloc_codepoints(new_len + 1)
-	i = clamp(i, 0, old_len)
-	ffi.copy(new_str, old_str, i * 4)
-	ffi.copy(new_str + i + len, old_str + i, (old_len - i) * 4)
-	if charset == 'utf8' then
-		utf8.decode(s, sz, new_str + i, len)
-	else
-		ffi.copy(new_str + i, ffi.cast(const_char_ct, s), len * 4)
-	end
-	self.len = new_len
-	self.codepoints = new_str
-
-	--adjust affected text runs.
-
-	--1. find the text run which needs to be extended to include the new text.
-	local tr_i = (binsearch(i, self, cmp_insert) or #self + 1) - 1
-	assert(tr_i >= 0)
-
-	--2. adjust the length of that run to include the length of the new text.
-	self[tr_i].len = self[tr_i].len + len
-
-	--3. adjust offset for all runs after the extended run.
-	for tr_i = tr_i+1, #self do
-		self[tr_i].offset = self[tr_i].offset + len
+	if self.l.spans:at(s1).offset < o1 then --s1 covers before o1, skip it.
+		inc(s1)
+	elseif s1 == 0 and o2 == eof then --all spans would be removed.
+		inc(s1)
 	end
 
-	return i+len, true
+	--adjust offsets on right-side spans, remove dead spans and remove the text.
+	for _, span in self.l.spans:sub(s3) do
+		dec(span.offset, len)
+	end
+	self.l.spans:remove(s1, s2 - s1)
+	self.l.text:remove(o1, len)
+
+	self:invalidate'shape'
+	return o1
 end
-]]
 
+--insert text (or make room for text) at offset. return offset after inserted text.
+terra Layout:insert_text(offset: int, s: &codepoint, len: int)
+
+	if not self.offsets_valid then
+		self.r:error('insert: invalid span offsets')
+		return -1
+	end
+
+	offset = clamp(offset, 0, self.l.text.len)
+	len = min(len, self.maxlen - self.l.text.len)
+
+	if len <= 0 then
+		return offset
+	end
+
+	if s ~= nil then
+		self.l.text:insert(offset, s, len)
+	else --just make room so that utf8 text can be decoded in-place.
+		self.l.text:insertn(offset, len)
+	end
+
+	--adjust the offsets of all spans after the insertion point.
+	var span_i = self.l:span_at_offset(offset) + 1
+	for _, span in self.l.spans:sub(span_i) do
+		inc(span.offset, len)
+	end
+
+	self:invalidate'shape'
+	return offset + len
+end
 
 --layouting helper APIs ------------------------------------------------------
 
@@ -1099,8 +1070,11 @@ terra Layout:set_cursor_count(n: int): int
 	end
 end
 
+Layout.methods.check_cursor_index = macro(function(self, i)
+	return `self:checkindex('cursor index', i, MAX_CURSOR_COUNT)
+end)
+
 terra Layout:_cursor(c_i: int)
-	c_i = clamp(c_i, 0, MAX_CURSOR_COUNT-1)
 	var c, new_cursors = self.cursors:getat(c_i)
 	for _,c in new_cursors do
 		(@c):init(&self.l)
@@ -1109,6 +1083,23 @@ terra Layout:_cursor(c_i: int)
 	return c
 end
 
+Layout.methods.change_cursor = macro(function(self, c_i, FIELD, v, WHAT)
+	return quote
+		if self:check_cursor_index(c_i) then
+			var c = self:_cursor(c_i)
+			self:change(self:_cursor(c_i), FIELD, v, WHAT)
+		end
+	end
+end)
+
+Layout.methods.change_cursor_state = macro(function(self, c_i, FIELD, v, WHAT)
+	return quote
+		if self:check_cursor_index(c_i) then
+			self:change(self:_cursor(c_i).state, FIELD, v, WHAT)
+		end
+	end
+end)
+
 terra Layout:get_cursor_offset     (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.offset     end
 terra Layout:get_cursor_which      (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.which      end
 terra Layout:get_cursor_sel_offset (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.sel_offset end
@@ -1116,40 +1107,42 @@ terra Layout:get_cursor_sel_which  (c_i: int): int return self.cursors:at(c_i, &
 terra Layout:get_cursor_x          (c_i: int): num return self.cursors:at(c_i, &[Cursor.empty]).state.x          end
 
 terra Layout:set_cursor_offset(c_i: int, v: num) --num to allow inf and -inf as offsets
-	self:change(self:_cursor(c_i).state, 'offset', clamp(v, 0, maxint), 'paint')
+	self:change_cursor_state(c_i, 'offset', clamp(v, 0, maxint), 'paint')
 end
 terra Layout:set_cursor_which(c_i: int, v: int)
 	if self:checkrange('cursor_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
-		self:change(self:_cursor(c_i).state, 'which', v, 'paint')
+		self:change_cursor_state(c_i, 'which', v, 'paint')
 	end
 end
 terra Layout:set_cursor_sel_offset(c_i: int, v: num)
-	self:change(self:_cursor(c_i).state, 'sel_offset', clamp(v, 0, maxint), 'paint')
+	self:change_cursor_state(c_i, 'sel_offset', clamp(v, 0, maxint), 'paint')
 end
 terra Layout:set_cursor_sel_which(c_i: int, v: int)
 	if self:checkrange('cursor_sel_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
-		self:change(self:_cursor(c_i).state, 'sel_which' , v, 'paint')
+		self:change_cursor_state(c_i, 'sel_which' , v, 'paint')
 	end
 end
 terra Layout:set_cursor_x(c_i: int, v: num)
-	self:change(self:_cursor(c_i).state, 'x', v, 'paint')
+	self:change_cursor_state(c_i, 'x', v, 'paint')
 end
 
 terra Layout:cursor_move_to(c_i: int, offset: num, which: enum, select: bool)
-	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
-	var c = self:_cursor(c_i)
-	if c:move_to(clamp(offset, 0, maxint), which, select) then
-		self:invalidate'paint'
+	if self:check_cursor_index(c_i) then
+		var c = self:_cursor(c_i)
+		if c:move_to(clamp(offset, 0, maxint), which, select) then
+			self:invalidate'paint'
+		end
 	end
 end
 
 terra Layout:cursor_move_to_point(c_i: int, x: num, y: num, select: bool)
-	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
-	var c = self:_cursor(c_i)
-	if c:move_to_point(x, y, select) then
-		self:invalidate'paint'
+	if self:check_cursor_index(c_i) then
+		var c = self:_cursor(c_i)
+		if c:move_to_point(x, y, select) then
+			self:invalidate'paint'
+		end
 	end
 end
 
@@ -1160,30 +1153,33 @@ terra Layout:cursor_move_near(
 		and self:checkrange('text cursor mode' , mode , CURSOR_MODE_MIN , CURSOR_MODE_MAX)
 		and self:checkrange('text cursor which', which, CURSOR_WHICH_MIN, CURSOR_WHICH_MAX)
 	then
-		if not self._valid then return end
 		assert(self.state >= STATE_ALIGNED)
+		if self:check_cursor_index(c_i) then
+			var c = self:_cursor(c_i)
+			if c:move_near(dir, mode, which, select) then
+				self:invalidate'paint'
+			end
+		end
+	end
+end
+
+terra Layout:cursor_move_near_line(c_i: int, delta_lines: num, x: num, select: bool)
+	assert(self.state >= STATE_ALIGNED)
+	if self:check_cursor_index(c_i) then
 		var c = self:_cursor(c_i)
-		if c:move_near(dir, mode, which, select) then
+		if c:move_near_line(clamp(delta_lines, minint, maxint), x, select) then
 			self:invalidate'paint'
 		end
 	end
 end
 
-terra Layout:cursor_move_near_line(c_i: int, delta_lines: int, x: num, select: bool)
-	if not self._valid then return end
+terra Layout:cursor_move_near_page(c_i: int, delta_pages: num, x: num, select: bool)
 	assert(self.state >= STATE_ALIGNED)
-	var c = self:_cursor(c_i)
-	if c:move_near_line(delta_lines, x, select) then
-		self:invalidate'paint'
-	end
-end
-
-terra Layout:cursor_move_near_page(c_i: int, delta_pages: int, x: num, select: bool)
-	if not self._valid then return end
-	assert(self.state >= STATE_ALIGNED)
-	var c = self:_cursor(c_i)
-	if c:move_near_page(delta_pages, x, select) then
-		self:invalidate'paint'
+	if self:check_cursor_index(c_i) then
+		var c = self:_cursor(c_i)
+		if c:move_near_page(clamp(delta_pages, minint, maxint), x, select) then
+			self:invalidate'paint'
+		end
 	end
 end
 
@@ -1198,11 +1194,11 @@ terra Layout:get_selection_visible(c_i: int)
 end
 
 terra Layout:set_caret_visible(c_i: int, v: bool)
-	self:change(self:_cursor(c_i), 'caret_visible', v, 'paint')
+	self:change_cursor(c_i, 'caret_visible', v, 'paint')
 end
 
 terra Layout:set_selection_visible(c_i: int, v: bool)
-	self:change(self:_cursor(c_i), 'selection_visible', v, 'paint')
+	self:change_cursor(c_i, 'selection_visible', v, 'paint')
 end
 
 terra Layout:get_selection_first_span(c_i: int): int
@@ -1214,6 +1210,90 @@ terra Layout:get_selection_first_span(c_i: int): int
 	else
 		return 0
 	end
+end
+
+terra Layout:remove_selected_text(c_i: int)
+	if self:check_cursor_index(c_i) then
+		var c = self:_cursor(c_i)
+		var o1, o2 = minmax(c.state.offset, c.state.sel_offset)
+		self:remove_text(o1, o2)
+		c.state.offset = o1
+		c.state.sel_offset = o1
+	end
+end
+
+terra Layout:insert_text_at_cursor(c_i: int, s: &codepoint, len: int)
+	if self:check_cursor_index(c_i) then
+		var c = self:_cursor(c_i)
+		var o1, o2 = minmax(c.state.offset, c.state.sel_offset)
+		self:remove_text(o1, o2)
+		o2 = self:insert_text(o1, s, len)
+		if o2 >= 0 then
+			c.state.offset = o2
+			c.state.sel_offset = o2
+		end
+	end
+end
+
+terra Layout:insert_text_utf8_at_cursor(c_i: int, s: rawstring, len: int)
+	if self:check_cursor_index(c_i) then
+		var c = self:_cursor(c_i)
+		var o1, o2 = minmax(c.state.offset, c.state.sel_offset)
+		self:remove_text(o1, o2)
+		if s == nil then
+			assert(len == 0)
+		else
+			var maxlen = self.maxlen - self.l.text.len
+			if len < 0 then
+				len = strnlen(s, maxlen)
+			end
+			var n = utf8.decode.count(s, len,
+				maxlen, utf8.REPLACE, utf8.INVALID)._0
+			o2 = self:insert_text(o1, nil, n)
+			if o2 >= 0 then
+				utf8.decode.tobuffer(s, len, self.l.text:at(o1),
+					maxlen, utf8.REPLACE, utf8.INVALID)
+				c.state.offset = o2
+				c.state.sel_offset = o2
+			end
+		end
+	end
+end
+
+terra Layout:_selected_text(c_i: int)
+	var c = self:_cursor(c_i)
+	var o1, o2 = c.state.offset, c.state.sel_offset
+	if o1 > o2 then o1, o2 = o2, o1 end
+	return self.l.text:sub(o1, o2)
+end
+
+terra Layout:get_selected_text_len(c_i: int)
+	if self:check_cursor_index(c_i) then
+		return self:_selected_text(c_i).len
+	else
+		return 0
+	end
+end
+
+terra Layout:get_selected_text(c_i: int)
+	if self:check_cursor_index(c_i) then
+		return self:_selected_text(c_i).elements
+	else
+		return nil
+	end
+end
+
+terra Layout:get_selected_text_utf8(c_i: int, out: rawstring, max_outlen: int): int
+	if self:check_cursor_index(c_i) then
+		var s = self:_selected_text(c_i)
+		return self:_get_utf8(s, out, max_outlen)
+	else
+		return 0
+	end
+end
+
+terra Layout:get_selected_text_utf8_len(c_i: int): int
+	return self:get_selected_text_utf8(c_i, nil, -1)
 end
 
 terra Layout:load_cursor_xs(line_i: int)
