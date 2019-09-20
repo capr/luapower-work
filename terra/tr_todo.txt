@@ -1,8 +1,6 @@
 Bugs
 ==============================================================================
 
-- cursor vertical movement (x not preserved).
-
 - test script, lang, features.
 
 - test RTL: subsegs.
