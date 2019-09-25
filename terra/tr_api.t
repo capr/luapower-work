@@ -55,8 +55,10 @@ setfenv(1, require'terra/low'.module(tr))
 
 num = double
 MAX_CURSOR_COUNT = 2^16
+MAX_FONT_SIZE = 10000
 
-FontLoadFunc.cname = 'tr_font_load_func'
+FontLoadFunc.type.cname = 'tr_font_load_func_t'
+FontUnloadFunc.type.cname = 'tr_font_unload_func_t'
 
 struct Layout;
 struct Renderer;
@@ -75,7 +77,7 @@ struct Renderer (gettersandsetters) {
 	error_function: ErrorFunction;
 }
 
-terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+terra Renderer:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	self.r:init(load_font, unload_font)
 	self.error_function = default_error_function
 end
@@ -88,7 +90,7 @@ terra tr_renderer_sizeof()
 	return [int](sizeof(Renderer))
 end
 
-terra tr_renderer(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+terra tr_renderer(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	return new(Renderer, load_font, unload_font)
 end
 
@@ -214,54 +216,61 @@ terra Renderer:set_font_size_resolution(v: num)
 	self.r.font_size_resolution = subpixel_resolution(v)
 end
 
-terra Renderer:get_glyph_run_cache_max_size (): int
+terra Renderer:get_glyph_run_cache_max_size(): double
 	return self.r.glyph_runs.max_size
 end
-terra Renderer:set_glyph_run_cache_max_size (v: int)
-	if self:checkrange('glyph_run_cache_max_size', v, 0, maxint) then
-		self.r.glyph_runs.max_size = v
+terra Renderer:set_glyph_run_cache_max_size(v: double)
+	if self:checkrange('glyph_run_cache_max_size', v, 0, inf) then
+		self.r.glyph_runs.max_size = min(v, [GlyphRunCache.size_t:max()])
 	end
 end
 
-terra Renderer:get_glyph_cache_max_size(): int
+terra Renderer:get_glyph_cache_max_size(): double
 	return self.r.glyphs.max_size
 end
-terra Renderer:set_glyph_cache_max_size(v: int)
-	if self:checkrange('glyph_cache_max_size', v, 0, maxint) then
-		self.r.glyphs.max_size = v
+terra Renderer:set_glyph_cache_max_size(v: double)
+	if self:checkrange('glyph_cache_max_size', v, 0, inf) then
+		self.r.glyphs.max_size = min(v, [GlyphCache.size_t:max()])
 	end
 end
 
-terra Renderer:get_mem_font_cache_max_size(): int
+terra Renderer:get_mem_font_cache_max_size(): double
 	return self.r.mem_fonts.max_size
 end
-terra Renderer:set_mem_font_cache_max_size(v: int)
-	if self:checkrange('mem_font_cache_max_size', v, 0, maxint) then
-		self.r.mem_fonts.max_size = v
+terra Renderer:set_mem_font_cache_max_size(v: double)
+	if self:checkrange('mem_font_cache_max_size', v, 0, inf) then
+		self.r.mem_fonts.max_size = min(v, [FontCache.size_t:max()])
 	end
 end
 
-terra Renderer:get_mmapped_font_cache_max_count(): int
+terra Renderer:get_mmapped_font_cache_max_count(): double
 	return self.r.mmapped_fonts.max_count
 end
-terra Renderer:set_mmapped_font_cache_max_count(v: int)
-	if self:checkrange('mmapped_font_cache_max_count', v, 0, maxint) then
-		self.r.mmapped_fonts.max_count = v
+terra Renderer:set_mmapped_font_cache_max_count(v: double)
+	if self:checkrange('mmapped_font_cache_max_count', v, 0, inf) then
+		self.r.mmapped_fonts.max_count = min(v, [FontCache.size_t:max()])
 	end
 end
 
 --Renderer statistics API ----------------------------------------------------
 
-terra Renderer:get_glyph_run_cache_size        (): int return self.r.glyph_runs.size end
-terra Renderer:get_glyph_run_cache_count       (): int return self.r.glyph_runs.count end
-terra Renderer:get_glyph_cache_size            (): int return self.r.glyphs.size end
-terra Renderer:get_glyph_cache_count           (): int return self.r.glyphs.count end
-terra Renderer:get_mem_font_cache_size         (): int return self.r.mem_fonts.size end
-terra Renderer:get_mem_font_cache_count        (): int return self.r.mem_fonts.count end
-terra Renderer:get_mmapped_font_cache_count    (): int return self.r.mmapped_fonts.count end
+terra Renderer:get_glyph_run_cache_size        (): double return self.r.glyph_runs.size end
+terra Renderer:get_glyph_run_cache_count       (): double return self.r.glyph_runs.count end
+terra Renderer:get_glyph_cache_size            (): double return self.r.glyphs.size end
+terra Renderer:get_glyph_cache_count           (): double return self.r.glyphs.count end
+terra Renderer:get_mem_font_cache_size         (): double return self.r.mem_fonts.size end
+terra Renderer:get_mem_font_cache_count        (): double return self.r.mem_fonts.count end
+terra Renderer:get_mmapped_font_cache_count    (): double return self.r.mmapped_fonts.count end
 
-terra Renderer:get_paint_glyph_num(): int return self.r.paint_glyph_num end
+terra Renderer:get_paint_glyph_num(): int64 return self.r.paint_glyph_num end
 terra Renderer:set_paint_glyph_num(n: int)       self.r.paint_glyph_num = n end
+
+--Renderer font API -----------------------------------------------------------
+
+terra Renderer:font_face_num(font_id: int)
+	var font = self.r:font(font_id)
+	return self.r:font_face_num(font)
+end
 
 --state invalidation ---------------------------------------------------------
 
@@ -316,7 +325,7 @@ end
 
 --check that there's at least one span and it has offset zero.
 --check that spans have monotonically increasing, in-range offsets.
---check that all spans can be displayed (font loaded and font size > 0).
+--check that all spans can be displayed (font face is loaded and font size > 0).
 terra Layout:_do_validate()
 	if self.l.spans.len == 0 or self.l.spans:at(0).offset ~= 0 then
 		self._offsets_valid = false
@@ -324,22 +333,25 @@ terra Layout:_do_validate()
 	else
 		self._offsets_valid = true
 		self._valid = true
-		if self.l.text.len > 0 then
-			var prev_offset = -1
-			for _,s in self.l.spans do
-				if s.offset <= prev_offset         --offset overlapping
-					or s.offset >= self.l.text.len  --offset out-of-range
-				then
-					self._offsets_valid = false
-					self._valid = false
-				end
-				if s.font == nil --font not set or load failed
-					or s.font_size <= 0 --font size not set
-				then
-					self._valid = false
-				end
-				prev_offset = s.offset
+		if self.l.text.len == 0 then
+			return
+		end
+		var prev_offset = -1
+		for _,s in self.l.spans do
+			if s.offset <= prev_offset         --offset overlapping
+				or s.offset >= self.l.text.len  --offset out-of-range
+			then
+				self._offsets_valid = false
+				self._valid = false
+				return
 			end
+			if s.font == nil       --font not set or font loading failed
+				or s.font_size <= 0 --font size not set
+				or s.face == nil    --invalid face index
+			then
+				self._valid = false
+			end
+			prev_offset = s.offset
 		end
 	end
 end
@@ -570,6 +582,7 @@ terra Layout:set_y(v: num) self:change(self.l, 'y', v, 'clip') end
 
 SPAN_FIELDS = {
 	'font_id',
+	'font_face_index',
 	'font_size',
 	'features',
 	'script',
@@ -722,6 +735,7 @@ terra Span:save_features(layout: &tr.Layout)
 	return iif(sbuf.len > 1, sbuf.elements, nil)
 end
 
+--feature format: '[+|-]feat[=val] ...', eg. '+kern -liga smcp'.
 terra Span:load_features(layout: &tr.Layout, s: rawstring)
 	var s0 = self:save_features(layout)
 	if s0 == s then --both nil
@@ -744,6 +758,7 @@ terra Span:load_features(layout: &tr.Layout, s: rawstring)
 	return true
 end
 
+--accepts BCP-47 language-country codes.
 terra Span:load_lang(layout: &tr.Layout, s: rawstring)
 	var lang = hb_language_from_string(s, -1)
 	return change(self, 'lang', lang)
@@ -753,6 +768,7 @@ terra Span:save_lang(layout: &tr.Layout)
 	return hb_language_to_string(self.lang)
 end
 
+--accepts ISO-15924 script tags.
 terra Span:load_script(layout: &tr.Layout, s: rawstring)
 	var script = hb_script_from_string(s, -1)
 	return change(self, 'script', script)
@@ -766,19 +782,6 @@ terra Span:save_script(layout: &tr.Layout)
 	return iif(sbuf(0) ~= 0, sbuf.elements, nil)
 end
 
-terra Span:load_font_id(layout: &tr.Layout, font_id: int)
-	if self.font_id ~= font_id or self.font == nil then
-		var was_set_before = self.font ~= nil
-		forget_font(layout.r, self.font_id)
-		self.font_id = font_id
-		self.font = layout.r:font(font_id)
-		var was_set_now = self.font ~= nil
-		return was_set_before or was_set_now
-	else
-		return false
-	end
-end
-
 terra Span:save_color(layout: &tr.Layout)
 	return self.color.uint
 end
@@ -787,8 +790,25 @@ terra Span:load_color(layout: &tr.Layout, v: uint32)
 	return change(self.color, 'uint', v)
 end
 
+terra Span:load_font_id(layout: &tr.Layout, font_id: int)
+	if self.font_id ~= font_id then
+		forget_font(layout.r, self.font_id)
+		var font_before = self.font
+		self.font = layout.r:font(font_id)
+		self.font_id = iif(self.font ~= nil, font_id, -1)
+		return not (font_before == nil and self.font == nil)
+	else
+		return false
+	end
+end
+
+terra Span:load_font_size(layout: &tr.Layout, v: double)
+	return change(self, 'font_size', clamp(v, 0, MAX_FONT_SIZE))
+end
+
 SPAN_FIELD_TYPES = {
 	font_id           = int       ,
+	font_face_index   = int       ,
 	font_size         = double    ,
 	features          = rawstring ,
 	script            = rawstring ,
@@ -1001,7 +1021,7 @@ terra Layout:get_pixels_valid() --text needs repainting.
 end
 
 terra Layout:get_visible() --check if the text and/or cursor is visible.
-	return (self.l.text.len > 0 or self.cursors.len > 0) and self.valid
+	return self.l.text.len > 0 or self.cursors.len > 0
 end
 
 terra Layout:get_min_w(): num --for page layouting min-size constraints.
@@ -1323,13 +1343,13 @@ function build(optimize)
 	trlib(tr_layout_sizeof)
 	trlib(tr_renderer)
 
-	trlib(Renderer, nil, {
+	trlib(Renderer, {
 		cname = 'renderer_t',
 		cprefix = 'tr_',
 		opaque = true,
 	})
 
-	trlib(Layout, nil, {
+	trlib(Layout, {
 		cname = 'layout_t',
 		cprefix = 'tr_',
 		opaque = true,
@@ -1339,6 +1359,9 @@ function build(optimize)
 		linkto = {'cairo', 'freetype', 'harfbuzz', 'fribidi', 'unibreak', 'xxhash'},
 		optimize = optimize,
 	}
+
+	trlib:gen_ffi_binding()
+
 end
 
 if not ... then

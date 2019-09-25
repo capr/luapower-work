@@ -55,15 +55,15 @@ terra Layout:spaceout()
 
 		var seg = line.first_vis
 		if seg == nil then --special case for empty text: use font's metrics.
-			var span = self.spans:at(0, nil)
-			var font = iif(span ~= nil, self.r:font(span.font_id), nil)
 			assert(line_i == 0)
-			if font ~= nil then
-				font:setsize(span.font_size)
+			var span = self.spans:at(0, nil)
+			var face = iif(span ~= nil, span.face, nil)
+			if face ~= nil then
+				face:set_size(span.font_size)
 				line:_update_vertical_metrics(
 					self.line_spacing,
-					font.ascent,
-					font.descent,
+					face.ascent,
+					face.descent,
 					ascent_factor,
 					descent_factor
 				)

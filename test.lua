@@ -1,7 +1,13 @@
 local ffi = require'ffi'
 
-local b = ffi.new'int[1]'
+ffi.cdef[[
+typedef struct S S;
+typedef void (*fp) (S);
+struct S {
+	int x;
+};
+]]
 
-b[0] = 2^50
-print(b[0])
-print(-2^31)
+s = ffi.new'S'
+fp = ffi.cast('fp', 0)
+fp(s)

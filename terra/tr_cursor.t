@@ -48,8 +48,10 @@ require'terra/tr_paint'
 terra Layout:offset_at_cursor(p: Pos) -- O(1)
 	if p.seg ~= nil then
 		var run = self:glyph_run(p.seg)
-		assert(p.i == run.cursor_offsets(p.i))
-		return p.seg.offset + p.i
+		--for i,o in run.cursor_offsets do pf('%d ', @o) end
+		--pfn('<- [%d] = %d', int(p.i), run.cursor_offsets(p.i))
+		--assert(p.i == run.cursor_offsets(p.i))
+		return p.seg.offset + run.cursor_offsets(p.i)
 	else
 		assert(p.i == 0)
 		return 0
@@ -247,6 +249,8 @@ terra Layout:cursor_rel_x(p: Pos)
 	end
 end
 
+require'terra/tr_itemize'
+
 --caret rectangle. its position is relative to line_pos().
 terra Layout:cursor_rect(p: Pos, w: num, forward: bool)
 	var line = self:seg_line(p.seg)
@@ -254,6 +258,16 @@ terra Layout:cursor_rect(p: Pos, w: num, forward: bool)
 	var y = -line.spaced_ascent
 	var w = iif(forward ~= false, 1, -1) * iif(isnan(w), 1, w)
 	var h = line.spaced_ascent - line.spaced_descent
+
+	--[[
+	if p.seg ~= nil then
+		var run = self:glyph_run(p.seg)
+		var g_i = run:glyph_index_at_offset(p.i)._0
+		var g = run.glyphs:at(g_i)
+		x = p.seg.x + g.x + g.image_x
+	end
+	]]
+
 	if w < 0 then
 		x, w = x + w, -w
 	end

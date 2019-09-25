@@ -26,39 +26,57 @@ end
 
 --const state ----------------------------------------------------------------
 
-local fonts = {}
-fonts[1] = assert(bundle.load'media/fonts/OpenSans-Regular.ttf')
-fonts[2] = assert(bundle.load'media/fonts/Amiri-Regular.ttf')
+local fonts = {
+	'media/fonts/OpenSans-Regular.ttf',
+	'media/fonts/Amiri-Regular.ttf',
+	'media/fonts/SourceHanSans.ttc',
+	'media/fonts/SourceHanSerif.ttc',
+	'media/fonts/ionicons.ttf',
+}
 
-local font_names = {'OpenSans', 'Amiri'}
+local font_names = {}
+for i,s in ipairs(fonts) do
+	s = s:match'([^/]+)%.tt.$'
+	font_names[i] = s:sub(1, 5)..s:sub(-1)
+end
 local font_map = {}
 for i=1,#font_names do
-	font_map[font_names[i]] = i-1
-	font_map[i-1] = font_names[i]
+	font_map[font_names[i]] = i
+	font_map[i] = font_names[i]
 end
 
-local function load_font(font_id, file_data_buf, file_size_buf)
-	local s = assert(fonts[font_id+1])
-	file_data_buf[0] = ffi.cast('void*', s)
-	file_size_buf[0] = #s
+local lib
+
+local function load_font(font_id, file_data_buf, file_size_buf, mmapped_buf)
+	local font_name = assert(fonts[font_id])
+	local font_data = assert(bundle.load(font_name))
+	local buf = glue.malloc('char', #font_data)
+	ffi.gc(buf, nil)
+	ffi.copy(buf, font_data, #font_data)
+	file_data_buf[0] = buf
+	file_size_buf[0] = #font_data
+	mmapped_buf[0] = false
 end
 
-local function unload_font(font_id, file_data_buf, file_size_buf)
-	--nothing
+local function unload_font(font_id, file_data, file_size)
+	glue.free(file_data)
 end
 
 assert(layer.memtotal() == 0)
 
-local lib = layer.layerlib(load_font, unload_font)
+lib = layer.layerlib(load_font, unload_font)
+lib.mem_font_cache_max_size = 1/0
 
 local default_e = lib:layer()
 
 local lorem_ipsum = bundle.load('lorem_ipsum.txt')
 local test_texts = {
 	[''] = '',
+	marks = 's\u{0320}a\u{0300}',
 	lorem_ipsum = lorem_ipsum,
 	hello = 'aaa ffi bbb',
 	bye = 'Goodbye\nCruel World!',
+	ar = 'السَّلَامُ عَلَيْكُمْ‎',
 	parbreak = u'Hey\nYou&ps;New Paragraph',
 }
 local test_text_names = glue.index(test_texts)
@@ -218,6 +236,7 @@ local function serialize_layer(e)
 	t.text_spans = list(e, e.span_count, {
 		span_offset            =1,
 		span_font_id           =1,
+		span_font_face_index   =1,
 		span_font_size         =1,
 		span_features          =cstring,
 		span_script            =cstring,
@@ -453,23 +472,31 @@ local map_t = glue.memoize(function(prop) return {} end)
 local function enum_map(prop, prefix, options)
 	local t = map_t(prop)
 	if not next(t) then
-		if type(prefix) == 'string' then
+		if type(prefix) == 'string' then --enum mapping
 			for i,s in ipairs(options) do
 				local enum = layer[prefix:upper()..s:upper()]
 				t[s] = enum
 				t[enum] = s
 			end
-		else
+		elseif prefix then --user-specified mapping
 			glue.update(t, prefix)
 			glue.update(t, glue.index(prefix))
+		else
+			for i,v in ipairs(options) do
+				t[v] = v
+			end
 		end
 	end
 	return t
 end
 local function choose(prop, prefix, options, ...)
 	local id, get, set = getset(prop, ...)
+	local v = get(e, prop, ...)
+	if ffi.istype('const char*', v) then
+		v = ffi.string(v)
+	end
 	local t = enum_map(prop, prefix, options)
-	local v = t[get(e, prop, ...)]
+	local v = t[v]
 	testui:pushgroup'down'
 	testui.margin_h = -2
 	testui:label(prop)
@@ -906,10 +933,11 @@ function testui:repaint()
 			--self:popgroup()
 
 			choose('span_font_id', font_map, font_names, i)
+			slide ('span_font_face_index', -1, lib:font_face_num(e:get_span_font_id(i)), 1, i)
 			slide ('span_font_size', -10, 100, 1, i)
 			--TODO: slide ('features',
-			--TODO: choose('script', i)
-			--TODO: choose('lang'             , i)
+			--TODO: choose('span_script', nil, {'Zyyy', 'Latn', 'Arab'}, i)
+			choose('span_lang', nil, {'en-us', '', 'ar-sa'}, i)
 			choose('span_paragraph_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i)
 			toggle('span_nowrap'          , i)
 			pickcolor('span_text_color'   , i)

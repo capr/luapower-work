@@ -98,26 +98,37 @@ struct Font;
 
 --font type ------------------------------------------------------------------
 
-struct Font (gettersandsetters) {
-	id: int;
-	--loading and unloading
-	file_data: &opaque; --leave file_data nil to signal loading failure.
-	file_size: size_t;  --set file_size to 0 if it's a mem-mapped font.
-	--freetype & harfbuzz font objects
+struct FontFace {
 	ft_face: FT_Face;
 	hb_font: &hb_font_t; --represents a ft_face at a particular size.
 	ft_load_flags: int;
 	ft_render_flags: FT_Render_Mode;
-	--font metrics per current size
+	--font metrics for current size
 	size: num;
 	scale: num; --scaling factor for scaling raster glyphs.
 	ascent: num;
 	descent: num;
 }
 
-terra Font.methods.free :: {&Font, &Renderer} -> {}
+FontFace.empty = `FontFace {ft_face = nil, hb_font = nil}
 
-FontLoadFunc = {int, &&opaque, &size_t} -> {}
+terra FontFace.methods.free :: {&FontFace} -> {}
+
+struct Font (gettersandsetters) {
+	r: &Renderer;
+	--loading and unloading
+	file_data: &opaque; --nil signals loading failure.
+	file_size: size_t;
+	faces: arr{T = FontFace, own_elements = true};
+	selected_face_index: int;
+	id: int; --kept for unloading.
+	mmapped: bool; --mmapped or allocated.
+}
+
+terra Font.methods.free :: {&Font} -> {}
+
+FontLoadFunc   = {int, &&opaque, &size_t, &bool} -> {}
+FontUnloadFunc = {int, &opaque, size_t, bool} -> {}
 
 terra Font:__memsize() --for lru cache
 	return self.file_size
@@ -143,11 +154,12 @@ struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
 	font_id: int;
 	font: &Font;
+	font_face_index: uint16;
 	font_size_16_6: uint16;
 	features: hb_feature_arr_t;
-	script: hb_script_t;
 	lang: hb_language_t;
-	opacity: double; --the opacity level in 0..1.
+	script: hb_script_t;
+	opacity: num; --the opacity level in 0..1.
 	color: color;
 	operator: enum; --blending operator.
 	paragraph_dir: enum; --bidi dir override for current paragraph.
@@ -159,6 +171,7 @@ Span.empty = constant(`Span {
 	offset = 0;
 	font_id = -1;
 	font = nil;
+	font_face_index = 0;
 	font_size_16_6 = 0;
 	features = [hb_feature_arr_t.empty];
 	script = 0;
@@ -178,10 +191,8 @@ terra forget_font :: {&Renderer, int} -> {}
 
 terra Span:free(r: &Renderer)
 	self.features:free()
-	if self.font ~= nil then
-		forget_font(r, self.font_id)
-		self.font = nil
-	end
+	forget_font(r, self.font_id)
+	self.font = nil
 end
 
 --an embed is a reserved visual space at a specific offset in text,
@@ -384,6 +395,7 @@ struct GlyphRun (gettersandsetters) {
 	lang            : hb_language_t;     --8
 	script          : hb_script_t;       --4
 	font_id         : int;               --4
+	font_face_index : uint16;            --2
 	font_size_16_6  : uint16;            --2
 	rtl             : bool;              --1
 	--resulting glyphs and glyph metrics
@@ -399,7 +411,7 @@ struct GlyphRun (gettersandsetters) {
 	--for cursor positioning and hit testing.
 	--these arrays hold exactly text.len+1 items, one for each position in
 	--front of each codepoint plus the position after the last codepoint.
-	cursor_offsets  : arr(uint16); --navigable offsets, so some are duplicates.
+	cursor_offsets  : arr(int8); --navigable offsets, so some are duplicates.
 	cursor_xs       : arr(num); --x-coords, so some are duplicates.
 	trailing_space  : bool; --the text includes a trailing space (for wrapping).
 }
@@ -411,6 +423,7 @@ assert(key_size ==
 	  sizeof(hb_language_t)
 	+ sizeof(hb_script_t)
 	+ sizeof(int)
+	+ sizeof(uint16)
 	+ sizeof(uint16)
 	+ sizeof(bool)) --no gaps
 
@@ -461,6 +474,7 @@ struct Glyph (gettersandsetters) {
 	--cache key fields: no alignment holes allowed between cache key fields !!!
 	glyph_index     : uint;        --4
 	font_id         : int;         --4
+	font_face_index : uint16;      --2
 	font_size_16_6  : uint16;      --2
 	subpixel_offset_x_8_6 : uint8; --1
 	--glyph image
@@ -470,6 +484,7 @@ fixpointfields(Glyph)
 
 Glyph.empty = `Glyph {
 	font_id = -1;
+	font_face_index = 0;
 	font_size_16_6 = 0;
 	glyph_index = 0;
 	subpixel_offset_x_8_6 = 0;
@@ -481,6 +496,7 @@ local key_size = offsetafter(Glyph, 'subpixel_offset_x_8_6') - key_offset
 assert(key_size ==
 	  sizeof(uint)
 	+ sizeof(int)
+	+ sizeof(uint16)
 	+ sizeof(uint16)
 	+ sizeof(uint8)) --no gaps
 
@@ -603,9 +619,9 @@ struct SegRange {
 }
 RangesFreelist = fixedfreelist(SegRange)
 
-GlyphRunCache = lrucache {key_t = GlyphRun, context_t = &Renderer, own_keys = true}
-GlyphCache    = lrucache {key_t = Glyph, context_t = &Renderer, own_keys = true}
-FontCache     = lrucache {key_t = int, val_t = &Font, context_t = &Renderer, own_values = true}
+GlyphRunCache = lrucache {size_t = int, key_t = GlyphRun, context_t = &Renderer, own_keys = true}
+GlyphCache    = lrucache {size_t = int, key_t = Glyph, context_t = &Renderer, own_keys = true}
+FontCache     = lrucache {size_t = int, key_t = int, val_t = &Font, own_values = true}
 
 --GlyphRunCache
 
@@ -618,8 +634,8 @@ struct Renderer (gettersandsetters) {
 
 	ft_lib: FT_Library;
 
-	load_font: FontLoadFunc;
-	unload_font: FontLoadFunc;
+	load_font   : FontLoadFunc;
+	unload_font : FontUnloadFunc;
 
 	glyphs        : GlyphCache;
 	glyph_runs    : GlyphRunCache;

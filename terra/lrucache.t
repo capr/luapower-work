@@ -110,6 +110,7 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal, own_keys
 			return quote
 				fill(self)
 				self._max_count = [size_t:max()]
+				self._max_size  = [size_t:max()]
 				escape if context_t then emit quote
 					self.pairs:init(context)
 					self.indices:init(context)
@@ -252,7 +253,7 @@ local cache_type = function(key_t, val_t, size_t)
 	if own_vals then assert(cancall(val_t, 'free'), 'own_values specified but ', val_t, ' has no free method') end
 	own_keys = own_keys ~= false
 	own_vals = own_vals ~= false
-	return cache_type(key_t, val_t or nil, size_t or int, context_t or nil, hash, equal, own_keys, own_vals)
+	return cache_type(key_t, val_t or nil, size_t or int64, context_t or nil, hash, equal, own_keys, own_vals)
 end
 
 lrucache = macro(

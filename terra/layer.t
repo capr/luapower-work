@@ -69,8 +69,9 @@ context = cairo_t
 surface = cairo_surface_t
 rect = rect(num)
 Bitmap = bitmap.Bitmap
-FontLoadFunc = tr.FontLoadFunc
-ErrorFunction = tr.ErrorFunction
+FontLoadFunc   = tr.FontLoadFunc
+FontUnloadFunc = tr.FontUnloadFunc
+ErrorFunction  = tr.ErrorFunction
 
 --common enums ---------------------------------------------------------------
 
@@ -3050,7 +3051,7 @@ end
 
 --lib ------------------------------------------------------------------------
 
-terra Lib:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+terra Lib:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	self.text_renderer:init(load_font, unload_font)
 	self.grid_occupied:init()
 	self.default_layout_solver = &null_layout

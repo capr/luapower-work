@@ -1,35 +1,43 @@
 return {
 	root={
+		background_color=4294967295,
+		background_type=1,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
-		h=431.5,
+		h=484.5,
 		layout_type=1,
 		min_ch=431.5,
-		min_cw=571,
+		min_cw=741.5,
+		padding_bottom=26.5,
+		padding_left=26.5,
+		padding_right=26.5,
+		padding_top=26.5,
 		span_count=1,
 		text_align_x=1,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=172,
-				text_cursor_sel_offset=172,
-				text_cursor_x=190
+				text_cursor_offset=60,
+				text_cursor_sel_offset=60,
+				text_cursor_x=41
 			}
 		},
 		text_spans={
 			{
-				span_font_id=0,
-				span_font_size=24
+				span_font_id=3,
+				span_font_size=18,
+				span_lang='en-us',
+				span_text_color=255
 			}
 		},
-		text_utf8='9 9 osi do aisd fi opo saod poa sdof 09 a9 sfa i fai ufg sdifug sdfiug sdiu gsidu isdu u sdufgiud fgiu dfug sdiufg isduf giusdfpiug psiduf us idu fgd ofia sodif o dspos dfgi odif gois.',
-		w=571,
-		x=85,
-		y=78.5
+		text_utf8='pxvc sa09d -asd98fg ]asd8fg  a\'sd f\rpsAD asd0 a0sd -a0 s-d0 OF\rA F9W-0E9RT WE0 aaaaaaaamazing!!!!\r\r\n',
+		w=794.5,
+		x=61,
+		y=39
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Background'
 }

@@ -5,13 +5,14 @@ typedef struct renderer_t renderer_t;
 typedef struct layout_t layout_t;
 typedef struct _cairo _cairo;
 typedef struct double4 double4;
-typedef void (*tr_font_load_func) (int32_t, void**, uint64_t*);
+typedef void (*tr_font_load_func_t) (int32_t, void**, uint64_t*, bool*);
+typedef void (*tr_font_unload_func_t) (int32_t, void*, uint64_t, bool);
 uint64_t memtotal();
 void memreport();
 int32_t tr_renderer_sizeof();
 int32_t tr_layout_sizeof();
-renderer_t* tr_renderer(tr_font_load_func, tr_font_load_func);
-void tr_init(renderer_t*, tr_font_load_func, tr_font_load_func);
+renderer_t* tr_renderer(tr_font_load_func_t, tr_font_unload_func_t);
+void tr_init(renderer_t*, tr_font_load_func_t, tr_font_unload_func_t);
 void tr_free(renderer_t*);
 void tr_release(renderer_t*);
 layout_t* tr_layout(renderer_t*);
@@ -21,23 +22,24 @@ double tr_get_word_subpixel_x_resolution(renderer_t*);
 void tr_set_word_subpixel_x_resolution(renderer_t*, double);
 double tr_get_font_size_resolution(renderer_t*);
 void tr_set_font_size_resolution(renderer_t*, double);
-int32_t tr_get_glyph_run_cache_max_size(renderer_t*);
-void tr_set_glyph_run_cache_max_size(renderer_t*, int32_t);
-int32_t tr_get_glyph_cache_max_size(renderer_t*);
-void tr_set_glyph_cache_max_size(renderer_t*, int32_t);
-int32_t tr_get_mem_font_cache_max_size(renderer_t*);
-void tr_set_mem_font_cache_max_size(renderer_t*, int32_t);
-int32_t tr_get_mmapped_font_cache_max_count(renderer_t*);
-void tr_set_mmapped_font_cache_max_count(renderer_t*, int32_t);
-int32_t tr_get_glyph_run_cache_size(renderer_t*);
-int32_t tr_get_glyph_run_cache_count(renderer_t*);
-int32_t tr_get_glyph_cache_size(renderer_t*);
-int32_t tr_get_glyph_cache_count(renderer_t*);
-int32_t tr_get_mem_font_cache_size(renderer_t*);
-int32_t tr_get_mem_font_cache_count(renderer_t*);
-int32_t tr_get_mmapped_font_cache_count(renderer_t*);
-int32_t tr_get_paint_glyph_num(renderer_t*);
+double tr_get_glyph_run_cache_max_size(renderer_t*);
+void tr_set_glyph_run_cache_max_size(renderer_t*, double);
+double tr_get_glyph_cache_max_size(renderer_t*);
+void tr_set_glyph_cache_max_size(renderer_t*, double);
+double tr_get_mem_font_cache_max_size(renderer_t*);
+void tr_set_mem_font_cache_max_size(renderer_t*, double);
+double tr_get_mmapped_font_cache_max_count(renderer_t*);
+void tr_set_mmapped_font_cache_max_count(renderer_t*, double);
+double tr_get_glyph_run_cache_size(renderer_t*);
+double tr_get_glyph_run_cache_count(renderer_t*);
+double tr_get_glyph_cache_size(renderer_t*);
+double tr_get_glyph_cache_count(renderer_t*);
+double tr_get_mem_font_cache_size(renderer_t*);
+double tr_get_mem_font_cache_count(renderer_t*);
+double tr_get_mmapped_font_cache_count(renderer_t*);
+int64_t tr_get_paint_glyph_num(renderer_t*);
 void tr_set_paint_glyph_num(renderer_t*, int32_t);
+int32_t tr_font_face_num(renderer_t*, int32_t);
 renderer_t* tr_get_r(layout_t*);
 void tr_init(layout_t*, renderer_t*);
 void tr_free(layout_t*);
@@ -90,6 +92,7 @@ void tr_set_y(layout_t*, double);
 void tr_remove_trailing_spans(layout_t*);
 bool tr_has_color(layout_t*, int32_t, int32_t);
 bool tr_has_features(layout_t*, int32_t, int32_t);
+bool tr_has_font_face_index(layout_t*, int32_t, int32_t);
 bool tr_has_font_id(layout_t*, int32_t, int32_t);
 bool tr_has_font_size(layout_t*, int32_t, int32_t);
 bool tr_has_lang(layout_t*, int32_t, int32_t);
@@ -100,6 +103,7 @@ bool tr_has_paragraph_dir(layout_t*, int32_t, int32_t);
 bool tr_has_script(layout_t*, int32_t, int32_t);
 void tr_set_color(layout_t*, int32_t, int32_t, uint32_t);
 void tr_set_features(layout_t*, int32_t, int32_t, const char *);
+void tr_set_font_face_index(layout_t*, int32_t, int32_t, int32_t);
 void tr_set_font_id(layout_t*, int32_t, int32_t, int32_t);
 void tr_set_font_size(layout_t*, int32_t, int32_t, double);
 void tr_set_lang(layout_t*, int32_t, int32_t, const char *);
@@ -110,6 +114,7 @@ void tr_set_paragraph_dir(layout_t*, int32_t, int32_t, int32_t);
 void tr_set_script(layout_t*, int32_t, int32_t, const char *);
 uint32_t tr_get_span_color(layout_t*, int32_t);
 const char * tr_get_span_features(layout_t*, int32_t);
+int32_t tr_get_span_font_face_index(layout_t*, int32_t);
 int32_t tr_get_span_font_id(layout_t*, int32_t);
 double tr_get_span_font_size(layout_t*, int32_t);
 const char * tr_get_span_lang(layout_t*, int32_t);
@@ -120,6 +125,7 @@ int32_t tr_get_span_paragraph_dir(layout_t*, int32_t);
 const char * tr_get_span_script(layout_t*, int32_t);
 void tr_set_span_color(layout_t*, int32_t, uint32_t);
 void tr_set_span_features(layout_t*, int32_t, const char *);
+void tr_set_span_font_face_index(layout_t*, int32_t, int32_t);
 void tr_set_span_font_id(layout_t*, int32_t, int32_t);
 void tr_set_span_font_size(layout_t*, int32_t, double);
 void tr_set_span_lang(layout_t*, int32_t, const char *);
@@ -159,8 +165,8 @@ void tr_set_cursor_x(layout_t*, int32_t, double);
 void tr_cursor_move_to(layout_t*, int32_t, double, int8_t, bool);
 void tr_cursor_move_to_point(layout_t*, int32_t, double, double, bool);
 void tr_cursor_move_near(layout_t*, int32_t, int8_t, int8_t, int8_t, bool);
-void tr_cursor_move_near_line(layout_t*, int32_t, int32_t, double, bool);
-void tr_cursor_move_near_page(layout_t*, int32_t, int32_t, double, bool);
+void tr_cursor_move_near_line(layout_t*, int32_t, double, double, bool);
+void tr_cursor_move_near_page(layout_t*, int32_t, double, double, bool);
 bool tr_get_caret_visible(layout_t*, int32_t);
 bool tr_get_selection_visible(layout_t*, int32_t);
 void tr_set_caret_visible(layout_t*, int32_t, bool);
@@ -210,6 +216,7 @@ local methods = {
 	free = C.tr_free,
 	release = C.tr_release,
 	layout = C.tr_layout,
+	font_face_num = C.tr_font_face_num,
 }
 ffi.metatype('renderer_t', {
 	__index = function(self, k)
@@ -296,6 +303,7 @@ local methods = {
 	remove_trailing_spans = C.tr_remove_trailing_spans,
 	has_color = C.tr_has_color,
 	has_features = C.tr_has_features,
+	has_font_face_index = C.tr_has_font_face_index,
 	has_font_id = C.tr_has_font_id,
 	has_font_size = C.tr_has_font_size,
 	has_lang = C.tr_has_lang,
@@ -306,6 +314,7 @@ local methods = {
 	has_script = C.tr_has_script,
 	set_color = C.tr_set_color,
 	set_features = C.tr_set_features,
+	set_font_face_index = C.tr_set_font_face_index,
 	set_font_id = C.tr_set_font_id,
 	set_font_size = C.tr_set_font_size,
 	set_lang = C.tr_set_lang,
@@ -316,6 +325,7 @@ local methods = {
 	set_script = C.tr_set_script,
 	get_span_color = C.tr_get_span_color,
 	get_span_features = C.tr_get_span_features,
+	get_span_font_face_index = C.tr_get_span_font_face_index,
 	get_span_font_id = C.tr_get_span_font_id,
 	get_span_font_size = C.tr_get_span_font_size,
 	get_span_lang = C.tr_get_span_lang,
@@ -326,6 +336,7 @@ local methods = {
 	get_span_script = C.tr_get_span_script,
 	set_span_color = C.tr_set_span_color,
 	set_span_features = C.tr_set_span_features,
+	set_span_font_face_index = C.tr_set_span_font_face_index,
 	set_span_font_id = C.tr_set_span_font_id,
 	set_span_font_size = C.tr_set_span_font_size,
 	set_span_lang = C.tr_set_span_lang,

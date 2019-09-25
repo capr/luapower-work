@@ -15,9 +15,12 @@ if not ... then require'terra/tr_test'; return end
 setfenv(1, require'terra/tr_types')
 require'terra/tr_rle'
 require'terra/tr_shape'
+require'terra/tr_font'
 
 require'terra/tr_itemize_detect_script'
 require'terra/tr_itemize_detect_lang'
+
+local MAX_WORD_LEN = 127
 
 local PS = FRIBIDI_CHAR_PS --paragraph separator codepoint
 local LS = FRIBIDI_CHAR_LS --line separator codepoint
@@ -141,7 +144,7 @@ do --iterate text segments having the same shaping-relevant properties.
 	iter.values_different = function(self, i)
 		return `
 			span_diff
-			or self.linebreaks(i-1) < 2 --0: required, 1: allowed, 2: not allowed
+			or self.linebreaks(i-1) <= LINEBREAK_ALLOWBREAK
 			or level1  ~= level0
 			or script1 ~= script0
 			or lang1   ~= lang0
@@ -347,6 +350,15 @@ terra Layout:shape()
 	self.text.len = len0
 	r.linebreaks.len = len0
 
+	--Insert artificial soft line breaks on words that are too long.
+	var n = 0
+	for i, code in r.linebreaks do
+		n = iif(@code <= LINEBREAK_ALLOWBREAK, 0, n + 1)
+		if n >= MAX_WORD_LEN then
+			r.linebreaks:set(i, LINEBREAK_ALLOWBREAK)
+		end
+	end
+
 	--Split the text into segs of characters with the same properties,
 	--shape the segs individually and cache the shaped results.
 	--The splitting is two-level: each text seg that requires separate
@@ -364,12 +376,11 @@ terra Layout:shape()
 		r.linebreaks.view
 	) do
 
-		--UBA codes: 0: required, 1: allowed, 2: not allowed.
 		var linebreak_code = r.linebreaks(offset + len - 1)
 		--our codes: 0: not allowed, 1: allowed, 2: line, 3: paragraph.
-		var linebreak = iif(linebreak_code == 0,
+		var linebreak = iif(linebreak_code == LINEBREAK_MUSTBREAK,
 			iif(self.text(offset + len - 1) == PS, BREAK_PARA, BREAK_LINE),
-			iif(linebreak_code == 1, BREAK_WRAP, BREAK_NONE))
+			iif(linebreak_code == LINEBREAK_ALLOWBREAK, BREAK_WRAP, BREAK_NONE))
 
 		--find the seg length without trailing linebreak chars.
 		while len > 0 and isnewline(self.text(offset + len - 1)) do
@@ -388,6 +399,7 @@ terra Layout:shape()
 			lang            = lang;
 			script          = script;
 			font_id         = span.font_id;
+			font_face_index = span.font_face_index;
 			font_size_16_6  = span.font_size_16_6;
 			rtl             = isodd(level);
 			--info for shaping a new glyph run
@@ -396,7 +408,9 @@ terra Layout:shape()
 		run_key.text.view = self.text:sub(offset, offset + len)
 		--^^fake a dynarray to avoid copying.
 
-		var glyph_run_id, run = r:shape(run_key, span.font)
+		var face = span.face
+		face:set_size(span.font_size)
+		var glyph_run_id, run = r:shape(run_key, face)
 
 		var seg = segs:add()
 		seg.glyph_run_id = glyph_run_id

@@ -27,7 +27,7 @@ end
 
 setfenv(1, require'terra/tr_types')
 
-terra Renderer:create_glyph_surface(glyph: &Glyph, bmp: &FT_Bitmap, font: &Font)
+terra Renderer:create_glyph_surface(glyph: &Glyph, bmp: &FT_Bitmap, scale: num, font_size: num)
 
 	var w = bmp.width
 	var h = bmp.rows
@@ -38,9 +38,9 @@ terra Renderer:create_glyph_surface(glyph: &Glyph, bmp: &FT_Bitmap, font: &Font)
 	var sr0 = cairo_image_surface_create_for_data(
 		bmp.buffer, format, w, h, bmp.pitch)
 
-	if font.scale ~= 1 then
+	if scale ~= 1 then
 		--scale raster glyphs which freetype cannot scale by itself.
-		var bw = font.size
+		var bw = font_size
 		var w1, h1 = rect.fit(w, h, bw, bw)
 		var sr = create_surface(ceil(w1), ceil(h1))
 		var cr = sr:context()
@@ -77,6 +77,10 @@ terra Renderer:setcontext(cr: &context, span: &Span)
 end
 
 terra Renderer:paint_surface(cr: &context, sr: &surface, x: num, y: num)
+	--cr:rgba(1, 1, 1, .5)
+	--cr:line_width(1)
+	--cr:rectangle(x, y, sr:width(), sr:height())
+	--cr:stroke()
 	cr:mask(sr, x, y)
 end
 
@@ -86,7 +90,7 @@ terra Renderer:paint_surface_clipped(
 )
 	cr:save()
 	cr:new_path()
-	cr:rectangle(clip_left, y, clip_right - clip_left, sr:height())
+	cr:rectangle(clip_left, y, clip_right, sr:height())
 	cr:clip()
 	cr:mask(sr, x, y)
 	cr:restore()

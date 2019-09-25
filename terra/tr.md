@@ -86,8 +86,9 @@ than one script.
 
 In tr, the script is auto-detected from the Unicode General Category class
 of each character and the language is auto-detected from the script property
-of each character. The script and language can also be specified as span
-attributes.
+of each character. The script and/or language can also be specified as span
+attributes. Use ISO-15924 tags for the `script` property and BCP-47
+language-country codes for the `lang` property.
 
 ## Shaper
 

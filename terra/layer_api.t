@@ -126,12 +126,12 @@ local MAX_CURSOR_COUNT = 10000
 
 do end --lib new/release
 
-terra Lib:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+terra Lib:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	self.l:init(load_font, unload_font)
 end
 terra Lib:free() self.l:free() end
 
-local terra layerlib_new(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+local terra layerlib_new(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	return new(Lib, load_font, unload_font)
 end
 
@@ -141,33 +141,39 @@ end
 
 do end --text rendering engine configuration
 
-terra Lib:get_font_size_resolution         (): num return self.l.text_renderer.font_size_resolution end
-terra Lib:get_subpixel_x_resolution        (): num return self.l.text_renderer.subpixel_x_resolution end
-terra Lib:get_word_subpixel_x_resolution   (): num return self.l.text_renderer.word_subpixel_x_resolution end
-terra Lib:get_glyph_cache_max_size         (): int return self.l.text_renderer.glyph_cache_size end
-terra Lib:get_glyph_run_cache_max_size     (): int return self.l.text_renderer.glyph_run_cache_size end
-terra Lib:get_mem_font_cache_max_size      (): int return self.l.text_renderer.mem_font_cache_max_size end
-terra Lib:get_mmapped_font_cache_max_count (): int return self.l.text_renderer.mmapped_font_cache_max_count end
+terra Lib:get_font_size_resolution         (): double return self.l.text_renderer.font_size_resolution end
+terra Lib:get_subpixel_x_resolution        (): double return self.l.text_renderer.subpixel_x_resolution end
+terra Lib:get_word_subpixel_x_resolution   (): double return self.l.text_renderer.word_subpixel_x_resolution end
+terra Lib:get_glyph_cache_max_size         (): double return self.l.text_renderer.glyph_cache_size end
+terra Lib:get_glyph_run_cache_max_size     (): double return self.l.text_renderer.glyph_run_cache_size end
+terra Lib:get_mem_font_cache_max_size      (): double return self.l.text_renderer.mem_font_cache_max_size end
+terra Lib:get_mmapped_font_cache_max_count (): double return self.l.text_renderer.mmapped_font_cache_max_count end
 terra Lib:get_error_function               (): ErrorFunction return self.l.text_renderer.error_function end
 
-terra Lib:set_font_size_resolution         (v: num) self.l.text_renderer.font_size_resolution = v end
-terra Lib:set_subpixel_x_resolution        (v: num) self.l.text_renderer.subpixel_x_resolution = v end
-terra Lib:set_word_subpixel_x_resolution   (v: num) self.l.text_renderer.word_subpixel_x_resolution = v end
-terra Lib:set_glyph_cache_max_size         (v: num) self.l.text_renderer.glyph_cache_max_size = v end
-terra Lib:set_glyph_run_cache_max_size     (v: num) self.l.text_renderer.glyph_run_cache_max_size = v end
-terra Lib:set_mem_font_cache_max_size      (v: num) self.l.text_renderer.mem_font_cache_max_size = v end
-terra Lib:set_mmapped_font_cache_max_count (v: num) self.l.text_renderer.mmapped_font_cache_max_count = v end
+terra Lib:set_font_size_resolution         (v: double) self.l.text_renderer.font_size_resolution = v end
+terra Lib:set_subpixel_x_resolution        (v: double) self.l.text_renderer.subpixel_x_resolution = v end
+terra Lib:set_word_subpixel_x_resolution   (v: double) self.l.text_renderer.word_subpixel_x_resolution = v end
+terra Lib:set_glyph_cache_max_size         (v: double) self.l.text_renderer.glyph_cache_max_size = v end
+terra Lib:set_glyph_run_cache_max_size     (v: double) self.l.text_renderer.glyph_run_cache_max_size = v end
+terra Lib:set_mem_font_cache_max_size      (v: double) self.l.text_renderer.mem_font_cache_max_size = v end
+terra Lib:set_mmapped_font_cache_max_count (v: double) self.l.text_renderer.mmapped_font_cache_max_count = v end
 terra Lib:set_error_function               (v: ErrorFunction) self.l.text_renderer.error_function = v end
 
 do end --text rendering engine stats
 
-terra Lib:get_glyph_run_cache_size        (): int return self.l.text_renderer.glyph_run_cache_size end
-terra Lib:get_glyph_run_cache_count       (): int return self.l.text_renderer.glyph_run_cache_count end
-terra Lib:get_glyph_cache_size            (): int return self.l.text_renderer.glyph_cache_size end
-terra Lib:get_glyph_cache_count           (): int return self.l.text_renderer.glyph_cache_count end
-terra Lib:get_mem_font_cache_size         (): int return self.l.text_renderer.mem_font_cache_size end
-terra Lib:get_mem_font_cache_count        (): int return self.l.text_renderer.mem_font_cache_count end
-terra Lib:get_mmapped_font_cache_count    (): int return self.l.text_renderer.mmapped_font_cache_count end
+terra Lib:get_glyph_run_cache_size        (): double return self.l.text_renderer.glyph_run_cache_size end
+terra Lib:get_glyph_run_cache_count       (): double return self.l.text_renderer.glyph_run_cache_count end
+terra Lib:get_glyph_cache_size            (): double return self.l.text_renderer.glyph_cache_size end
+terra Lib:get_glyph_cache_count           (): double return self.l.text_renderer.glyph_cache_count end
+terra Lib:get_mem_font_cache_size         (): double return self.l.text_renderer.mem_font_cache_size end
+terra Lib:get_mem_font_cache_count        (): double return self.l.text_renderer.mem_font_cache_count end
+terra Lib:get_mmapped_font_cache_count    (): double return self.l.text_renderer.mmapped_font_cache_count end
+
+do end --font api
+
+terra Lib:font_face_num(font_id: int)
+	return self.l.text_renderer:font_face_num(font_id)
+end
 
 do end --layer new/release
 
@@ -1132,8 +1138,17 @@ terra Layer:get_hit_test_text_cursor_which() return self.l.lib.hit_test_result.t
 
 --publish and build
 
+layerlib_new.cname = 'layerlib'
+Lib.cname = 'layerlib_t'
+Lib.cprefix = 'layerlib_'
+Lib.opaque = true
+Layer.cname = 'layer_t'
+Layer.cprefix = 'layer_'
+Layer.opaque = true
+
 function build(optimize)
-	local layerlib = publish'layer'
+	local binder = require'terra/binder'
+	local layerlib = binder.lib'layer'
 
 	if memtotal then
 		layerlib(memtotal)
@@ -1141,25 +1156,19 @@ function build(optimize)
 	end
 
 	layerlib(layer)
-
-	layerlib(layerlib_new, 'layerlib')
-
-	layerlib(Lib, nil, {
-		cname = 'layerlib_t',
-		cprefix = 'layerlib_',
-		opaque = true,
-	})
-
-	layerlib(Layer, nil, {
-		cname = 'layer_t',
-		cprefix = 'layer_',
-		opaque = true,
-	})
+	layerlib(layerlib_new)
+	layerlib(Lib)
+	layerlib(Layer)
 
 	layerlib:build{
 		linkto = {'cairo', 'freetype', 'harfbuzz', 'fribidi', 'unibreak', 'boxblur', 'xxhash'},
 		optimize = optimize,
 	}
+
+	layerlib:gen_ffi_binding{
+		--wrap_module = '',
+	}
+
 end
 
 if not ... then

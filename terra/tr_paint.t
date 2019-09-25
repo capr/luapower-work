@@ -6,12 +6,12 @@ if not ... then require'terra/tr_test'; return end
 setfenv(1, require'terra/tr_types')
 require'terra/tr_rasterize'
 
-terra Renderer:paint_glyph_run(cr: &context, run: &GlyphRun, font: &Font, ax: num, ay: num)
+terra Renderer:paint_glyph_run(cr: &context, run: &GlyphRun, face: &FontFace, ax: num, ay: num)
 	if run.glyphs.len > 1 and run.font_size < 50 then
-		var sr, sx, sy = self:rasterize_glyph_run(run, font, ax, ay)
+		var sr, sx, sy = self:rasterize_glyph_run(run, face, ax, ay)
 		self:paint_surface(cr, sr, sx, sy)
 	else
-		for sr, sx, sy in self:glyph_surfaces(run, 0, run.glyphs.len, font, ax, ay) do
+		for sr, sx, sy in self:glyph_surfaces(run, 0, run.glyphs.len, face, ax, ay) do
 			self:paint_surface(cr, sr, sx, sy)
 		end
 	end
@@ -19,7 +19,7 @@ terra Renderer:paint_glyph_run(cr: &context, run: &GlyphRun, font: &Font, ax: nu
 end
 
 terra Renderer:paint_glyph_run_subseg(cr: &context, run: &GlyphRun, sub: &SubSeg, ax: num, ay: num)
-	var surfaces = self:glyph_surfaces(run, sub.glyph_index1, sub.glyph_index2, sub.span.font, ax, ay)
+	var surfaces = self:glyph_surfaces(run, sub.glyph_index1, sub.glyph_index2, sub.span.face, ax, ay)
 	if sub.clip then
 		var clip1 = ax + sub.clip_left
 		var clip2 = ax + sub.clip_right
@@ -56,7 +56,7 @@ terra Layout:paint_text(cr: &context)
 					end
 				else
 					self.r:setcontext(cr, seg.span)
-					self.r:paint_glyph_run(cr, run, seg.span.font, x, y)
+					self.r:paint_glyph_run(cr, run, seg.span.face, x, y)
 				end
 			end
 		end

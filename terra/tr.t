@@ -62,14 +62,14 @@ require'terra/tr_align'
 require'terra/tr_clip'
 require'terra/tr_paint'
 
-terra Renderer:init(load_font: FontLoadFunc, unload_font: FontLoadFunc)
+terra Renderer:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	fill(self) --this initializes all arr() types.
 	self.font_size_resolution  = 1.0/8  --in pixels
 	self.subpixel_x_resolution = 1.0/16 --1/64 pixels is max with freetype
 	self.word_subpixel_x_resolution = 1.0/4
-	self.mem_fonts:init(self)
+	self.mem_fonts:init()
 	self.mem_fonts.max_size = 1024 * 1024 * 20 --20 MB net (arbitrary default)
-	self.mmapped_fonts:init(self)
+	self.mmapped_fonts:init()
 	self.mmapped_fonts.max_count = 1000 -- (arbitrary default)
 	self.load_font = load_font
 	self.unload_font = unload_font
