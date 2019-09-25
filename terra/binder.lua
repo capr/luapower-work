@@ -18,13 +18,12 @@ Features:
 	* publishes global numbers and bitmask values as enums.
 	* diff-friendly deterministic output.
 
-Options controlling the output:
+Terra type and function object attributes for controlling the output:
 
 	* `cname`   : type/function name override.
 	* `opaque`  : declare a type but don't define it.
 	* `cprefix` : prefix method names.
 	* `private` : tag method as private.
-	* `methods` : provide options for methods.
 	* `public_methods`: specify which methods to publish.
 
 Conventions:
@@ -33,41 +32,29 @@ Conventions:
 
 Usage:
 
-	local lib = publish'mylib'
+	local lib = require'terra/binder'.lib
 
-	--publish Terra struct MyStruct.
-	lib(MyStruct, {
-		opaque=true,             --don't emit a fields definition
-		cname='my_struct_t',     --publish MyStruct as C struct my_struct_t
-		methods={                --provide options for methods
-			myMethod='my_method', --name myMethod as my_method if publishing it
-			myPrivMethod={private=true}, --specify that myPrivMethod is private
-		},
-		public_methods={         --publish only the methods in this map
-			myMethod=1,           --publish myMethod as C function myMethod
-			myMethod='my_method', --publish myMethod as C function my_method
-			myMethod={cname='my_method', ...} --...same but with more options
-			myMethod={            --publish overloaded myMethod as two C functions
-				'my_method1',      --my_method1 and my_method2
-				'my_method2',
-			},
-		},
-	})
-
-	--publish Terra function MyFunc.
-	lib(MyFunc, 'my_func') --publish MyFunc as C function my_func
-
-	--publish all all-uppercase string keys with number values from _M as C enums.
-	lib(_M)
-
-	--publish all keys in _M starting with `PREFIX_` and prefix them with `CPREFIX_`.
-	lib(_M, '^PREFIX_', 'CPREFIX_')
-
-	--publishing options can also be added to the Terra objects themselves:
 	MyStruct.cname = 'my_struct_t'
-	MyFunc.methods.myMethod.cname = 'my_method'
+	MyStruct.opaque = true
+	MyStruct.methods.myMethod.cname = 'my_method'
+	MyStruct.public_methods = {foo=1,bar=1,...}
 	MyFunc.cname = 'my_func'
-	MyFunc.cname = {'my_func_overload1', 'my_func_overload2'}
+	MyOverloadedFunc.cname = {'my_func', 'my_func2'}
+	MyFuncPointer.type.cname = 'myfunc_callback_t'
+
+	local mylib = lib'mylib'
+
+	mylib(MyStruct) --publish Terra struct MyStruct and its dependent types.
+	mylib(MyFunc)   --publish Terra function MyFunc and its dependent types.
+	mylib(_M, 'SP_', 'CP_') --publish all SP_FOO enums as CP_FOO.
+	mylib(_M)       --publish all all-uppercase keys from _M as C enums.
+
+	mylib:build{
+		linkto = {'lib1', 'lib2', ...},
+		optimize = false,  --for faster compile time when developing.
+	}
+	mylib:gen_ffi_binding()
+	mylib:gen_c_header()
 
 Note:
 
@@ -84,12 +71,10 @@ setfenv(1, require'terra/low'.module())
 
 --C defs generator -----------------------------------------------------------
 
-function cdefs(cnames, opaque)
+function cdefs()
 
 	--C type name generation --------------------------------------------------
 
-	cnames = cnames or {}
-	opaque = opaque or {}
 	local ctype --fw. decl. (used recursively)
 
 	local function clean_cname(s)
@@ -157,7 +142,7 @@ function cdefs(cnames, opaque)
 			or type(v) == 'overloadedterrafunction'
 			or type(v) == 'terraglobalvariable'
 		then
-			return cnames[v] or v.cname
+			return v.cname
 				or type(v) == 'terrafunction'           and func_cname(v)
 				or type(v) == 'overloadedterrafunction' and overload_cname(v)
 				or type(v) == 'terraglobalvariable'     and globalvar_cname(v)
@@ -171,7 +156,7 @@ function cdefs(cnames, opaque)
 			elseif T:isfloat() or T:islogical() then
 				return tostring(T)
 			elseif T == rawstring then
-				return 'const char *'
+				return 'const char*'
 			elseif T:ispointer() then
 				if T.type:isfunction() then
 					return ctype(T.type) --C's funcptr is its own type.
@@ -181,7 +166,7 @@ function cdefs(cnames, opaque)
 			elseif T:isarray() then
 				return ctype(T.type)..'['..T.N..']'
 			elseif T:isstruct() or T:isfunction() then
-				return cnames[T] or T.cname
+				return T.cname
 					or T:istuple() and tuple_cname(T)
 					or T:isstruct() and clean_cname(tostring(T))
 					or T:isfunction() and funcptr_cname(T)
@@ -276,9 +261,7 @@ function cdefs(cnames, opaque)
 	end
 
 	local function define_struct(T, cname, nodef)
-		local opaque = opaque[T]
-		if opaque == nil then opaque = T.opaque end
-		if opaque then
+		if T.opaque then
 			assert(nodef ~= false, T, ' is opaque but its definition is needed')
 			declare_struct(T, cname)
 		else
@@ -399,19 +382,15 @@ function cdefs(cnames, opaque)
 	local self = {}
 	setmetatable(self, self)
 
-	local function opt(v, cname, opaq)
-		if cname then cnames[v] = cname end
-		if opaque then opaque[v] = opaq end
-	end
 	function self:enum(...) cdef_enum(...) end
-	function self:ctype(v, ...) opt(v, ...); return ctype(v) end
-	function self:cdef(v, ...) opt(v, ...); return cdef(v) end
+	function self:ctype(v) return ctype(v) end
+	function self:cdef(v) return cdef(v) end
 	function self:dump() return concat(cdefs) end
 	function self:__call(arg, ...)
 		if type(arg) == 'table' then
 			return self:enum(arg, ...)
 		elseif arg then
-			return self:cdef(arg, ...)
+			return self:cdef(arg)
 		else
 			return self:dump()
 		end
@@ -429,49 +408,28 @@ function lib(modulename)
 
 	local cdefs = cdefs()
 
-	local symbols = {} --{cname->func}; in saveobj() format.
+	local symbols = {} --{cname->func}; for saveobj().
 	local objects = {} --{{obj=,cname=}|{obj=,cname=,methods|getters|setters={name->cname},...}
 
-	local function add_symbols(func, cname, cprefix)
+	local function publish_func(func)
+		local cname = cdefs:cdef(func)
 		if type(cname) == 'table' then --overloaded
-			local t = {}
 			for i,cname in ipairs(cname) do
-				local cname = cprefix and cprefix .. cname or cname
-				t[i] = cname
 				symbols[cname] = func.definitions[i]
 			end
-			return t
 		else
-			local cname = cprefix and cprefix .. cname or cname
 			symbols[cname] = func
-			return cname
 		end
-	end
-
-	local function cname_opt(opt) --'cname' | {'cname1',...} | {cname=}
-		return type(opt) == 'string' and opt
-			or type(opt) == 'table' and (opt.cname or #opt > 1 and opt)
-	end
-
-	local function publish_func(func, opt)
-		local cname = cname_opt(opt)
-		local cname = cdefs:cdef(func, cname)
-		local cname = add_symbols(func, cname)
 		add(objects, {obj = func, cname = cname})
 	end
 
-	local function method_is_private(func, name, opt)
-		if type(func) == 'terramacro' then return true end
-		local private = type(opt) == 'table' and opt.private
-		if private == nil then private = func.private end
-		if private ~= nil then return private end
+	local function method_is_private(func, name)
+		if func.private ~= nil then return func.private end
 		return name:find'^_' and true or false
 	end
 
-	local function publish_struct(T, opt)
-		opt = opt or T
-		local pub = opt.public_methods
-		local met = opt.methods
+	local function publish_struct(T)
+		local pub = T.public_methods
 		if pub then
 			for method in sortedpairs(pub) do
 				if not getmethod(T, method) then
@@ -479,19 +437,23 @@ function lib(modulename)
 				end
 			end
 		end
-		local struct_cname = cdefs:cdef(T, opt.cname, opt.opaque)
-		local cprefix = opt.cprefix or struct_cname .. '_'
-		local st = {obj = T, cname = struct_cname,
-			methods = {}, getters = {}, setters = {}}
-		add(objects, st)
+		local struct_cname = cdefs:cdef(T)
+		local cprefix = T.cprefix or struct_cname:gsub('_t$', '') .. '_'
 		cancall(T, '') --force getmethod() to add all the methods.
+		local st = {obj = T, cname = struct_cname, methods = {}, getters = {}, setters = {}}
+		add(objects, st)
 		for name, func in pairs(T.methods) do
-			local pub = pub and pub[name]
-			local met = met and met[name]
-			if pub or not method_is_private(func, name, met) then
-				local cname = cname_opt(pub) or cname_opt(met) or name
-				local cname = add_symbols(func, cname, cprefix)
-				local cname = cdefs:cdef(func, cname)
+			local valid = type(func) == 'terrafunction'
+			local public = pub and pub[name]
+			if public then
+				assert(valid, 'Cannot publish ', type(func), ' ', T, ':', name, '()')
+			else
+				public = not pub and not method_is_private(func, name)
+			end
+			if valid and public then
+				func.cname = func.cname or cprefix .. name
+				local cname = cdefs:cdef(func)
+				symbols[cname] = func
 				if T.gettersandsetters then
 					if name:starts'get_' and #func.type.parameters == 1 then
 						st.getters[name:gsub('^get_', '')] = cname
@@ -509,9 +471,9 @@ function lib(modulename)
 
 	function self:publish(v, ...)
 		if type(v) == 'terrafunction' or type(v) == 'overloadedterrafunction' then
-			publish_func(v, ...)
+			publish_func(v)
 		elseif type(v) == 'terratype' and v:isstruct() then
-			publish_struct(v, ...)
+			publish_struct(v)
 		elseif type(v) == 'table' then --enums
 			cdefs:enum(v, ...) --match, prefix
 		else
@@ -526,26 +488,20 @@ function lib(modulename)
 	end
 
 	function self:c_header()
-		return [[
-/* This file was auto-generated. Modify at your own risk. */
-
-]] .. cdefs:dump()
+		return '/* This file was auto-generated. Modify at your own risk. */\n\n'
+			..cdefs:dump()
 	end
 
 	--generating LuaJIT ffi binding -------------------------------------------
 
 	function self:ffi_binding()
 		local t = {}
-		append(t, [=[
--- This file was auto-generated. Modify at your own risk.
-
-local ffi = require'ffi'
-local C = ffi.load']=], modulename, [=['
-ffi.cdef[[
-]=])
+		add(t, '-- This file was auto-generated. Modify at your own risk.\n\n')
+		add(t, "local ffi = require'ffi'\n")
+		append(t, "local C = ffi.load'", modulename, "'\n")
+		add(t, 'ffi.cdef[[\n')
 		add(t, cdefs:dump())
 		add(t, ']]\n')
-
 		local function defmap(rs)
 			for name, cname in sortedpairs(rs) do
 				if type(cname) == 'string' then --not overloaded
@@ -553,7 +509,6 @@ ffi.cdef[[
 				end
 			end
 		end
-
 		for i,o in ipairs(objects) do
 			if next(o.getters or empty) or next(o.setters or empty) then
 				add(t, 'local getters = {\n'); defmap(o.getters); add(t, '}\n')
@@ -581,11 +536,67 @@ ffi.metatype(']], o.cname, [[', {
 				add(t, '}})\n')
 			end
 		end
+		add(t, 'return C\n')
+		return concat(t)
+	end
 
-		add(t, [=[
-
-return C
-]=])
+	function self:ffi_manual_binding()
+		local t = {}
+		add(t, '-- This file was auto-generated. Modify at your own risk.\n')
+		add(t, "local ffi = require'ffi'\n")
+		append(t, "local C = ffi.load'", modulename, "'\n")
+		add(t, 'local M = {C = C, types = {}}\n')
+		add(t, 'ffi.cdef[[\n')
+		add(t, cdefs:dump())
+		add(t, ']]\n')
+		local function defmap(rs)
+			for name, cname in sortedpairs(rs) do
+				if type(cname) == 'string' then --not overloaded
+					append(t, '\t', name, ' = C.', cname, ',\n')
+				end
+			end
+		end
+		for i,o in ipairs(objects) do
+			local g = next(o.getters or empty)
+			local s = next(o.setters or empty)
+			local m = next(o.methods or empty)
+			if g or s or m then
+				append(t, 'local t = {}\n')
+				append(t, 'M.types.', o.cname, ' = t\n')
+				if g then add(t, 't.getters = {\n'); defmap(o.getters); add(t, '}\n') end
+				if s then add(t, 't.setters = {\n'); defmap(o.setters); add(t, '}\n') end
+				if m then add(t, 't.methods = {\n'); defmap(o.methods); add(t, '}\n') end
+			end
+		end
+		add(t, [[
+function M.wrap(ct, what, field, func)
+	local t = M.types[ct][what]
+	t[field] = func(t[field])
+end
+function M.done()
+	for ct,t in pairs(M.types) do
+		local getters = t.getters or {}
+		local setters = t.setters or {}
+		local methods = t.methods or {}
+		ffi.metatype(ct, {
+			__index = function(self, k)
+				local getter = getters[k]
+				if getter then return getter(self) end
+				return methods[k]
+			end,
+			__newindex = function(self, k, v)
+				local setter = setters[k]
+				if not setter then
+					error(('field not found: %s'):format(tostring(k)), 2)
+				end
+				setter(self, v)
+			end,
+		})
+	end
+	return C
+end
+]])
+		add(t, 'return M\n')
 		return concat(t)
 	end
 
@@ -654,7 +665,7 @@ return C
 
 	function self:gen_c_header(opt)
 		zone'gen_c_header'
-		if type(opt) == 'string' then opt = {filename = opt} end
+		opt = type(opt) == 'string' and {filename = opt} or opt or empty
 		local filename = self:luapath(opt.filename or modulename .. '.h')
 		writefile(filename, self:c_header(), nil, filename..'.tmp')
 		zone()
@@ -662,9 +673,10 @@ return C
 
 	function self:gen_ffi_binding(opt)
 		zone'gen_ffi_binding'
-		if type(opt) == 'string' then opt = {filename = opt} end
+		opt = type(opt) == 'string' and {filename = opt} or opt or empty
 		local filename = self:luapath(opt.filename or modulename .. '_h.lua')
-		writefile(filename, self:ffi_binding(), nil, filename..'.tmp')
+		local code = opt.manual and self:ffi_manual_binding() or self:ffi_binding()
+		writefile(filename, code, nil, filename..'.tmp')
 		zone()
 	end
 

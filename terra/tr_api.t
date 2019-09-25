@@ -66,7 +66,7 @@ struct Renderer;
 --Renderer & Layout wrappers and self-allocating constructors ----------------
 
 ErrorFunction = {rawstring} -> {}
-ErrorFunction.cname = 'error_function_t'
+ErrorFunction.type.cname = 'error_function_t'
 
 local terra default_error_function(message: rawstring)
 	fprintf(stderr(), '%s\n', message)
@@ -97,6 +97,9 @@ end
 terra Renderer:release()
 	release(self)
 end
+
+terra Renderer:get_error_function(): ErrorFunction return self.error_function end
+terra Renderer:set_error_function(v: ErrorFunction) self.error_function = v end
 
 struct Layout (gettersandsetters) {
 	l: tr.Layout;
@@ -1327,8 +1330,14 @@ terra Layout:get_cursor_xs_len(): int return self.l.r.xsbuf.len end
 
 --publish and build ----------------------------------------------------------
 
+Renderer.cname = 'renderer_t'
+Renderer.opaque = true
+Layout.cname = 'layout_t'
+Layout.opaque = true
+
 function build(optimize)
-	local trlib = publish'tr'
+	local binder = require'terra/binder'
+	local trlib = binder.lib'tr'
 
 	if memtotal then
 		trlib(memtotal)
@@ -1343,17 +1352,8 @@ function build(optimize)
 	trlib(tr_layout_sizeof)
 	trlib(tr_renderer)
 
-	trlib(Renderer, {
-		cname = 'renderer_t',
-		cprefix = 'tr_',
-		opaque = true,
-	})
-
-	trlib(Layout, {
-		cname = 'layout_t',
-		cprefix = 'tr_',
-		opaque = true,
-	})
+	trlib(Renderer)
+	trlib(Layout)
 
 	trlib:build{
 		linkto = {'cairo', 'freetype', 'harfbuzz', 'fribidi', 'unibreak', 'xxhash'},

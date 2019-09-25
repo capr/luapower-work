@@ -493,7 +493,7 @@ local function choose(prop, prefix, options, ...)
 	local id, get, set = getset(prop, ...)
 	local v = get(e, prop, ...)
 	if ffi.istype('const char*', v) then
-		v = ffi.string(v)
+		v = cstring(v)
 	end
 	local t = enum_map(prop, prefix, options)
 	local v = t[v]

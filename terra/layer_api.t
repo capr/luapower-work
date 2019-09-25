@@ -1140,10 +1140,8 @@ terra Layer:get_hit_test_text_cursor_which() return self.l.lib.hit_test_result.t
 
 layerlib_new.cname = 'layerlib'
 Lib.cname = 'layerlib_t'
-Lib.cprefix = 'layerlib_'
 Lib.opaque = true
 Layer.cname = 'layer_t'
-Layer.cprefix = 'layer_'
 Layer.opaque = true
 
 function build(optimize)
@@ -1165,9 +1163,7 @@ function build(optimize)
 		optimize = optimize,
 	}
 
-	layerlib:gen_ffi_binding{
-		--wrap_module = '',
-	}
+	layerlib:gen_ffi_binding{manual = true}
 
 end
 
