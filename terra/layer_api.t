@@ -840,7 +840,6 @@ terra Layer:set_text_cursor_x          (c_i: int, v: num) self.l.text.layout:set
 do end --text span field get/set through current selection.
 
 terra Layer:get_text_valid() return self.l.text.layout.valid end
-terra Layer:get_text_offsets_valid() return self.l.text.layout.offsets_valid end
 
 for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 
@@ -871,72 +870,79 @@ Layer.methods.set_text_selection_script   .const_args = {nil, nil, true}
 
 do end --text navigation & hit-testing
 
+terra Layer:sync_text()
+	if self.l.text_layouted then
+		self:sync()
+		return true
+	else
+		return false
+	end
+end
+
 terra Layer:text_cursor_move_to(c_i: int, offset: num, which: enum, select: bool)
-	self:sync()
-	self.l.text.layout:cursor_move_to(c_i, offset, which, select)
-	self.l:invalidate'text'
+	if self:sync_text() then
+		self.l.text.layout:cursor_move_to(c_i, offset, which, select)
+		self.l:invalidate'text'
+	end
 end
 
 terra Layer:text_cursor_move_to_point(c_i: int, x: num, y: num, select: bool)
-	self:sync()
-	self.l.text.layout:cursor_move_to_point(c_i, x, y, select)
-	self.l:invalidate'text'
+	if self:sync_text() then
+		self.l.text.layout:cursor_move_to_point(c_i, x, y, select)
+		self.l:invalidate'text'
+	end
 end
 
 terra Layer:text_cursor_move_near(c_i: int, dir: enum, mode: enum, which: enum, select: bool)
-	self:sync()
-	self.l.text.layout:cursor_move_near(c_i, dir, mode, which, select)
-	self.l:invalidate'text'
+	if self:sync_text() then
+		self.l.text.layout:cursor_move_near(c_i, dir, mode, which, select)
+		self.l:invalidate'text'
+	end
 end
 
 terra Layer:text_cursor_move_near_line(c_i: int, delta_lines: num, x: num, select: bool)
-	self:sync()
-	self.l.text.layout:cursor_move_near_line(c_i, delta_lines, x, select)
-	self.l:invalidate'text'
+	if self:sync_text() then
+		self.l.text.layout:cursor_move_near_line(c_i, delta_lines, x, select)
+		self.l:invalidate'text'
+	end
 end
 
 terra Layer:text_cursor_move_near_page(c_i: int, delta_pages: num, x: num, select: bool)
-	self:sync()
-	self.l.text.layout:cursor_move_near_page(c_i, delta_pages, x, select)
-	self.l:invalidate'text'
+	if self:sync_text() then
+		self.l.text.layout:cursor_move_near_page(c_i, delta_pages, x, select)
+		self.l:invalidate'text'
+	end
 end
 
 terra Layer:remove_selected_text(c_i: int)
-	self:sync()
 	self.l.text.layout:remove_selected_text(c_i)
 	self.l:invalidate'text'
 end
 
 terra Layer:insert_text_at_cursor(c_i: int, s: &codepoint, len: int)
-	self:sync()
 	self.l.text.layout:insert_text_at_cursor(c_i, s, len)
 	self.l:invalidate'text'
 end
 
 terra Layer:insert_text_utf8_at_cursor(c_i: int, s: rawstring, len: int)
-	self:sync()
 	self.l.text.layout:insert_text_utf8_at_cursor(c_i, s, len)
 	self.l:invalidate'text'
 end
 Layer.methods.insert_text_utf8_at_cursor.const_args = {nil, nil, true}
 
 terra Layer:get_selected_text(c_i: int)
-	self:sync()
 	return self.l.text.layout:get_selected_text(c_i)
 end
 
 terra Layer:get_selected_text_len(c_i: int): int
-	self:sync()
 	return self.l.text.layout:get_selected_text_len(c_i)
 end
 
 terra Layer:get_selected_text_utf8(c_i: int, out: rawstring, max_outlen: int)
-	self:sync()
 	return self.l.text.layout:get_selected_text_utf8(c_i, out, max_outlen)
 end
 
 terra Layer:get_selected_text_utf8_len(c_i: int)
-	self:sync()
 	return self.l.text.layout:get_selected_text_utf8_len(c_i)
 end
 
@@ -945,16 +951,19 @@ do end --layouts
 terra Layer:get_visible(): bool return self.l.visible end
 terra Layer:set_visible(v: bool)
 	if self:change(self.l, 'visible', v) then
-		self.l.top_layer.pixels_valid = false
-		if self.l.pos_parent == nil then
-			self.l.top_layer.layout_valid = false
-		end
+		self.l:invalidate'visibility'
 	end
 end
 
 terra Layer:get_layout_type(): enum return self.l.layout_type end
 terra Layer:set_layout_type(v: enum)
-	self:change(self.l, 'layout_type', v, 'layout')
+	if self:checkrange('layout_type', v, LAYOUT_TYPE_MIN, LAYOUT_TYPE_MAX) then
+		var text_layouted_before = self.l.text_layouted
+		self:change(self.l, 'layout_type', v, 'layout')
+		if self.l.text_layouted ~= text_layouted_before then
+			self.l:invalidate'pixels'
+		end
+	end
 end
 
 terra Layer:get_align_items_x (): enum return self.l.align_items_x end

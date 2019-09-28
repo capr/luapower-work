@@ -455,7 +455,7 @@ struct Text (gettersandsetters) {
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
-	self.selectable = false
+	self.selectable = true
 end
 
 terra Text:free()
@@ -465,8 +465,9 @@ end
 --layouting ------------------------------------------------------------------
 
 struct LayoutSolver {
-	type       : enum; --LAYOUT_*
+	type       : enum; --LAYOUT_TYPE_*
 	axis_order : enum; --AXIS_ORDER_*
+	show_text  : bool;
 	sync       : {&Layer} -> {};
 	sync_min_w : {&Layer, bool} -> num;
 	sync_min_h : {&Layer, bool} -> num;
@@ -485,15 +486,14 @@ struct FlexLayout {
 	wrap: bool;
 }
 
-struct GridLayoutCol {
+struct GridLayoutCol (gettersandsetters) {
 	x: num;
 	w: num;
 	fr: num;
 	align_x: enum;
 	_min_w: num;
-	snap_x: bool;
-	inlayout: bool;
 }
+terra GridLayoutCol:get_inlayout() return true end
 
 struct GridLayout {
 	col_frs: arr(num);
@@ -549,7 +549,6 @@ struct Lib (gettersandsetters) {
 	text_renderer: tr.Renderer;
 	grid_occupied: BoolBitmap;
 	default_shadow: Shadow;
-	default_layout_solver: &LayoutSolver;
 	hit_test_result: HitTestResult;
 }
 
@@ -1575,12 +1574,16 @@ terra Layer:sync_text_align()
 	self.text.layout:align()
 end
 
+terra Layer:get_text_layouted()
+	return self.visible and self.layout_solver.show_text
+end
+
 terra Layer:get_baseline()
-	return self.text.layout.baseline
+	return iif(self.text_layouted, self.text.layout.baseline, 0)
 end
 
 terra Layer:draw_text(cr: &context)
-	if self.text.layout.visible then
+	if self.text_layouted and self.text.layout.visible then
 		var x1, y1, x2, y2 = cr:clip_extents()
 		self.text.layout:set_clip_extents(x1, y1, x2, y2)
 		self.text.layout:clip()
@@ -1588,21 +1591,17 @@ terra Layer:draw_text(cr: &context)
 	end
 end
 
-terra Layer:text_bbox()
-	return self.text.layout:bbox() --float->double conversion!
+terra Layer:text_bbox(): {num, num, num, num} --for float->double conversion!
+	return iif(self.text_layouted, self.text.layout:bbox(), {0.0, 0.0, 0.0, 0.0})
 end
 
 terra Layer:hit_test_text(cr: &context, x: num, y: num)
-	if self.text.layout.visible then
+	if self.text_layouted and self.text.layout.visible then
 		self.lib.hit_test_result:set(self, HIT_TEXT, x, y)
 		return true
 	else
 		return false
 	end
-end
-
-terra Layer:text_cursor_rect()
-	return num(0), num(0), num(0), num(0) --self.text_cursor:rect()
 end
 
 --[[
@@ -1649,9 +1648,9 @@ terra Layer:bbox(strict: bool) --in parent's content space
 		if self:border_visible() then
 			bb:bbox(rect(self:border_rect(1, 0)))
 		end
+		inc(bb.x, self.x)
+		inc(bb.y, self.y)
 	end
-	inc(bb.x, self.x)
-	inc(bb.y, self.y)
 	return bb()
 end
 
@@ -1679,9 +1678,7 @@ end
 
 terra Layer:draw_content(cr: &context, for_shadow: bool) --called in own content space
 	self:draw_children(cr, for_shadow)
-	if self.layout_solver.type < 2 then
-		self:draw_text(cr)
-	end
+	self:draw_text(cr)
 end
 
 terra Layer:hit_test_content(cr: &context, x: num, y: num, reason: enum)
@@ -1871,12 +1868,22 @@ terra Layer:invalidate_pixels()
 	end
 end
 
+terra Layer:invalidate_visibility()
+	if self.pos_parent == nil then
+		self.top_layer.layout_valid = false
+	end
+	self.top_layer.pixels_valid = false
+end
+
 --layout plugin interface ----------------------------------------------------
 
-LAYOUT_NULL    = 0
-LAYOUT_TEXTBOX = 1
-LAYOUT_FLEXBOX = 2
-LAYOUT_GRID    = 2+1
+LAYOUT_TYPE_NULL    = 0
+LAYOUT_TYPE_TEXTBOX = 1
+LAYOUT_TYPE_FLEXBOX = 2
+LAYOUT_TYPE_GRID    = 3
+
+LAYOUT_TYPE_MIN     = 0
+LAYOUT_TYPE_MAX     = LAYOUT_TYPE_GRID
 
 terra Layer:sync_layout() self.layout_solver.sync(self) end
 terra Layer:sync_min_w(b: bool) return self.layout_solver.sync_min_w(self, b) end
@@ -1957,8 +1964,9 @@ local terra null_sync_x(self: &Layer, other_axis_synced: bool)
 end
 
 local null_layout = constant(`LayoutSolver {
-	type       = LAYOUT_NULL;
+	type       = LAYOUT_TYPE_NULL;
 	axis_order = 0;
+	show_text  = true,
 	sync       = null_sync;
 	sync_min_w = null_sync_min_w;
 	sync_min_h = null_sync_min_h;
@@ -2027,8 +2035,9 @@ local terra text_sync_y(self: &Layer, other_axis_synced: bool)
 end
 
 local text_layout = constant(`LayoutSolver {
-	type       = LAYOUT_TEXTBOX;
+	type       = LAYOUT_TYPE_TEXTBOX;
 	axis_order = 0;
+	show_text  = true,
 	sync       = text_sync;
 	sync_min_w = text_sync_min_w;
 	sync_min_h = text_sync_min_h;
@@ -2515,8 +2524,9 @@ local terra flex_sync(self: &Layer)
 end
 
 local flex_layout = constant(`LayoutSolver {
-	type       = LAYOUT_FLEXBOX;
+	type       = LAYOUT_TYPE_FLEXBOX;
 	axis_order = AXIS_ORDER_XY;
+	show_text  = false;
 	sync       = flex_sync;
 	sync_min_w = flex_sync_min_w;
 	sync_min_h = flex_sync_min_h;
@@ -2877,7 +2887,6 @@ local function gen_funcs(X, Y, W, H, COL)
 
 		for col = 0, max_col do
 			cols:set(col, GridLayoutCol{
-				inlayout = true,
 				fr = frs(col, 1),
 				_min_w = 0,
 				x = 0,
@@ -3018,8 +3027,9 @@ local terra grid_sync(self: &Layer)
 end
 
 local grid_layout = constant(`LayoutSolver {
-	type       = LAYOUT_GRID;
+	type       = LAYOUT_TYPE_GRID;
 	axis_order = AXIS_ORDER_XY;
+	show_text  = false;
 	sync       = grid_sync;
 	sync_min_w = grid_sync_min_w;
 	sync_min_h = grid_sync_min_h;
@@ -3029,7 +3039,7 @@ local grid_layout = constant(`LayoutSolver {
 
 --layout plugin vtable -------------------------------------------------------
 
---NOTE: layouts must be added in the order of LAYOUT_* constants.
+--NOTE: layouts must be added in the order of LAYOUT_TYPE_* constants.
 local layouts = constant(`arrayof(LayoutSolver,
 	null_layout,
 	text_layout,
@@ -3052,7 +3062,6 @@ end
 terra Lib:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	self.text_renderer:init(load_font, unload_font)
 	self.grid_occupied:init()
-	self.default_layout_solver = &null_layout
 	self.default_shadow:init(nil)
 end
 

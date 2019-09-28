@@ -1307,8 +1307,8 @@ terra Layout:get_selected_text_utf8_len(c_i: int): int
 end
 
 terra Layout:load_cursor_xs(line_i: int)
-	self.l.r.xsbuf.len = 0
 	assert(self.state >= STATE_ALIGNED)
+	self.l.r.xsbuf.len = 0
 	if not self._valid then return end
 	self.l:cursor_xs(line_i)
 end

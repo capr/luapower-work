@@ -100,11 +100,11 @@ local draw_changed_dt = 0
 local draw_fps_t, draw_fps_dt = 0, 0
 local repaint_fps_t, repaint_fps_dt = 0, 0
 
-sel_e = lib:layer()
---sel_e.background_color = 0xffffff22
-sel_e.border_width = 2
-sel_e:set_border_dash(0, 10)
-sel_e.border_offset = 1
+--sel_e = lib:layer()
+----sel_e.background_color = 0xffffff22
+--sel_e.border_width = 2
+--sel_e:set_border_dash(0, 10)
+--sel_e.border_offset = 1
 
 --layer tree (de)serialization -----------------------------------------------
 
@@ -629,17 +629,19 @@ function testui:repaint()
 		id = id..'/'..child_i
 	end
 
-	sel_e.pos_parent = e.parent
-	sel_e.x = e.x
-	sel_e.y = e.y
-	sel_e.w = e.w
-	sel_e.h = e.h
-	sel_e.rotation = e.rotation
-	sel_e.rotation_cx = e.rotation_cx
-	sel_e.rotation_cy = e.rotation_cy
-	sel_e.scale    = e.scale
-	sel_e.scale_cx = e.scale_cx
-	sel_e.scale_cy = e.scale_cy
+	if sel_e then
+		sel_e.pos_parent = e.parent
+		sel_e.x = e.x
+		sel_e.y = e.y
+		sel_e.w = e.w
+		sel_e.h = e.h
+		sel_e.rotation = e.rotation
+		sel_e.rotation_cx = e.rotation_cx
+		sel_e.rotation_cy = e.rotation_cy
+		sel_e.scale    = e.scale
+		sel_e.scale_cx = e.scale_cx
+		sel_e.scale_cy = e.scale_cy
+	end
 
 	--layer property editors --------------------------------------------------
 
@@ -945,7 +947,7 @@ function testui:repaint()
 		self:heading'Layout'
 
 		self.x = self.x + 80
-		choose('layout_type', 'layout_', {'null', 'textbox', 'flexbox', 'grid'})
+		choose('layout_type', 'layout_type_', {'null', 'textbox', 'flexbox', 'grid'})
 		self.x = self.x - 80
 
 		self:pushgroup('right', 1/2)
@@ -1063,7 +1065,9 @@ function testui:repaint()
 			local draw_t0 = time.clock()
 			top_e:draw(cr)
 			local draw_t = time.clock()
-			sel_e:draw(cr)
+			if sel_e then
+				sel_e:draw(cr)
+			end
 			local repaint_t = draw_t
 			local draw_dt    = draw_t    - draw_t0
 			local repaint_dt = repaint_t - repaint_t0
@@ -1170,7 +1174,7 @@ function testui:repaint()
 	end
 
 	if not top_e.pixels_valid then self.ewindow:invalidate() end
-	if not sel_e.pixels_valid then self.ewindow:invalidate() end
+	if sel_e and not sel_e.pixels_valid then self.ewindow:invalidate() end
 
 	self.x = self.win_w - 1200
 	self.y = 10
@@ -1186,6 +1190,12 @@ function testui:repaint()
 
 end
 
+function testui:keypress(key)
+	if self.app:key'ctrl' and tonumber(key) then
+		--TODO: change demo
+	end
+end
+
 load_sessions()
 load_state()
 testui:run()
@@ -1194,7 +1204,7 @@ save_state()
 
 --free everything and check for leaks.
 top_e:release()
-sel_e:release()
+if sel_e then sel_e:release() end
 default_e:release()
 lib:release()
 layer.memreport()

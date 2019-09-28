@@ -12,61 +12,35 @@ return {
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
-		children={
-			{
-				background_color=3408472575,
-				background_type=1,
-				border_width_bottom=1,
-				border_width_left=1,
-				border_width_right=1,
-				border_width_top=1,
-				h=196,
-				span_count=2,
-				text_cursor_count=1,
-				text_cursors={
-					{
-						text_cursor_offset=4,
-						text_cursor_sel_offset=4,
-						text_cursor_x=195.25
-					}
-				},
-				text_spans={
-					{
-						span_font='OpenSans-Regular.ttf',
-						span_font_size=34
-					},
-					{
-						span_font='OpenSans-Regular.ttf',
-						span_font_size=70,
-						span_offset=4
-					}
-				},
-				text_utf8='abcd',
-				w=352.5,
-				x=109.5,
-				y=131
-			}
-		},
 		clip_content=true,
-		h=484,
+		h=405.5,
 		hardline_spacing=0.98299998044967651,
 		line_spacing=0.94999998807907104,
-		min_cw=737,
+		min_ch=405.5,
+		min_cw=522.5,
 		rotation_cx=251,
 		rotation_cy=213.5,
 		span_count=1,
+		text_cursor_count=1,
+		text_cursors={
+			{
+				text_cursor_offset=8,
+				text_cursor_sel_offset=8,
+				text_cursor_x=301
+			}
+		},
 		text_spans={
 			{
-				span_font_size=100
+				span_font='OpenSans-Regular.ttf',
+				span_font_size=26
 			}
 		},
 		text_utf8='Hello World!',
-		w=619.5,
+		w=522.5,
 		x=255,
 		y=196
 	},
 	selected_layer_path={
-		0
 	},
-	tab='Text'
+	tab='Layout'
 }

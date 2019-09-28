@@ -264,12 +264,11 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=38,
-						text_cursor_sel_offset=38,
-						text_cursor_x=129.69999694824219
+						text_cursor_offset=36,
+						text_cursor_sel_offset=36,
+						text_cursor_x=114.69999694824219
 					}
 				},
-				text_selectable=true,
 				text_spans={
 					{
 						span_font='Amiri-Regular.ttf',
