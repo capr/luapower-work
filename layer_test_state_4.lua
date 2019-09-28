@@ -30,12 +30,11 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=758,
-				text_cursor_sel_offset=758,
-				text_cursor_x=237.5
+				text_cursor_offset=234,
+				text_cursor_sel_offset=234,
+				text_cursor_x=104.5
 			}
 		},
-		text_selectable=true,
 		text_spans={
 			{
 				span_font='OpenSans-Regular.ttf',

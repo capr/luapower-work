@@ -449,13 +449,11 @@ end
 
 struct Text (gettersandsetters) {
 	layout: tr.Layout;
-	selectable: bool;
 }
 
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
-	self.selectable = true
 end
 
 terra Text:free()
@@ -1574,16 +1572,20 @@ terra Layer:sync_text_align()
 	self.text.layout:align()
 end
 
-terra Layer:get_text_layouted()
-	return self.visible and self.layout_solver.show_text
+terra Layer:get_show_text()
+	return self.layout_solver.show_text
+end
+
+terra Layer:get_text_laid_out()
+	return self.text.layout.align_valid
 end
 
 terra Layer:get_baseline()
-	return iif(self.text_layouted, self.text.layout.baseline, 0)
+	return self.text.layout.baseline
 end
 
 terra Layer:draw_text(cr: &context)
-	if self.text_layouted and self.text.layout.visible then
+	if self.show_text and self.text.layout.visible then
 		var x1, y1, x2, y2 = cr:clip_extents()
 		self.text.layout:set_clip_extents(x1, y1, x2, y2)
 		self.text.layout:clip()
@@ -1592,11 +1594,11 @@ terra Layer:draw_text(cr: &context)
 end
 
 terra Layer:text_bbox(): {num, num, num, num} --for float->double conversion!
-	return iif(self.text_layouted, self.text.layout:bbox(), {0.0, 0.0, 0.0, 0.0})
+	return iif(self.show_text, self.text.layout:bbox(), {0.0, 0.0, 0.0, 0.0})
 end
 
 terra Layer:hit_test_text(cr: &context, x: num, y: num)
-	if self.text_layouted and self.text.layout.visible then
+	if self.show_text and self.text.layout.visible then
 		self.lib.hit_test_result:set(self, HIT_TEXT, x, y)
 		return true
 	else
@@ -2230,7 +2232,7 @@ local function gen_funcs(X, Y, W, H)
 		var max_descent = num(-inf)
 		for i = i, j do
 			var layer = self.children(i)
-			if layer.visible then
+			if layer.inlayout then
 				var baseline = layer.baseline
 				max_ascent = max(max_ascent, baseline)
 				max_descent = max(max_descent, layer._min_h - baseline)
@@ -2257,7 +2259,7 @@ local function gen_funcs(X, Y, W, H)
 		var line_w = num(0)
 		for j = i, self.children.len do
 			var layer = self.children(j)
-			if layer.visible then
+			if layer.inlayout then
 				if j > i and layer.break_before then
 					return i, j
 				end
@@ -2344,7 +2346,7 @@ local function gen_funcs(X, Y, W, H)
 		var align = self.[ITEM_ALIGN_Y]
 		for i = i, j do
 			var layer = self.children(i)
-			if layer.visible then
+			if layer.inlayout then
 				var align = iif(layer.[ALIGN_Y] ~= 0, layer.[ALIGN_Y], align)
 				var y: num
 				var h: num
@@ -2676,7 +2678,7 @@ terra Layer:sync_layout_grid_autopos()
 	var missing_indices = false
 	var negative_indices = false
 	for layer in self do
-		if layer.visible then
+		if layer.inlayout then
 			var row = layer.grid_row
 			var col = layer.grid_col
 			var row_span = max(1, layer.grid_row_span)
@@ -2723,7 +2725,7 @@ terra Layer:sync_layout_grid_autopos()
 	--the grid bounds, but instead are clipped to it.
 	if negative_indices then
 		for layer in self do
-			if layer.visible then
+			if layer.inlayout then
 				var row = layer._grid_row
 				var col = layer._grid_col
 				if row < 0 or col < 0 then
@@ -2755,7 +2757,7 @@ terra Layer:sync_layout_grid_autopos()
 	if missing_indices then
 		var row, col = 1, 1
 		for layer in self do
-			if layer.visible and layer._grid_row == 0 then
+			if layer.inlayout and layer._grid_row == 0 then
 				var row_span = layer._grid_row_span
 				var col_span = layer._grid_col_span
 
@@ -2807,7 +2809,7 @@ terra Layer:sync_layout_grid_autopos()
 	--reverse the order of rows and/or columns depending on grid_flow.
 	if flip_rows or flip_cols then
 		for layer in self do
-			if layer.visible then
+			if layer.inlayout then
 				if flip_rows then
 					layer._grid_row = max_row
 						- layer._grid_row

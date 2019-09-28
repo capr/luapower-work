@@ -186,7 +186,9 @@ return {
 						min_ch=61,
 						rotation=9,
 						rotation_cx=158,
-						scale=1.383,
+						scale=0.75,
+						scale_cx=133.5,
+						scale_cy=131,
 						w=121.66666666666666,
 						x=60.833333333333336,
 						y=87.799999999999983
@@ -264,9 +266,9 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=36,
-						text_cursor_sel_offset=36,
-						text_cursor_x=114.69999694824219
+						text_cursor_offset=6,
+						text_cursor_sel_offset=6,
+						text_cursor_x=63.700000762939453
 					}
 				},
 				text_spans={
@@ -339,8 +341,9 @@ return {
 				shadow_blur=4,
 				shadow_color=2627509503,
 				shadow_content=true,
-				shadow_x=55.5,
-				shadow_y=73
+				shadow_passes=2,
+				shadow_x=26.5,
+				shadow_y=36
 			}
 		},
 		text_maxlen=5551,
@@ -351,5 +354,5 @@ return {
 	selected_layer_path={
 		6
 	},
-	tab='Shadows'
+	tab='Position'
 }

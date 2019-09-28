@@ -17,30 +17,36 @@ return {
 		hardline_spacing=0.98299998044967651,
 		line_spacing=0.94999998807907104,
 		min_ch=405.5,
-		min_cw=522.5,
+		min_cw=547,
 		rotation_cx=251,
 		rotation_cy=213.5,
 		span_count=1,
-		text_cursor_count=1,
+		text_cursor_count=2,
 		text_cursors={
 			{
 				text_cursor_offset=8,
-				text_cursor_sel_offset=8,
-				text_cursor_x=301
+				text_cursor_sel_offset=11,
+				text_cursor_x=376,
+				text_insert_mode=false,
+				text_selection_color=4279177215
+			},
+			{
+				text_cursor_offset=7,
+				text_cursor_sel_offset=1
 			}
 		},
 		text_spans={
 			{
 				span_font='OpenSans-Regular.ttf',
-				span_font_size=26
+				span_font_size=68
 			}
 		},
 		text_utf8='Hello World!',
-		w=522.5,
+		w=547,
 		x=255,
 		y=196
 	},
 	selected_layer_path={
 	},
-	tab='Layout'
+	tab='Text'
 }

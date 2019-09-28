@@ -103,7 +103,7 @@ struct Layer (gettersandsetters) {
 }
 
 --layout sync'ing: called by computed-value accessors.
-terra Layer.methods.sync :: {&Layer} -> {}
+terra Layer.methods._sync :: {&Layer} -> {}
 
 --range limits ---------------------------------------------------------------
 
@@ -796,26 +796,13 @@ end
 do end --text geometry
 
 terra Layer:load_text_cursor_xs(line_i: int)
-	self:sync()
+	self:_sync()
 	self.l.text.layout:load_cursor_xs(line_i)
 end
 terra Layer:get_text_cursor_xs() return self.l.text.layout.cursor_xs end
 terra Layer:get_text_cursor_xs_len() return self.l.text.layout.cursor_xs_len end
 
 do end --text cursor & selection
-
-terra Layer:get_text_selectable(): bool
-	return self.l.text.selectable
-end
-
-terra Layer:set_text_selectable(v: bool)
-	if self:change(self.l.text, 'selectable', v) then
-		var l = &self.l.text.layout
-		l:set_caret_visible(0, v)
-		l:set_selection_visible(0, v)
-		self.l:invalidate'text'
-	end
-end
 
 terra Layer:get_text_cursor_count(): int
 	return self.l.text.layout.cursor_count
@@ -825,17 +812,27 @@ terra Layer:set_text_cursor_count(v: int): int
 	self.l:invalidate'text'
 end
 
-terra Layer:get_text_cursor_offset     (c_i: int): int return self.l.text.layout:get_cursor_offset     (c_i) end
-terra Layer:get_text_cursor_which      (c_i: int): int return self.l.text.layout:get_cursor_which      (c_i) end
-terra Layer:get_text_cursor_sel_offset (c_i: int): int return self.l.text.layout:get_cursor_sel_offset (c_i) end
-terra Layer:get_text_cursor_sel_which  (c_i: int): int return self.l.text.layout:get_cursor_sel_which  (c_i) end
-terra Layer:get_text_cursor_x          (c_i: int): num return self.l.text.layout:get_cursor_x          (c_i) end
+terra Layer:get_text_cursor_offset     (c_i: int): int    return self.l.text.layout:get_cursor_offset     (c_i) end
+terra Layer:get_text_cursor_which      (c_i: int): enum   return self.l.text.layout:get_cursor_which      (c_i) end
+terra Layer:get_text_cursor_sel_offset (c_i: int): int    return self.l.text.layout:get_cursor_sel_offset (c_i) end
+terra Layer:get_text_cursor_sel_which  (c_i: int): enum   return self.l.text.layout:get_cursor_sel_which  (c_i) end
+terra Layer:get_text_cursor_x          (c_i: int): num    return self.l.text.layout:get_cursor_x          (c_i) end
+terra Layer:get_text_insert_mode       (c_i: int)         return self.l.text.layout:get_insert_mode       (c_i) end
+terra Layer:get_text_caret_opacity     (c_i: int): num    return self.l.text.layout:get_caret_opacity     (c_i) end
+terra Layer:get_text_caret_thickness   (c_i: int): num    return self.l.text.layout:get_caret_thickness   (c_i) end
+terra Layer:get_text_selection_color   (c_i: int): uint32 return self.l.text.layout:get_selection_color   (c_i) end
+terra Layer:get_text_selection_opacity (c_i: int): num    return self.l.text.layout:get_selection_opacity (c_i) end
 
-terra Layer:set_text_cursor_offset     (c_i: int, v: num) self.l.text.layout:set_cursor_offset     (c_i, v); self.l:invalidate'text' end
-terra Layer:set_text_cursor_which      (c_i: int, v: int) self.l.text.layout:set_cursor_which      (c_i, v); self.l:invalidate'text' end
-terra Layer:set_text_cursor_sel_offset (c_i: int, v: num) self.l.text.layout:set_cursor_sel_offset (c_i, v); self.l:invalidate'text' end
-terra Layer:set_text_cursor_sel_which  (c_i: int, v: int) self.l.text.layout:set_cursor_sel_which  (c_i, v); self.l:invalidate'text' end
-terra Layer:set_text_cursor_x          (c_i: int, v: num) self.l.text.layout:set_cursor_x          (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_offset     (c_i: int, v: num   ) self.l.text.layout:set_cursor_offset     (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_which      (c_i: int, v: enum  ) self.l.text.layout:set_cursor_which      (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_sel_offset (c_i: int, v: num   ) self.l.text.layout:set_cursor_sel_offset (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_sel_which  (c_i: int, v: enum  ) self.l.text.layout:set_cursor_sel_which  (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_cursor_x          (c_i: int, v: num   ) self.l.text.layout:set_cursor_x          (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_insert_mode       (c_i: int, v: bool  ) self.l.text.layout:set_insert_mode       (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_caret_opacity     (c_i: int, v: num   ) self.l.text.layout:set_caret_opacity     (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_caret_thickness   (c_i: int, v: num   ) self.l.text.layout:set_caret_thickness   (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_selection_color   (c_i: int, v: uint32) self.l.text.layout:set_selection_color   (c_i, v); self.l:invalidate'text' end
+terra Layer:set_text_selection_opacity (c_i: int, v: num   ) self.l.text.layout:set_selection_opacity (c_i, v); self.l:invalidate'text' end
 
 do end --text span field get/set through current selection.
 
@@ -845,18 +842,18 @@ for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 
 	local T = tr.SPAN_FIELD_TYPES[FIELD]
 
-	Layer.methods['text_selection_has_'..FIELD] = terra(self: &Layer, c_i: int)
+	Layer.methods['selected_text_has_'..FIELD] = terra(self: &Layer, c_i: int)
 		var o1 = self.l.text.layout:get_cursor_offset(c_i)
 		var o2 = self.l.text.layout:get_cursor_sel_offset(c_i)
 		return self.l.text.layout:['has_'..FIELD](o1, o2)
 	end
 
-	Layer.methods['get_text_selection_'..FIELD] = terra(self: &Layer, c_i: int): T
+	Layer.methods['get_selected_text_'..FIELD] = terra(self: &Layer, c_i: int): T
 		var span_i = self.l.text.layout:get_selection_first_span(c_i)
 		return self.l.text.layout:['get_span_'..FIELD](span_i)
 	end
 
-	Layer.methods['set_text_selection_'..FIELD] = terra(self: &Layer, c_i: int, v: T)
+	Layer.methods['set_selected_text_'..FIELD] = terra(self: &Layer, c_i: int, v: T)
 		var o1 = self.l.text.layout:get_cursor_offset(c_i)
 		var o2 = self.l.text.layout:get_cursor_sel_offset(c_i)
 		self.l.text.layout:['set_'..FIELD](o1, o2, v)
@@ -864,51 +861,47 @@ for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 	end
 end
 
-Layer.methods.set_text_selection_features .const_args = {nil, nil, true}
-Layer.methods.set_text_selection_lang     .const_args = {nil, nil, true}
-Layer.methods.set_text_selection_script   .const_args = {nil, nil, true}
+Layer.methods.set_selected_text_features .const_args = {nil, nil, true}
+Layer.methods.set_selected_text_lang     .const_args = {nil, nil, true}
+Layer.methods.set_selected_text_script   .const_args = {nil, nil, true}
 
 do end --text navigation & hit-testing
 
-terra Layer:sync_text()
-	if self.l.text_layouted then
-		self:sync()
-		return true
-	else
-		return false
-	end
+terra Layer:_sync_text()
+	self:_sync()
+	return self.l.text_laid_out
 end
 
 terra Layer:text_cursor_move_to(c_i: int, offset: num, which: enum, select: bool)
-	if self:sync_text() then
+	if self:_sync_text() then
 		self.l.text.layout:cursor_move_to(c_i, offset, which, select)
 		self.l:invalidate'text'
 	end
 end
 
 terra Layer:text_cursor_move_to_point(c_i: int, x: num, y: num, select: bool)
-	if self:sync_text() then
+	if self:_sync_text() then
 		self.l.text.layout:cursor_move_to_point(c_i, x, y, select)
 		self.l:invalidate'text'
 	end
 end
 
 terra Layer:text_cursor_move_near(c_i: int, dir: enum, mode: enum, which: enum, select: bool)
-	if self:sync_text() then
+	if self:_sync_text() then
 		self.l.text.layout:cursor_move_near(c_i, dir, mode, which, select)
 		self.l:invalidate'text'
 	end
 end
 
 terra Layer:text_cursor_move_near_line(c_i: int, delta_lines: num, x: num, select: bool)
-	if self:sync_text() then
+	if self:_sync_text() then
 		self.l.text.layout:cursor_move_near_line(c_i, delta_lines, x, select)
 		self.l:invalidate'text'
 	end
 end
 
 terra Layer:text_cursor_move_near_page(c_i: int, delta_pages: num, x: num, select: bool)
-	if self:sync_text() then
+	if self:_sync_text() then
 		self.l.text.layout:cursor_move_near_page(c_i, delta_pages, x, select)
 		self.l:invalidate'text'
 	end
@@ -958,9 +951,9 @@ end
 terra Layer:get_layout_type(): enum return self.l.layout_type end
 terra Layer:set_layout_type(v: enum)
 	if self:checkrange('layout_type', v, LAYOUT_TYPE_MIN, LAYOUT_TYPE_MAX) then
-		var text_layouted_before = self.l.text_layouted
+		var show_text = self.l.show_text
 		self:change(self.l, 'layout_type', v, 'layout')
-		if self.l.text_layouted ~= text_layouted_before then
+		if self.l.show_text ~= show_text then
 			self.l:invalidate'pixels'
 		end
 	end
@@ -1119,41 +1112,41 @@ terra Layer:set_grid_row_span(v: num) self:change(self.l, 'grid_row_span', clamp
 
 do end --sync'ing, drawing & hit testing
 
-terra Layer:sync()
-	var layer = self.l.top_layer
-	if not layer.layout_valid then
-		layer:sync_layout()
-		layer.layout_valid = true
+terra Layer:_sync()
+	var top = self.l.top_layer
+	if not top.layout_valid then
+		top:sync_layout()
+		top.layout_valid = true
 	end
 end
 
 terra Layer:get_pixels_valid()
-	self:sync()
+	self:_sync()
 	return self.l.top_layer.pixels_valid
 end
 
 terra Layer:draw(cr: &context)
-	self:sync()
-	var top_layer = self.l.top_layer
-	top_layer:draw(cr, false)
-	top_layer.pixels_valid = true
+	self:_sync()
+	var top = self.l.top_layer
+	top:draw(cr, false)
+	top.pixels_valid = true
 end
 
 terra Layer:get_hit_test_mask(): enum return self.l.hit_test_mask end
 terra Layer:set_hit_test_mask(v: enum) self.l.hit_test_mask = v end
 
 terra Layer:hit_test(cr: &context, x: num, y: num, reason: int)
-	self:sync()
+	self:_sync()
 	fill(&self.l.lib.hit_test_result)
 	return self.l:hit_test(cr, x, y, reason)
 end
 
-terra Layer:get_hit_test_layer       () return [&Layer](self.l.lib.hit_test_result.layer) end
-terra Layer:get_hit_test_area        () return self.l.lib.hit_test_result.area             end
-terra Layer:get_hit_test_x           () return self.l.lib.hit_test_result.x                end
-terra Layer:get_hit_test_y           () return self.l.lib.hit_test_result.y                end
-terra Layer:get_hit_test_text_offset () return self.l.lib.hit_test_result.text_offset      end
-terra Layer:get_hit_test_text_cursor_which() return self.l.lib.hit_test_result.text_cursor_which end
+terra Layer:get_hit_test_layer             ()       return [&Layer](self.l.lib.hit_test_result.layer) end
+terra Layer:get_hit_test_area              (): enum return self.l.lib.hit_test_result.area end
+terra Layer:get_hit_test_x                 (): num  return self.l.lib.hit_test_result.x end
+terra Layer:get_hit_test_y                 (): num  return self.l.lib.hit_test_result.y end
+terra Layer:get_hit_test_text_offset       (): int  return self.l.lib.hit_test_result.text_offset end
+terra Layer:get_hit_test_text_cursor_which (): enum return self.l.lib.hit_test_result.text_cursor_which end
 
 --publish and build
 

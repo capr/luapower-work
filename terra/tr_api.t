@@ -1113,13 +1113,21 @@ end)
 terra Layout:get_cursor_offset     (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.offset     end
 terra Layout:get_cursor_which      (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.which      end
 terra Layout:get_cursor_sel_offset (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.sel_offset end
-terra Layout:get_cursor_sel_which  (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.sel_which  end
+terra Layout:get_cursor_sel_which  (c_i: int): enum return self.cursors:at(c_i, &[Cursor.empty]).state.sel_which  end
 terra Layout:get_cursor_x          (c_i: int): num return self.cursors:at(c_i, &[Cursor.empty]).state.x          end
+
+terra Layout:get_caret_visible     (c_i: int) var c = self.cursors:at(c_i, nil); return iif(c ~= nil, c.caret_visible    , false) end
+terra Layout:get_selection_visible (c_i: int) var c = self.cursors:at(c_i, nil); return iif(c ~= nil, c.selection_visible, false) end
+terra Layout:get_insert_mode       (c_i: int)         return self.cursors:at(c_i, &[Cursor.empty]).insert_mode          end
+terra Layout:get_caret_opacity     (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty]).caret_opacity        end
+terra Layout:get_caret_thickness   (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty]).caret_thickness      end
+terra Layout:get_selection_color   (c_i: int): uint32 return self.cursors:at(c_i, &[Cursor.empty]).selection_color.uint end
+terra Layout:get_selection_opacity (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty]).selection_opacity    end
 
 terra Layout:set_cursor_offset(c_i: int, v: num) --num to allow inf and -inf as offsets
 	self:change_cursor_state(c_i, 'offset', clamp(v, 0, maxint), 'paint')
 end
-terra Layout:set_cursor_which(c_i: int, v: int)
+terra Layout:set_cursor_which(c_i: int, v: enum)
 	if self:checkrange('cursor_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
 		self:change_cursor_state(c_i, 'which', v, 'paint')
 	end
@@ -1127,7 +1135,7 @@ end
 terra Layout:set_cursor_sel_offset(c_i: int, v: num)
 	self:change_cursor_state(c_i, 'sel_offset', clamp(v, 0, maxint), 'paint')
 end
-terra Layout:set_cursor_sel_which(c_i: int, v: int)
+terra Layout:set_cursor_sel_which(c_i: int, v: enum)
 	if self:checkrange('cursor_sel_which', v, CURSOR_WHICH_FIRST, CURSOR_WHICH_LAST) then
 		self:change_cursor_state(c_i, 'sel_which' , v, 'paint')
 	end
@@ -1135,6 +1143,14 @@ end
 terra Layout:set_cursor_x(c_i: int, v: num)
 	self:change_cursor_state(c_i, 'x', v, 'paint')
 end
+
+terra Layout:set_caret_visible    (c_i: int, v: bool) self:change_cursor(c_i, 'caret_visible'    , v, 'paint') end
+terra Layout:set_selection_visible(c_i: int, v: bool) self:change_cursor(c_i, 'selection_visible', v, 'paint') end
+terra Layout:set_insert_mode      (c_i: int, v: bool) self:change_cursor(c_i, 'insert_mode'      , v, 'paint') end
+terra Layout:set_caret_opacity    (c_i: int, v: num ) self:change_cursor(c_i, 'caret_opacity'    , clamp(v, 0, 1), 'paint') end
+terra Layout:set_caret_thickness  (c_i: int, v: num ) self:change_cursor(c_i, 'caret_thickness'  , clamp(v, 1, inf), 'paint') end
+terra Layout:set_selection_color  (c_i: int, v: uint) self:change_cursor(c_i, 'selection_color'  , color{uint = v}, 'paint') end
+terra Layout:set_selection_opacity(c_i: int, v: num ) self:change_cursor(c_i, 'selection_opacity', clamp(v, 0, 1), 'paint') end
 
 terra Layout:cursor_move_to(c_i: int, offset: num, which: enum, select: bool)
 	assert(self.state >= STATE_ALIGNED)
@@ -1191,24 +1207,6 @@ terra Layout:cursor_move_near_page(c_i: int, delta_pages: num, x: num, select: b
 			self:invalidate'paint'
 		end
 	end
-end
-
-terra Layout:get_caret_visible(c_i: int)
-	var c = self.cursors:at(c_i, nil)
-	return iif(c ~= nil, c.caret_visible, false)
-end
-
-terra Layout:get_selection_visible(c_i: int)
-	var c = self.cursors:at(c_i, nil)
-	return iif(c ~= nil, c.selection_visible, false)
-end
-
-terra Layout:set_caret_visible(c_i: int, v: bool)
-	self:change_cursor(c_i, 'caret_visible', v, 'paint')
-end
-
-terra Layout:set_selection_visible(c_i: int, v: bool)
-	self:change_cursor(c_i, 'selection_visible', v, 'paint')
 end
 
 terra Layout:get_selection_first_span(c_i: int): int

@@ -100,11 +100,11 @@ local draw_changed_dt = 0
 local draw_fps_t, draw_fps_dt = 0, 0
 local repaint_fps_t, repaint_fps_dt = 0, 0
 
---sel_e = lib:layer()
-----sel_e.background_color = 0xffffff22
---sel_e.border_width = 2
---sel_e:set_border_dash(0, 10)
---sel_e.border_offset = 1
+sel_e = lib:layer()
+--sel_e.background_color = 0xffffff22
+sel_e.border_width = 2
+sel_e:set_border_dash(0, 10)
+sel_e.border_offset = 1
 
 --layer tree (de)serialization -----------------------------------------------
 
@@ -240,7 +240,6 @@ local function serialize_layer(e)
 		span_text_opacity      =1,
 		span_text_operator     =1,
 	})
-	t.text_selectable   = e.text_selectable
 	t.text_cursor_count = e.text_cursor_count
 	t.text_cursors      = list(e, e.text_cursor_count, {
 		text_cursor_offset     =1,
@@ -248,6 +247,11 @@ local function serialize_layer(e)
 		text_cursor_sel_offset =1,
 		text_cursor_sel_which  =1,
 		text_cursor_x          =1,
+		text_insert_mode       =1,
+		text_caret_opacity     =1,
+		text_caret_thickness   =1,
+		text_selection_color   =1,
+		text_selection_opacity =1,
 	})
 	t.in_transition     = e.in_transition
 	t.layout_type       = e.layout_type
@@ -888,7 +892,6 @@ function testui:repaint()
 		slideo('paragraph_spacing')
 
 		self:heading'Text Cursors'
-		toggle'text_selectable'
 		slide('text_cursor_count', -10, 10, 1)
 		for i = 0, e.text_cursor_count-1 do
 			self:heading('Cursor '..i)
@@ -898,20 +901,26 @@ function testui:repaint()
 			slide('text_cursor_sel_offset', -1, e.text_len + 1, 1, i)
 			slide('text_cursor_sel_which', -1, 2, 1, i)
 
+			toggle('text_insert_mode', i)
+			slideo('text_caret_opacity', i)
+			slideo('text_caret_thickness', i)
+			pickcolor('text_selection_color', i)
+			slideo('text_selection_opacity', i)
+
 			if e.text_valid then
-				self:heading('Text Selection '..i)
-				choose('text_selection_font_id', font_map, font_names, i, 'text_selection_has_font_id')
-				slide ('text_selection_font_size', -10, 100, 1, i, 'text_selection_has_font_size')
+				self:heading('Selected Text '..i..' ('..e:get_selected_text_len(i)..' codepoints)')
+				choose('selected_text_font_id', font_map, font_names, i, 'selected_text_has_font_id')
+				slide ('selected_text_font_size', -10, 100, 1, i, 'selected_text_has_font_size')
 				----TODO: slide ('features',
 				----TODO: choose('script', i)
 				----TODO: choose('lang'             , i)
-				choose('text_selection_paragraph_dir', 'dir_',
-					{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i, 'text_selection_has_paragraph_dir')
-				toggle('text_selection_nowrap'  , i, 'text_selection_has_nowrap')
-				pickcolor('text_selection_color', i, 'text_selection_has_color')
-				slideo('text_selection_opacity' , i, 'text_selection_has_opacity')
-				choose('text_selection_operator', 'operator_',
-					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i, 'text_selection_has_operator')
+				choose('selected_text_paragraph_dir', 'dir_',
+					{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i, 'selected_text_has_paragraph_dir')
+				toggle('selected_text_nowrap'  , i, 'selected_text_has_nowrap')
+				pickcolor('selected_text_color', i, 'selected_text_has_color')
+				slideo('selected_text_opacity' , i, 'selected_text_has_opacity')
+				choose('selected_text_operator', 'operator_',
+					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i, 'selected_text_has_operator')
 			else
 				self:heading'SPANS ARE INVALID'
 			end
@@ -946,9 +955,7 @@ function testui:repaint()
 
 		self:heading'Layout'
 
-		self.x = self.x + 80
 		choose('layout_type', 'layout_type_', {'null', 'textbox', 'flexbox', 'grid'})
-		self.x = self.x - 80
 
 		self:pushgroup('right', 1/2)
 		slidex('min_cw')
@@ -1113,6 +1120,8 @@ function testui:repaint()
 						layer.CURSOR_MODE_CHAR, 0, true)
 				end
 				e:remove_selected_text(0)
+			elseif key == 'insert' then
+				e:set_text_insert_mode(0, not e:get_text_insert_mode(0))
 			end
 			self:parent():invalidate()
 		end
@@ -1136,7 +1145,7 @@ function testui:repaint()
 		function self.ewindow:mousemove(mx, my)
 			local cr = self:bitmap():cairo()
 			if active_e then
-				if active_area == layer.HIT_TEXT then
+				if active_area == layer.HIT_TEXT and hit_e.text_cursor_count > 0 then
 					local x, y = active_e:from_window(mx, my)
 					active_e:text_cursor_move_to_point(0, x, y, true)
 				end
@@ -1157,7 +1166,7 @@ function testui:repaint()
 					table.insert(selected_layer_path, 1, e.index)
 					e = e.parent
 				end
-				if hit_area == layer.HIT_TEXT then
+				if hit_area == layer.HIT_TEXT and hit_e.text_cursor_count > 0 then
 					hit_e:text_cursor_move_to_point(0, top_e.hit_test_x, top_e.hit_test_y, false)
 				end
 				active_e, active_area = hit_e, hit_area

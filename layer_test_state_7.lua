@@ -19,9 +19,9 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=16,
-				text_cursor_sel_offset=16,
-				text_cursor_x=134.5
+				text_cursor_offset=77,
+				text_cursor_sel_offset=77,
+				text_cursor_x=133.5
 			}
 		},
 		text_spans={
@@ -39,5 +39,5 @@ return {
 	},
 	selected_layer_path={
 	},
-	tab='Background'
+	tab='Text'
 }

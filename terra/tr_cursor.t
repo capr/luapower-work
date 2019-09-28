@@ -249,25 +249,15 @@ terra Layout:cursor_rel_x(p: Pos)
 	end
 end
 
-require'terra/tr_itemize'
-
 --caret rectangle. its position is relative to line_pos().
-terra Layout:cursor_rect(p: Pos, w: num, forward: bool)
+terra Layout:cursor_rect(p: Pos, w: num, forward: bool, underline: bool)
+	var face = iif(p.seg ~= nil, p.seg.span.face, nil)
 	var line = self:seg_line(p.seg)
 	var x = self:cursor_rel_x(p)
-	var y = -line.spaced_ascent
-	var w = iif(forward ~= false, 1, -1) * iif(isnan(w), 1, w)
-	var h = line.spaced_ascent - line.spaced_descent
-
-	--[[
-	if p.seg ~= nil then
-		var run = self:glyph_run(p.seg)
-		var g_i = run:glyph_index_at_offset(p.i)._0
-		var g = run.glyphs:at(g_i)
-		x = p.seg.x + g.x + g.image_x
-	end
-	]]
-
+	var w = iif(forward, 1, -1) * w * iif(face ~= nil, face.underline_thickness, 1)
+	var y = iif(underline and face ~= nil, -face.underline_position, -line.spaced_ascent)
+	var h = iif(underline and face ~= nil,  face.underline_thickness, line.spaced_ascent - line.spaced_descent)
+	print(face.underline_position, face.underline_thickness)
 	if w < 0 then
 		x, w = x + w, -w
 	end
@@ -510,8 +500,8 @@ terra Cursor:rect()
 		--wide caret (spanning two adjacent cursor positions).
 		var p1 = self:pos_near(NEXT, DEFAULT, FIRST, false)
 		if p1.seg ~= nil and p.seg ~= nil and p1.seg.line_index == p.seg.line_index then
-			var x, y, _, h = self.layout:cursor_rect(p, nan, false)
-			var x1 = self.layout:cursor_rect(p1, nan, false)._0
+			var x, y, _, h = self.layout:cursor_rect(p, 0, true, true)
+			var x1 = self.layout:cursor_rect(p1, 0, true, true)._0
 			var w = x1 - x
 			if w < 0 then
 				x, w = x + w, -w
@@ -523,7 +513,7 @@ terra Cursor:rect()
 	--normal caret, `w`-wide to the left or right of a cursor position.
 	var rtl = self.layout:seg_rtl(p.seg)
 	var forward = not rtl and self.layout.align_x ~= ALIGN_RIGHT
-	var x, y, w, h = self.layout:cursor_rect(p, self.caret_thickness, forward)
+	var x, y, w, h = self.layout:cursor_rect(p, self.caret_thickness, forward, false)
 	var x0, y0 = self.layout:line_pos(self.layout:seg_line(p.seg))
 	return x0 + x, y0 + y, w, h
 end
@@ -606,9 +596,8 @@ terra Cursor:get_is_selection_empty()
 end
 
 terra Cursor:draw_selection(cr: &context, spaced: bool)
-	if self.is_selection_empty then
-		return
-	end
+	if not self.selection_visible then return end
+	if self.is_selection_empty then return end
 	var p1: Pos, p2: Pos
 	if self.state.offset < self.state.sel_offset then
 		p1, p2 = self.pos, self.sel_pos

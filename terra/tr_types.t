@@ -98,7 +98,7 @@ struct Font;
 
 --font type ------------------------------------------------------------------
 
-struct FontFace {
+struct FontFace (gettersandsetters) {
 	ft_face: FT_Face;
 	hb_font: &hb_font_t; --represents a ft_face at a particular size.
 	ft_load_flags: int;
@@ -106,8 +106,6 @@ struct FontFace {
 	--font metrics for current size
 	size: num;
 	scale: num; --scaling factor for scaling raster glyphs.
-	ascent: num;
-	descent: num;
 }
 
 FontFace.empty = `FontFace {
@@ -117,8 +115,6 @@ FontFace.empty = `FontFace {
 	ft_render_flags = 0;
 	size = 0;
 	scale = 0;
-	ascent = 0;
-	descent = 0;
 }
 
 terra FontFace.methods.free :: {&FontFace} -> {}
@@ -542,10 +538,10 @@ struct CursorState {
 	--position in logical text and whether is the first or last visual
 	--position in case there's two visual positions for the same offset.
 	offset: int;
-	which: int;
+	which: enum;
 	--selection-end position, when selecting text by moving the cursor.
 	sel_offset: int;
-	sel_which: int;
+	sel_which: enum;
 	--x-coord to try to go to when navigating vertically.
 	x: double;
 }

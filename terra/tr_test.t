@@ -12,13 +12,14 @@ local font_paths_list = {
 }
 local font_paths = constant(`array([font_paths_list]))
 
-terra load_font(font_id: int, file_data: &&opaque, file_size: &size_t)
+terra load_font(font_id: int, file_data: &&opaque, file_size: &size_t, mmapped: &bool)
 	var font_path = font_paths[font_id-1]
 	@file_data, @file_size = readfile(font_path)
+	@mmapped = false
 end
 
-terra unload_font(font_id: int, file_data: &&opaque, file_size: &size_t)
-	dealloc(@file_data)
+terra unload_font(font_id: int, file_data: &opaque, file_size: size_t, mmaped: bool)
+	dealloc(file_data)
 end
 
 local numbers = {}

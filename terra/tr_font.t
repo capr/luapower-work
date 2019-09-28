@@ -115,13 +115,17 @@ terra FontFace:set_size(size: num)
 		assert(FT_Set_Pixel_Sizes(self.ft_face, fixed_size, 0) == 0)
 	end
 
-	self.size = size
-	var m = self.ft_face.size.metrics
-	self.ascent  = [num](m.ascender ) * self.scale / 64.f
-	self.descent = [num](m.descender) * self.scale / 64.f
-
 	hb_ft_font_changed(self.hb_font)
+
+	self.size = size
 end
+
+terra FontFace:get_ascent              () return [num](self.ft_face.size.metrics.ascender ) * self.scale / 64 end
+terra FontFace:get_descent             () return [num](self.ft_face.size.metrics.descender) * self.scale / 64 end
+terra FontFace:get_height              () return [num](self.ft_face.size.metrics.height   ) * self.scale / 64 end
+terra FontFace:get_scale_y             () return [num](self.ft_face.size.metrics.y_scale  ) * self.scale / 65536 end
+terra FontFace:get_underline_position  () return [num](self.ft_face.underline_position    ) * self.scale_y / 64 end
+terra FontFace:get_underline_thickness () return [num](self.ft_face.underline_thickness   ) * self.scale_y / 64 end
 
 terra Span:get_face()
 	var face = self.font:select_face(self.font_face_index)

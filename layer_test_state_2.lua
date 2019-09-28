@@ -62,7 +62,6 @@ return {
 				min_cw=61,
 				span_count=1,
 				text_cursor_count=1,
-				text_selectable=true,
 				text_spans={
 					{
 						span_font_size=55,
@@ -89,10 +88,11 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_x=-166
+						text_cursor_offset=2,
+						text_cursor_sel_offset=2,
+						text_cursor_x=46
 					}
 				},
-				text_selectable=true,
 				text_spans={
 					{
 						span_font='OpenSans-Regular.ttf',
