@@ -79,7 +79,7 @@ terra memreport()
 		pfn('%8x %8d %s', k, mem.len, mem.element_type)
 	end
 	print('------------------------------------------------------------------')
-	pfn('TOTAL: %d bytes.', total)
+	pfn('LEAK: %d bytes.', total)
 end
 
 dp = macro(function(p, sz)

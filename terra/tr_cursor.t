@@ -257,7 +257,6 @@ terra Layout:cursor_rect(p: Pos, w: num, forward: bool, underline: bool)
 	var w = iif(forward, 1, -1) * w * iif(face ~= nil, face.underline_thickness, 1)
 	var y = iif(underline and face ~= nil, -face.underline_position, -line.spaced_ascent)
 	var h = iif(underline and face ~= nil,  face.underline_thickness, line.spaced_ascent - line.spaced_descent)
-	print(face.underline_position, face.underline_thickness)
 	if w < 0 then
 		x, w = x + w, -w
 	end
