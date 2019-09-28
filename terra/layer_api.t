@@ -706,6 +706,7 @@ terra Layer:set_text_utf8(s: rawstring, len: int)
 	self.l.text.layout:set_text_utf8(s, len)
 	self.l:invalidate'text'
 end
+Layer.methods.set_text_utf8.const_args = {nil, true}
 
 terra Layer:get_text_utf8(out: rawstring, max_outlen: int): int
 	return self.l.text.layout:get_text_utf8(out, max_outlen)
@@ -778,6 +779,10 @@ for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 	end
 
 end
+
+Layer.methods.set_span_features .const_args = {nil, nil, true}
+Layer.methods.set_span_lang     .const_args = {nil, nil, true}
+Layer.methods.set_span_script   .const_args = {nil, nil, true}
 
 terra Layer:get_span_offset(span_i: int): int
 	return self.l.text.layout:get_span_offset(span_i)
@@ -860,6 +865,10 @@ for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 	end
 end
 
+Layer.methods.set_text_selection_features .const_args = {nil, nil, true}
+Layer.methods.set_text_selection_lang     .const_args = {nil, nil, true}
+Layer.methods.set_text_selection_script   .const_args = {nil, nil, true}
+
 do end --text navigation & hit-testing
 
 terra Layer:text_cursor_move_to(c_i: int, offset: num, which: enum, select: bool)
@@ -909,6 +918,7 @@ terra Layer:insert_text_utf8_at_cursor(c_i: int, s: rawstring, len: int)
 	self.l.text.layout:insert_text_utf8_at_cursor(c_i, s, len)
 	self.l:invalidate'text'
 end
+Layer.methods.insert_text_utf8_at_cursor.const_args = {nil, nil, true}
 
 terra Layer:get_selected_text(c_i: int)
 	self:sync()

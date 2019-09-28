@@ -1,5 +1,17 @@
 
-# Things you need to know
+# Text rendering pipeline
+
+Processing stages from _rich text_ description to pixels on screen:
+
+* itemization     : split rich text into _segments_.
+* shaping         : convert segments into _glyph runs_.
+* line-wrapping   : word-wrap segments and group them into _lines_.
+* bidi-reordering : re-order mixed-direction segments on each line.
+* line-spacing    : compute each line's `y` based on the heights of its segments.
+* aligning        : align lines horizontally and vertically inside a box.
+* clipping        : mark which lines and segments as visible inside a box.
+* rasterization   : convert glyph outlines into bitmaps that are cached.
+* painting        : draw the visible text plus any selections and carets.
 
 ## Codepoint
 
@@ -15,6 +27,12 @@ for formatting. Unicode comprises 1,114,112 code points in the range
 UTF-8 is a variable-width encoding for Unicode where each codepoint is 1 to 4
 bytes wide. It is backwards-compatible with ASCII in that codepoints
 above 127 only use non-ASCII bytes (bytes that are > 127).
+
+## Rich text
+
+Rich text is a piece of _Unicode text_ representing one or more paragraphs of
+text combined with a list of _spans_ containing semantic and stylistic
+information for each arbitrary sub-portion of the text.
 
 ## Unicode text
 
@@ -196,10 +214,9 @@ language in order to apply LBA because the algorithm depends on language.
 
 ## Itemization
 
-Given a piece of Unicode text and a list of _spans_ containing semantic and
-stylistic information for each arbitrary sub-portion of the text, itemization
-is the process of breaking down the text into _segments_ for the purpose of
-shaping, line-wrapping and rasterization.
+Given a piece of _Unicode text_ and a list of _spans_, itemization is the
+process of breaking down the text into _segments_ for the purpose of shaping,
+line-wrapping and rasterization.
 
 Segments are formed at the boundaries of property combinations that require
 separate shaping calls. The idea is to break down the text into the largest
@@ -222,8 +239,8 @@ be formed between segments).
 
 ## Shaping
 
-Given a font at a selected size and a piece of Unicode text containing
-codepoints in a single script and language, shaping is the process of
+Given a font at a selected size and a piece of _Unicode text_ containing
+codepoints in a _single script and language_, shaping is the process of
 selecting the right glyphs from the font and also how these glyphs must be
 positioned relative to each other in order to best represent the text on
 screen. This process can imply:
@@ -310,7 +327,7 @@ usually required on low-dpi screens so it's by default enabled.
 Subpixel rendering is a rendering technique that tries to effectively triple
 the perceived resolution of a RGB LCD display by taking advantage of the fact
 that each pixel on a LCD display is actually composed of three individual
-subpixels fore red, green and blue respectively. Microsoft calls this
+subpixels for red, green and blue respectively. Microsoft calls this
 ClearType. In practice this technique often creates visible color fringes
 (aka chromatic aliasing) because of many factors that are hard to control or
 not known by the rendering engine. FreeType can do subpixel rendering but
@@ -326,6 +343,6 @@ up with different rasterizations (this is how antialiasing works). But because
 historically text rendering engines didn't support fractional glyph positions
 this is mentioned as a feature.
 
-tr enables subpixel positioning only on the x-axis by default because hinting
-is enabled on the y-axis.
+tr enables subpixel positioning only on the x-axis by default because on the
+y-axis hinting is enabled by default.
 

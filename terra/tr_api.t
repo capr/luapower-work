@@ -287,6 +287,7 @@ STATE_PAINTED   = 6
 terra Layout:_invalidate_all()
 	self.state = 0
 	self._valid = false
+	self._offsets_valid = false
 end
 terra Layout:_invalidate_shape() self.state = min(self.state, STATE_SHAPED  - 1) end
 terra Layout:_invalidate_wrap () self.state = min(self.state, STATE_WRAPPED - 1) end
@@ -327,41 +328,38 @@ terra Layout:_advance_state(state: enum)
 end
 
 --check that there's at least one span and it has offset zero.
---check that spans have monotonically increasing, in-range offsets.
+--check that spans have monotonically increasing offsets.
+--check that all spans cover at least one codepoint except the last span
+--which can start at text.len and thus cover zero codepoints in order to make
+--valid spans possible with empty text and thus allow text insertion.
 --check that all spans can be displayed (font face is loaded and font size > 0).
-terra Layout:_do_validate()
+terra Layout:_validate()
+	if not self:_advance_state(STATE_VALIDATED) then
+		return
+	end
 	if self.l.spans.len == 0 or self.l.spans:at(0).offset ~= 0 then
 		self._offsets_valid = false
 		self._valid = false
-	else
-		self._offsets_valid = true
-		self._valid = true
-		if self.l.text.len == 0 then
+		return
+	end
+	self._offsets_valid = true
+	self._valid = true
+	var prev_offset = -1
+	for _,s in self.l.spans do
+		if s.offset <= prev_offset         --offset overlapping
+			or s.offset > self.l.text.len   --offset out-of-range
+		then
+			self._offsets_valid = false
+			self._valid = false
 			return
 		end
-		var prev_offset = -1
-		for _,s in self.l.spans do
-			if s.offset <= prev_offset         --offset overlapping
-				or s.offset >= self.l.text.len  --offset out-of-range
-			then
-				self._offsets_valid = false
-				self._valid = false
-				return
-			end
-			if s.font == nil       --font not set or font loading failed
-				or s.font_size <= 0 --font size not set
-				or s.face == nil    --invalid face index
-			then
-				self._valid = false
-			end
-			prev_offset = s.offset
+		if s.font == nil       --font not set or font loading failed
+			or s.font_size <= 0 --font size not set
+			or s.face == nil    --invalid face index
+		then
+			self._valid = false
 		end
-	end
-end
-
-terra Layout:_validate()
-	if self:_advance_state(STATE_VALIDATED) then
-		self:_do_validate()
+		prev_offset = s.offset
 	end
 end
 
@@ -725,11 +723,11 @@ terra Span:save_features(layout: &tr.Layout)
 	var sbuf = &layout.r.sbuf
 	sbuf.len = 0
 	for i,feat in self.features do
-		sbuf.min_capacity = sbuf.len + 128
-		var p = sbuf:at(sbuf.len)
+		var eof = sbuf.len
+		sbuf.len = sbuf.len + 128
+		var p = sbuf:at(eof)
 		hb_feature_to_string(feat, p, 128)
-		var n = strnlen(p, 128)
-		sbuf.len = sbuf.len + n
+		sbuf.len = eof + strnlen(p, 128)
 		if i < self.features.len-1 then
 			sbuf:add(32) --space char
 		end
@@ -739,6 +737,7 @@ terra Span:save_features(layout: &tr.Layout)
 end
 
 --feature format: '[+|-]feat[=val] ...', eg. '+kern -liga smcp'.
+--see: https://harfbuzz.github.io/harfbuzz-hb-common.html#hb-feature-from-string
 terra Span:load_features(layout: &tr.Layout, s: rawstring)
 	var s0 = self:save_features(layout)
 	if s0 == s then --both nil
@@ -751,8 +750,7 @@ terra Span:load_features(layout: &tr.Layout, s: rawstring)
 	end
 	self.features.len = 0
 	var j = 0
-	var gs = sv:gsplit' '
-	for i,len in gs do
+	for i,len in sv:gsplit' ' do
 		var feat: hb_feature_t
 		if hb_feature_from_string(sv:at(i), len, &feat) ~= 0 then
 			self.features:add(feat)
@@ -782,6 +780,7 @@ terra Span:save_script(layout: &tr.Layout)
 	sbuf.len = 5
 	var tag = hb_script_to_iso15924_tag(self.script)
 	hb_tag_to_string(tag, sbuf.elements)
+	sbuf:set(4, 0) --hb_tag_to_string() doesn't null terminate.
 	return iif(sbuf(0) ~= 0, sbuf.elements, nil)
 end
 
@@ -848,7 +847,7 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 
 	Layout.methods['has_'..FIELD] = terra(self: &Layout, o1: int, o2: int)
 		if self.l.spans.len == 0 then
-			--it's not an error to use has_*() with no spans because set_*()
+			--it's not an error to call has_*() with no spans because set_*()
 			--creates spans automatically.
 			return false
 		elseif self.offsets_valid then
@@ -1024,12 +1023,12 @@ terra Layout:get_pixels_valid() --text needs repainting.
 end
 
 terra Layout:get_visible() --check if the text and/or cursor is visible.
-	return self.l.text.len > 0 or self.cursors.len > 0
+	return self.valid and (self.l.text.len > 0 or self.cursors.len > 0)
 end
 
 terra Layout:get_min_w(): num --for page layouting min-size constraints.
+	assert(self.state >= STATE_SHAPED)
 	if self._valid then
-		assert(self.state >= STATE_SHAPED)
 		if self._min_w == -inf then
 			self._min_w = self.l:min_w()
 		end
@@ -1040,8 +1039,8 @@ terra Layout:get_min_w(): num --for page layouting min-size constraints.
 end
 
 terra Layout:get_max_w(): num --not used yet
+	assert(self.state >= STATE_SHAPED)
 	if self._valid then
-		assert(self.state >= STATE_SHAPED)
 		if self._max_w == -inf then
 			self._max_w = self.l:max_w()
 		end
@@ -1052,30 +1051,18 @@ terra Layout:get_max_w(): num --not used yet
 end
 
 terra Layout:get_baseline(): num --for page layouting baseline alignment.
-	if self._valid then
-		assert(self.state >= STATE_ALIGNED)
-		return self.l.baseline
-	else
-		return 0
-	end
+	assert(self.state >= STATE_ALIGNED)
+	return iif(self._valid, self.l.baseline, 0)
 end
 
 terra Layout:get_spaced_h(): num --for page layouting min-size constraints.
-	if self._valid then
-		assert(self.state >= STATE_WRAPPED)
-		return self.l.spaced_h
-	else
-		return 0
-	end
+	assert(self.state >= STATE_WRAPPED)
+	return iif(self._valid, self.l.spaced_h, 0)
 end
 
 terra Layout:bbox(): {num, num, num, num}
-	if self._valid then
-		assert(self.state >= STATE_ALIGNED)
-		return self.l:bbox()
-	else
-		return 0, 0, 0, 0
-	end
+	assert(self.state >= STATE_ALIGNED)
+	return iif(self._valid, self.l:bbox(), {0.0, 0.0, 0.0, 0.0})
 end
 
 --cursor & selection API -----------------------------------------------------
@@ -1321,8 +1308,8 @@ end
 
 terra Layout:load_cursor_xs(line_i: int)
 	self.l.r.xsbuf.len = 0
-	if not self._valid then return end
 	assert(self.state >= STATE_ALIGNED)
+	if not self._valid then return end
 	self.l:cursor_xs(line_i)
 end
 terra Layout:get_cursor_xs() return self.l.r.xsbuf.elements end

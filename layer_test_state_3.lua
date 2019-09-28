@@ -1,24 +1,50 @@
 return {
 	root={
-		background_color=4294967057,
+		background_color=1463722751,
 		background_color_stop_count=1,
 		background_color_stops={
 			{
 				background_color_stop_color=4294967234
 			}
 		},
-		background_type=2,
+		background_type=1,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
 		children={
 			{
+				background_color=3408472575,
+				background_type=1,
 				border_width_bottom=1,
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				w=575
+				h=196,
+				span_count=2,
+				text_cursor_count=1,
+				text_cursors={
+					{
+						text_cursor_offset=1,
+						text_cursor_sel_offset=1,
+						text_cursor_x=147.25
+					}
+				},
+				text_spans={
+					{
+						span_font='OpenSans-Regular.ttf',
+						span_font_size=34
+					},
+					{
+						span_font='OpenSans-Regular.ttf',
+						span_font_size=65,
+						span_offset=3
+					}
+				},
+				text_utf8='abcd',
+				w=352.5,
+				x=109.5,
+				y=131
 			}
 		},
 		clip_content=true,
@@ -28,15 +54,6 @@ return {
 		min_cw=737,
 		rotation_cx=251,
 		rotation_cy=213.5,
-		shadow_count=1,
-		shadows={
-			{
-				shadow_blur=4,
-				shadow_content=true,
-				shadow_x=1.5,
-				shadow_y=0.5
-			}
-		},
 		span_count=1,
 		text_spans={
 			{
@@ -49,5 +66,7 @@ return {
 		y=196
 	},
 	selected_layer_path={
-	}
+		0
+	},
+	tab='Text'
 }

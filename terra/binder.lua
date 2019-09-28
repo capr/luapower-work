@@ -25,6 +25,7 @@ Terra type and function object attributes for controlling the output:
 	* `cprefix` : prefix method names.
 	* `private` : tag method as private.
 	* `public_methods`: specify which methods to publish.
+	* `const_args`: specify which args have the const qualifier.
 
 Conventions:
 
@@ -41,6 +42,7 @@ Usage:
 	MyFunc.cname = 'my_func'
 	MyOverloadedFunc.cname = {'my_func', 'my_func2'}
 	MyFuncPointer.type.cname = 'myfunc_callback_t'
+	MyFunc.const_args = {nil, true} --make arg#2 const (for passing Lua strings)
 
 	local mylib = lib'mylib'
 
@@ -155,8 +157,6 @@ function cdefs()
 				return tostring(T)..'_t'
 			elseif T:isfloat() or T:islogical() then
 				return tostring(T)
-			elseif T == rawstring then
-				return 'const char*'
 			elseif T:ispointer() then
 				if T.type:isfunction() then
 					return ctype(T.type) --C's funcptr is its own type.
@@ -195,11 +195,14 @@ function cdefs()
 
 	local cdef --fw. decl. (used recursively)
 
-	local function cdef_args(T)
+	local function cdef_args(T, func)
 		if #T.parameters == 0 then
 			add(tdefs, 'void')
 		else
 			for i,arg in ipairs(T.parameters) do
+				if func and func.const_args and func.const_args[i] then
+					add(tdefs, 'const ') --allow passing Lua strings without copying.
+				end
 				add(tdefs, cdef(arg, false))
 				if i < #T.parameters then
 					add(tdefs, ', ')
@@ -215,7 +218,7 @@ function cdefs()
 		local T = func:gettype()
 		start_def()
 		append(tdefs, cdef(T.returntype, false), ' ', cname, '(')
-		cdef_args(T)
+		cdef_args(T, func)
 		add(tdefs, ');\n')
 		end_def()
 	end

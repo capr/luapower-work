@@ -8,7 +8,7 @@ return {
 		border_color_right=4294967078,
 		border_color_top=4294967078,
 		clip_content=true,
-		h=873,
+		h=936,
 		layout_type=1,
 		min_cw=619.5,
 		padding_bottom=16.5,
@@ -27,31 +27,35 @@ return {
 		span_count=4,
 		text_align_x=4,
 		text_align_y=1,
-		text_cursor_i=1,
-		text_cursor_offset=2294,
-		text_cursor_seg=348,
-		text_cursor_x=279.5,
+		text_cursor_count=1,
+		text_cursors={
+			{
+				text_cursor_offset=758,
+				text_cursor_sel_offset=758,
+				text_cursor_x=237.5
+			}
+		},
 		text_selectable=true,
 		text_spans={
 			{
-				span_font_id=1,
+				span_font='OpenSans-Regular.ttf',
 				span_font_size=12,
 				span_text_opacity=2
 			},
 			{
-				span_font_id=0,
+				span_font='Amiri-Regular.ttf',
 				span_font_size=12,
 				span_offset=275,
 				span_text_opacity=2
 			},
 			{
-				span_font_id=1,
+				span_font='OpenSans-Regular.ttf',
 				span_font_size=12,
 				span_offset=421,
 				span_text_opacity=2
 			},
 			{
-				span_font_id=0,
+				span_font='Amiri-Regular.ttf',
 				span_font_size=12,
 				span_offset=1352,
 				span_text_opacity=2

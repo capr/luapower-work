@@ -26,30 +26,28 @@ end
 
 --const state ----------------------------------------------------------------
 
+local font_dir = 'media/fonts'
 local fonts = {
-	'media/fonts/OpenSans-Regular.ttf',
-	'media/fonts/Amiri-Regular.ttf',
-	'media/fonts/SourceHanSans.ttc',
-	'media/fonts/SourceHanSerif.ttc',
-	'media/fonts/ionicons.ttf',
+	'OpenSans-Regular.ttf',
+	'Amiri-Regular.ttf',
+	'SourceHanSans.ttc',
+	'SourceHanSerif.ttc',
+	'ionicons.ttf',
 }
+local font_ids = glue.index(fonts)
 
 local font_names = {}
 for i,s in ipairs(fonts) do
 	s = s:match'([^/]+)%.tt.$'
 	font_names[i] = s:sub(1, 5)..s:sub(-1)
 end
-local font_map = {}
-for i=1,#font_names do
-	font_map[font_names[i]] = i
-	font_map[i] = font_names[i]
-end
+local font_map = glue.update({}, font_names, glue.index(font_names))
 
 local lib
 
 local function load_font(font_id, file_data_buf, file_size_buf, mmapped_buf)
 	local font_name = assert(fonts[font_id])
-	local font_data = assert(bundle.load(font_name))
+	local font_data = assert(bundle.load(font_dir..'/'..font_name))
 	local buf = glue.malloc('char', #font_data)
 	ffi.gc(buf, nil)
 	ffi.copy(buf, font_data, #font_data)
@@ -118,13 +116,10 @@ local function serialize_layer(e)
 		local dt = {}
 		for i = 0, n-1 do
 			local t = {}
-			for k, convert in glue.sortedpairs(fields) do
-				local v = e['get_'..k](e, i)
-				local v0 = default_e['get_'..k](default_e, 0)
-				if type(convert) == 'function' then
-					v = convert(v)
-					v0 = convert(v0)
-				end
+			for k, get in glue.sortedpairs(fields) do
+				get = type(get) == 'function' and get or e['get_'..k]
+				local v = get(e, i)
+				local v0 = get(default_e, 0)
 				if v ~= v0 then
 					t[k] = v
 				end
@@ -137,10 +132,6 @@ local function serialize_layer(e)
 		end
 		if #dt == 0 then return end
 		return dt
-	end
-
-	local function cstring(p, len)
-		return p ~= nil and ffi.string(p, len) or nil
 	end
 
 	--serialize layer properties.
@@ -235,12 +226,14 @@ local function serialize_layer(e)
 	t.span_count = e.span_count
 	t.text_spans = list(e, e.span_count, {
 		span_offset            =1,
-		span_font_id           =1,
+		span_font              =function(e, i)
+			return fonts[e:get_span_font_id(i)]
+		end,
 		span_font_face_index   =1,
 		span_font_size         =1,
-		span_features          =cstring,
-		span_script            =cstring,
-		span_lang              =cstring,
+		span_features          =1,
+		span_script            =1,
+		span_lang              =1,
 		span_paragraph_dir     =1,
 		span_nowrap            =1,
 		span_text_color        =1,
@@ -317,6 +310,10 @@ local function deserialize_layer(e, t)
 		elseif type(v) == 'table' then
 			for i,t in ipairs(v) do
 				for k,v in glue.sortedpairs(t) do
+					if k == 'span_font' then
+						k = 'span_font_id'
+						v = font_ids[v] or -1
+					end
 					local set = e['set_'..k]
 					set(e, i-1, v)
 				end
@@ -492,9 +489,6 @@ end
 local function choose(prop, prefix, options, ...)
 	local id, get, set = getset(prop, ...)
 	local v = get(e, prop, ...)
-	if ffi.istype('const char*', v) then
-		v = cstring(v)
-	end
 	local t = enum_map(prop, prefix, options)
 	local v = t[v]
 	testui:pushgroup'down'
@@ -903,6 +897,7 @@ function testui:repaint()
 			slide('text_cursor_sel_which', -1, 2, 1, i)
 
 			if e.text_valid then
+				self:heading('Text Selection '..i)
 				choose('text_selection_font_id', font_map, font_names, i, 'text_selection_has_font_id')
 				slide ('text_selection_font_size', -10, 100, 1, i, 'text_selection_has_font_size')
 				----TODO: slide ('features',
@@ -1138,8 +1133,7 @@ function testui:repaint()
 			local cr = self:bitmap():cairo()
 			if active_e then
 				if active_area == layer.HIT_TEXT then
-					local t = active_e:from_window(mx, my)
-					local x, y = t._0, t._1
+					local x, y = active_e:from_window(mx, my)
 					active_e:text_cursor_move_to_point(0, x, y, true)
 				end
 			elseif top_e:hit_test(cr, mx, my, 0) then

@@ -211,12 +211,21 @@ local function cache_type(key_t, val_t, size_t, context_t, hash, equal, own_keys
 			var pair = &self.pairs:link(i).item
 			assert(pair.refcount > 0)
 			dec(pair.refcount)
-			if pair.refcount == 0 and self.first_active_index ~= -1 then
-				if self.first_active_index == i then
-					self.first_active_index = -1
-				else
-					self.pairs:move_after(self.first_active_index, i)
+			if pair.refcount == 0 then
+				if self.first_active_index ~= -1 then
+					if self.first_active_index == i then
+						self.first_active_index = -1
+					else
+						self.pairs:move_after(self.first_active_index, i)
+					end
 				end
+				--TODO: we should shrink here, but tr's Span:free() calls
+				--forget_font() which can trigger Font:free() which triggers
+				--font_unload() which is a Lua callback and that could trigger
+				--"bad callback" and the fix for that is jit.off()-wrapping all
+				--the span-editing API. I fucking hate this bad callback situation
+				--I mean look at the lengths one has to go to to avoid that shit.
+				--self:shrink(self._max_size, self._max_count)
 			end
 		end
 

@@ -77,10 +77,6 @@ terra Renderer:setcontext(cr: &context, span: &Span)
 end
 
 terra Renderer:paint_surface(cr: &context, sr: &surface, x: num, y: num)
-	--cr:rgba(1, 1, 1, .5)
-	--cr:line_width(1)
-	--cr:rectangle(x, y, sr:width(), sr:height())
-	--cr:stroke()
 	cr:mask(sr, x, y)
 end
 

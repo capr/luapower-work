@@ -25,7 +25,7 @@
 	* line-spacing    : compute each line's `y` based on the heights of its segments.
 	* aligning        : align lines horizontally and vertically inside a box.
 	* clipping        : mark which lines and segments as visible inside a box.
-	* rasterization   : convert glyph outlines into little bitmaps that are cached.
+	* rasterization   : convert glyph outlines into bitmaps that are cached.
 	* painting        : draw the visible text plus any selections and carets.
 
 	The API for driving this process is:

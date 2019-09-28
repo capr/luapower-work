@@ -7,11 +7,11 @@ return {
 		background_color_stop_count=2,
 		background_color_stops={
 			{
-				background_color_stop_color=1368421347,
+				background_color_stop_color=1368421375,
 				background_color_stop_offset=0.033000000000000002
 			},
 			{
-				background_color_stop_color=859940912,
+				background_color_stop_color=859941119,
 				background_color_stop_offset=0.217
 			}
 		},
@@ -29,19 +29,19 @@ return {
 		background_x2=-61,
 		background_y1=196,
 		background_y2=235.5,
-		border_color_bottom=4294967162,
-		border_color_left=4294967162,
-		border_color_right=4294967162,
-		border_color_top=4294967162,
+		border_color_bottom=3494792900,
+		border_color_left=3494792900,
+		border_color_right=3494792900,
+		border_color_top=3494792900,
 		border_dash={
 			{
-				border_dash=16.699999999999999
+				border_dash=16
 			},
 			{
-				border_dash=15.800000000000001
+				border_dash=15
 			},
 			{
-				border_dash=8.3000000000000007
+				border_dash=8
 			}
 		},
 		border_dash_count=3,
@@ -67,7 +67,7 @@ return {
 					{
 						span_font_size=55,
 						span_text_color=2912214015,
-						span_text_opacity=0.81700000000000006,
+						span_text_opacity=0.81699997186660767,
 						span_text_operator=1
 					}
 				},
@@ -89,15 +89,13 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=3,
-						text_cursor_sel_offset=3,
-						text_cursor_x=63
+						text_cursor_x=-166
 					}
 				},
 				text_selectable=true,
 				text_spans={
 					{
-						span_font_id=1,
+						span_font='OpenSans-Regular.ttf',
 						span_font_size=39
 					}
 				},
@@ -145,7 +143,7 @@ return {
 		y=229
 	},
 	selected_layer_path={
-		0
+		1
 	},
-	tab='Text'
+	tab='Border & Padding'
 }

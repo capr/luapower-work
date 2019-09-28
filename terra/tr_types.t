@@ -110,7 +110,16 @@ struct FontFace {
 	descent: num;
 }
 
-FontFace.empty = `FontFace {ft_face = nil, hb_font = nil}
+FontFace.empty = `FontFace {
+	ft_face = nil;
+	hb_font = nil;
+	ft_load_flags = 0;
+	ft_render_flags = 0;
+	size = 0;
+	scale = 0;
+	ascent = 0;
+	descent = 0;
+}
 
 terra FontFace.methods.free :: {&FontFace} -> {}
 

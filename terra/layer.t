@@ -49,8 +49,6 @@
 
 ]]
 
-if not ... then require'terra/layer_api'.build(); return end
-
 setfenv(1, require'terra/low'.module())
 require'terra/memcheck'
 require'terra/cairo'
@@ -1578,7 +1576,7 @@ terra Layer:sync_text_align()
 end
 
 terra Layer:get_baseline()
-	return iif(self.text.layout.visible, self.text.layout.baseline, self.h)
+	return self.text.layout.baseline
 end
 
 terra Layer:draw_text(cr: &context)

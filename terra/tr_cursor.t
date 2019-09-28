@@ -204,7 +204,7 @@ terra Layout:hit_test_cursors(
 )
 	var line_i = self.lines:clamp(line_i)
 	var line = self.lines:at(line_i)
-	var x = x - self.x
+	var x = x - self.x - line.x
 	var min_d: num = inf
 	var cp = Pos{nil, 0} --closest cursor position
 	var p0 = Pos{nil, 0} --previous cursor position

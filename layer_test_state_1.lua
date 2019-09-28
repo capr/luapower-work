@@ -38,10 +38,10 @@ return {
 			{
 				border_dash={
 					{
-						border_dash=12.5
+						border_dash=12
 					},
 					{
-						border_dash=3.3000000000000003
+						border_dash=3
 					},
 					{
 						border_dash=5
@@ -126,10 +126,11 @@ return {
 				min_ch=47,
 				min_cw=145.5,
 				snap_y=false,
+				span_count=1,
 				text_maxlen=50041,
 				text_spans={
 					{
-						span_font_id=0,
+						span_font='OpenSans-Regular.ttf',
 						span_font_size=27.59375,
 						span_text_color=2952731391
 					}
@@ -256,17 +257,26 @@ return {
 				layout_type=1,
 				min_ch=144,
 				min_cw=12,
-				text_cursor_i=1,
-				text_cursor_offset=1,
-				text_cursor_x=50.700000762939453,
+				shadow_count=1,
+				span_count=1,
+				text_align_x=2,
+				text_align_y=1,
+				text_cursor_count=1,
+				text_cursors={
+					{
+						text_cursor_offset=38,
+						text_cursor_sel_offset=38,
+						text_cursor_x=129.69999694824219
+					}
+				},
 				text_selectable=true,
 				text_spans={
 					{
-						span_font_id=0,
+						span_font='Amiri-Regular.ttf',
 						span_font_size=20
 					}
 				},
-				text_utf8='Goodbye\nCruel World!',
+				text_utf8='Hello my friends!\rWhat\'s up doc?\rHeeey...',
 				w=145.5,
 				x=360.79999999999995,
 				y=545.83333333333326
@@ -291,11 +301,12 @@ return {
 				border_width_top=1,
 				h=144,
 				layout_type=1,
+				span_count=1,
 				text_align_y=2,
 				text_maxlen=1116,
 				text_spans={
 					{
-						span_font_id=0,
+						span_font='OpenSans-Regular.ttf',
 						span_font_size=14.796875
 					}
 				},
@@ -339,5 +350,7 @@ return {
 		y=13
 	},
 	selected_layer_path={
-	}
+		6
+	},
+	tab='Shadows'
 }

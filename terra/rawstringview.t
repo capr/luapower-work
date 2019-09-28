@@ -35,16 +35,12 @@ function gsplit_iter.metamethods.__for(self, body)
 	return quote
 		var self = self --workaround for terra issue #368
 		var i = 0
-		var k = -1
 		var len = self.view.len
-		for j,c in self.view do
-			if self.issep(@c) then
-				if k == -1 then k = j end
-			elseif k ~= -1 or j == len-1 then
-				if k == -1 then k = len end
-				[body(i, `k-i)]
-				k = -1
-				i = j
+		var s = self.view.elements
+		for j = 0, len + 1 do
+			if j == len or self.issep(s[j]) then
+				[body(i, `j-i)]
+				i = j+1
 			end
 		end
 	end
@@ -95,7 +91,7 @@ terra test_gsplit()
 		var sv = rawstringview(nil)
 		var gs = sv:gsplit' '
 		for i,len in gs do
-			assert(false)
+			printf('"%.*s"\n', len, sv:at(i, nil))
 		end
 	end
 end

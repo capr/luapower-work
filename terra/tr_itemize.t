@@ -411,6 +411,7 @@ terra Layout:shape()
 		var face = span.face
 		face:set_size(span.font_size)
 		var glyph_run_id, run = r:shape(run_key, face)
+		print(offset, len, '', span.font_size, '', glyph_run_id, run)
 
 		var seg = segs:add()
 		seg.glyph_run_id = glyph_run_id

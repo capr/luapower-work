@@ -19,14 +19,14 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=60,
-				text_cursor_sel_offset=60,
-				text_cursor_x=41
+				text_cursor_offset=16,
+				text_cursor_sel_offset=16,
+				text_cursor_x=134.5
 			}
 		},
 		text_spans={
 			{
-				span_font_id=3,
+				span_font='SourceHanSans.ttc',
 				span_font_size=18,
 				span_lang='en-us',
 				span_text_color=255
