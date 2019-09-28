@@ -124,7 +124,11 @@ terra FontFace:set_size(size: num)
 end
 
 terra Span:get_face()
-	return self.font:select_face(self.font_face_index)
+	var face = self.font:select_face(self.font_face_index)
+	if face ~= nil then
+		face:set_size(self.font_size)
+	end
+	return face
 end
 
 --font cache -----------------------------------------------------------------

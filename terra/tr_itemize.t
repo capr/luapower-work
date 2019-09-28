@@ -408,10 +408,7 @@ terra Layout:shape()
 		run_key.text.view = self.text:sub(offset, offset + len)
 		--^^fake a dynarray to avoid copying.
 
-		var face = span.face
-		face:set_size(span.font_size)
-		var glyph_run_id, run = r:shape(run_key, face)
-		print(offset, len, '', span.font_size, '', glyph_run_id, run)
+		var glyph_run_id, run = r:shape(run_key, span.face)
 
 		var seg = segs:add()
 		seg.glyph_run_id = glyph_run_id

@@ -25,9 +25,9 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=1,
-						text_cursor_sel_offset=1,
-						text_cursor_x=147.25
+						text_cursor_offset=4,
+						text_cursor_sel_offset=4,
+						text_cursor_x=195.25
 					}
 				},
 				text_spans={
@@ -37,8 +37,8 @@ return {
 					},
 					{
 						span_font='OpenSans-Regular.ttf',
-						span_font_size=65,
-						span_offset=3
+						span_font_size=70,
+						span_offset=4
 					}
 				},
 				text_utf8='abcd',

@@ -59,7 +59,6 @@ terra Layout:spaceout()
 			var span = self.spans:at(0, nil)
 			var face = iif(span ~= nil, span.face, nil)
 			if face ~= nil then
-				face:set_size(span.font_size)
 				line:_update_vertical_metrics(
 					self.line_spacing,
 					face.ascent,
