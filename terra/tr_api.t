@@ -56,6 +56,7 @@ setfenv(1, require'terra/low'.module(tr))
 num = double
 MAX_CURSOR_COUNT = 2^16
 MAX_FONT_SIZE = 10000
+MAX_MAXLEN = maxint - 1 --maxint is used as sentinel in tr_itemize.
 
 FontLoadFunc.type.cname = 'tr_font_load_func_t'
 FontUnloadFunc.type.cname = 'tr_font_unload_func_t'
@@ -119,7 +120,7 @@ terra Layout:init(r: &Renderer)
 	self.cursors:init()
 	self._min_w = -inf
 	self._max_w =  inf
-	self._maxlen = maxint
+	self._maxlen = MAX_MAXLEN
 	self.state = 0
 	self._offsets_valid = false
 	self._valid = false
@@ -451,7 +452,7 @@ end)
 terra Layout:get_maxlen(): int return self._maxlen end
 
 terra Layout:set_maxlen(v: int)
-	if self:change(self, '_maxlen', max(v, 0)) then
+	if self:change(self, '_maxlen', clamp(v, 0, MAX_MAXLEN)) then
 		if self.l.text.len > self.maxlen then --truncate the text
 			self.l.text.len = v
 			self:invalidate()

@@ -26,13 +26,15 @@ return {
 			{
 				text_cursor_offset=8,
 				text_cursor_sel_offset=11,
-				text_cursor_x=376,
+				text_cursor_x=370,
 				text_insert_mode=false,
 				text_selection_color=4279177215
 			},
 			{
 				text_cursor_offset=7,
-				text_cursor_sel_offset=1
+				text_cursor_sel_offset=1,
+				text_selection_color=1549598719,
+				text_selection_opacity=0.5
 			}
 		},
 		text_spans={
@@ -48,5 +50,5 @@ return {
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Layout'
 }

@@ -1,43 +1,34 @@
 return {
 	root={
-		background_color=4294967295,
-		background_type=1,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
-		h=484.5,
+		h=400,
 		layout_type=1,
-		min_ch=431.5,
-		min_cw=741.5,
-		padding_bottom=26.5,
-		padding_left=26.5,
-		padding_right=26.5,
-		padding_top=26.5,
+		min_cw=328,
 		span_count=1,
-		text_align_x=1,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=77,
-				text_cursor_sel_offset=77,
-				text_cursor_x=133.5
+				text_cursor_offset=1,
+				text_cursor_sel_offset=2,
+				text_cursor_x=109
 			}
 		},
 		text_spans={
 			{
 				span_font='SourceHanSans.ttc',
-				span_font_size=18,
-				span_lang='en-us',
-				span_text_color=255
+				span_font_face_index=15,
+				span_font_size=100
 			}
 		},
-		text_utf8='pxvc sa09d -asd98fg ]asd8fg  a\'sd f\rpsAD asd0 a0sd -a0 s-d0 OF\rA F9W-0E9RT WE0 aaaaaaaamazing!!!!\r\r\n',
-		w=794.5,
-		x=61,
-		y=39
+		text_utf8='a\244\128\128\128b',
+		w=518,
+		x=100,
+		y=100
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Layout'
 }

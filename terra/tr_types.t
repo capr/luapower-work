@@ -200,10 +200,9 @@ terra Span:free(r: &Renderer)
 	self.font = nil
 end
 
---an embed is a reserved visual space at a specific offset in text,
---used to embed widgets and alike in the text.
+--an embed provides custom metrics for a PUA-B codepoint and it's used to
+--embed widgets in text using codepoints starting at \u{100000}.
 struct Embed {
-	offset: int; --offset in the text
 	ascent: num;
 	descent: num;
 	advance_x: num;
@@ -372,11 +371,12 @@ end
 -- with clusters (3, 0), the second glyph represents codepoints (0, 1, 2).
 
 struct GlyphInfo (gettersandsetters) {
+	embed: &Embed;
 	glyph_index: int; --in the font's charmap
 	x: num; --glyph origin relative to glyph run's origin
 	image_x_16_6: int16; --glyph image origin relative to glyph origin
 	image_y_16_6: int16;
-	cluster: int; --starting codepoint that this glyph represents
+	cluster: int8; --offset of starting codepoint that this glyph represents
 }
 fixpointfields(GlyphInfo)
 

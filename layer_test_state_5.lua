@@ -1,11 +1,12 @@
 return {
 	root={
-		background_color=4294967057,
+		background_color=255,
 		background_type=1,
 		border_color_bottom=1737413119,
 		border_color_left=1798963199,
 		border_color_right=2392959743,
 		border_color_top=1221390591,
+		border_offset=-0.29999999999999999,
 		border_width_bottom=24,
 		border_width_left=48.5,
 		border_width_right=19,
@@ -103,5 +104,7 @@ return {
 		y=100
 	},
 	selected_layer_path={
-	}
+		5
+	},
+	tab='Background'
 }

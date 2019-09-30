@@ -70,12 +70,13 @@ local default_e = lib:layer()
 local lorem_ipsum = bundle.load('lorem_ipsum.txt')
 local test_texts = {
 	[''] = '',
-	marks = 's\u{0320}a\u{0300}',
-	lorem_ipsum = lorem_ipsum,
-	hello = 'aaa ffi bbb',
-	bye = 'Goodbye\nCruel World!',
+	dia = 's\u{0320}a\u{0300}',
+	ipsum = lorem_ipsum,
+	ffi = 'aaa ffi bbb',
 	ar = 'السَّلَامُ عَلَيْكُمْ‎',
-	parbreak = u'Hey\nYou&ps;New Paragraph',
+	ch = '这是一些中文文本',
+	par = u'Hey\nYou&ps;New Paragraph',
+	embed = u'a\u{100000}&zwsp;&zwsp;&zwsp;b',
 }
 local test_text_names = glue.index(test_texts)
 

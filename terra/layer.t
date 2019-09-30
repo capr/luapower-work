@@ -454,6 +454,7 @@ struct Text (gettersandsetters) {
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
+	self.layout.l.embeds:add(tr.Embed{ascent = 200, descent = -200, advance_x = 400})
 end
 
 terra Text:free()

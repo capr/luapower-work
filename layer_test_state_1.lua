@@ -254,6 +254,7 @@ return {
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
+				clip_content=true,
 				h=144,
 				hit_test_mask=1,
 				layout_type=1,
@@ -266,9 +267,9 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=6,
-						text_cursor_sel_offset=6,
-						text_cursor_x=63.700000762939453
+						text_cursor_offset=3,
+						text_cursor_sel_offset=3,
+						text_cursor_x=38.700000762939453
 					}
 				},
 				text_spans={

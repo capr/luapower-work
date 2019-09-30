@@ -90,7 +90,7 @@ do --iterate text segments having the same shaping-relevant properties.
 
 	local iter = {state_t = word_iter_state}
 
-	local span_eof   = symbol(int)
+	local span_eof   = symbol(int) --offset of next span
 	local span_diff  = symbol(bool)
 	local span_i1    = symbol(int)
 	local span0      = symbol(&Span)
@@ -124,10 +124,10 @@ do --iterate text segments having the same shaping-relevant properties.
 
 	iter.load_values = function(self, i)
 		return quote
-			level1     = self.levels(i)
-			script1    = self.scripts(i)
-			lang1      = self.langs(i)
-			if i >= span_eof then --time to load a new span
+			level1  = self.levels(i)
+			script1 = self.scripts(i)
+			lang1   = self.langs(i)
+			if i == span_eof then --time to load a new span
 				inc(span_i1)
 				span_eof = self.layout:span_end_offset(span_i1)
 				span1 = self.layout.spans:at(span_i1)
@@ -408,7 +408,7 @@ terra Layout:shape()
 		run_key.text.view = self.text:sub(offset, offset + len)
 		--^^fake a dynarray to avoid copying.
 
-		var glyph_run_id, run = r:shape(run_key, span.face)
+		var glyph_run_id, run = r:shape(run_key, span.face, self.embeds.view)
 
 		var seg = segs:add()
 		seg.glyph_run_id = glyph_run_id

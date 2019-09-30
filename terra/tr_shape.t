@@ -16,7 +16,7 @@ require'terra/tr_rle'
 
 terra GlyphRun.methods.compute_cursors :: {&GlyphRun, &Renderer, &FontFace} -> {}
 
-terra GlyphRun:shape(r: &Renderer, face: &FontFace)
+terra GlyphRun:shape(r: &Renderer, face: &FontFace, embeds: arrview(Embed))
 	self.text = self.text:copy()
 	self.features = self.features:copy()
 
@@ -44,22 +44,36 @@ terra GlyphRun:shape(r: &Renderer, face: &FontFace)
 	--3. compute the run's total advance.
 	self.glyphs:init()
 	self.glyphs.len = len
+	self.ascent = face.ascent
+	self.descent = face.descent
 	var ax: num = 0.0
-	for i = 0, len do
-		var g = self.glyphs:at(i)
+	for i,g in self.glyphs do
 		g.glyph_index = info[i].codepoint
 		g.cluster = info[i].cluster
 		g.x = ax
-		g.image_x_16_6 = pos[i].x_offset * face.scale
+		--if glyph not found, check for an embed.
+		if g.glyph_index == 0 and embeds.len > 0 then
+			var codepoint = self.text(g.cluster)
+			if codepoint >= 0x100000 then --PUA-B
+				var embed = embeds:at(codepoint - 0x100000, nil)
+				if embed ~= nil then
+					g.embed = embed
+					self.ascent = max(self.ascent, embed.ascent)
+					self.descent = min(self.descent, embed.descent)
+					ax = ax + embed.advance_x
+					goto continue
+				end
+			end
+		end
+		g.embed = nil
+		g.image_x_16_6 =  pos[i].x_offset * face.scale
 		g.image_y_16_6 = -pos[i].y_offset * face.scale
 		ax = (ax + pos[i].x_advance / 64.0) * face.scale
+		::continue::
 	end
 	self.advance_x = ax --for positioning in horizontal flow
 
 	hb_buffer_destroy(hb_buf)
-
-	self.ascent = face.ascent
-	self.descent = face.descent
 
 	self.images:init()
 	self.images_memsize = 0
@@ -67,11 +81,11 @@ terra GlyphRun:shape(r: &Renderer, face: &FontFace)
 	self:compute_cursors(r, face)
 end
 
-terra Renderer:shape(run: GlyphRun, face: &FontFace)
+terra Renderer:shape(run: GlyphRun, face: &FontFace, embeds: arrview(Embed))
 	--get the shaped run from cache or shape it and cache it.
 	var run_id, pair = self.glyph_runs:get(run)
 	if pair == nil then
-		run:shape(self, face)
+		run:shape(self, face, embeds)
 		run_id, pair = self.glyph_runs:put(run, {})
 		assert(pair ~= nil)
 	end
