@@ -454,7 +454,8 @@ struct Text (gettersandsetters) {
 terra Text:init(r: &tr.Renderer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
-	self.layout.l.embeds:add(tr.Embed{ascent = 200, descent = -200, advance_x = 400})
+	self.layout.l.embeds:add(tr.Embed{metrics = tr.SegMetrics{
+		ascent = 200, descent = -200, advance_x = 400}})
 end
 
 terra Text:free()
@@ -3071,15 +3072,6 @@ end
 terra Lib:free()
 	self.text_renderer:free()
 	self.grid_occupied:free()
-end
-
---debugging stuff
-
-terra Lib:dump_stats()
-	pfn('Glyph cache size     : %d', self.text_renderer.glyph_cache_size)
-	pfn('Glyph cache count    : %d', self.text_renderer.glyph_cache_count)
-	pfn('GlyphRun cache size  : %d', self.text_renderer.glyph_run_cache_size)
-	pfn('GlyphRun cache count : %d', self.text_renderer.glyph_run_cache_count)
 end
 
 --inlining invalidation one-liners just in case the compiler won't.

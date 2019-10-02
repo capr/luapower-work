@@ -662,7 +662,7 @@ end
 terra tr.Layout:split_spans(o1: int, o2: int)
 	--create the first span automatically.
 	if self.spans.len == 0 then
-		self.spans:add([Span.empty])
+		self.spans:add([Span.empty_const])
 	end
 	var o1, o2 = self:offset_range(o1, o2)
 	--empty selection: return the span _covering_ the cursor position.
@@ -891,12 +891,12 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 	--API for getting/setting spans directly as an array (for (de)serialization).
 
 	Layout.methods['get_span_'..FIELD] = terra(self: &Layout, span_i: int): T
-		var span = self.l.spans:at(span_i, &[Span.empty])
+		var span = self.l.spans:at(span_i, &[Span.empty_const])
 		return SAVE(span, &self.l)
 	end
 
 	Layout.methods['set_span_'..FIELD] = terra(self: &Layout, span_i: int, val: T)
-		var span = self.l.spans:getat(span_i, [Span.empty])
+		var span = self.l.spans:getat(span_i, [Span.empty_const])
 		if LOAD(span, &self.l, val) then
 			self:invalidate(INVALIDATE)
 		end
@@ -905,11 +905,11 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 end
 
 terra Layout:get_span_offset(span_i: int): int
-	return self.l.spans:at(span_i, &[Span.empty]).offset
+	return self.l.spans:at(span_i, &[Span.empty_const]).offset
 end
 
 terra Layout:set_span_offset(span_i: int, val: int)
-	self.l.spans:getat(span_i, [Span.empty]).offset = val
+	self.l.spans:getat(span_i, [Span.empty_const]).offset = val
 	self:invalidate()
 end
 
@@ -920,7 +920,7 @@ end
 terra Layout:set_span_count(n: int)
 	n = max(n, 0)
 	if self.l.spans.len ~= n then
-		self.l.spans:setlen(n, [Span.empty])
+		self.l.spans:setlen(n, [Span.empty_const])
 		self:invalidate()
 	end
 end
@@ -1111,19 +1111,19 @@ Layout.methods.change_cursor_state = macro(function(self, c_i, FIELD, v, WHAT)
 	end
 end)
 
-terra Layout:get_cursor_offset     (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.offset     end
-terra Layout:get_cursor_which      (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.which      end
-terra Layout:get_cursor_sel_offset (c_i: int): int return self.cursors:at(c_i, &[Cursor.empty]).state.sel_offset end
-terra Layout:get_cursor_sel_which  (c_i: int): enum return self.cursors:at(c_i, &[Cursor.empty]).state.sel_which  end
-terra Layout:get_cursor_x          (c_i: int): num return self.cursors:at(c_i, &[Cursor.empty]).state.x          end
+terra Layout:get_cursor_offset     (c_i: int): int  return self.cursors:at(c_i, &[Cursor.empty_const]).state.offset     end
+terra Layout:get_cursor_which      (c_i: int): int  return self.cursors:at(c_i, &[Cursor.empty_const]).state.which      end
+terra Layout:get_cursor_sel_offset (c_i: int): int  return self.cursors:at(c_i, &[Cursor.empty_const]).state.sel_offset end
+terra Layout:get_cursor_sel_which  (c_i: int): enum return self.cursors:at(c_i, &[Cursor.empty_const]).state.sel_which  end
+terra Layout:get_cursor_x          (c_i: int): num  return self.cursors:at(c_i, &[Cursor.empty_const]).state.x          end
 
 terra Layout:get_caret_visible     (c_i: int) var c = self.cursors:at(c_i, nil); return iif(c ~= nil, c.caret_visible    , false) end
 terra Layout:get_selection_visible (c_i: int) var c = self.cursors:at(c_i, nil); return iif(c ~= nil, c.selection_visible, false) end
-terra Layout:get_insert_mode       (c_i: int)         return self.cursors:at(c_i, &[Cursor.empty]).insert_mode          end
-terra Layout:get_caret_opacity     (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty]).caret_opacity        end
-terra Layout:get_caret_thickness   (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty]).caret_thickness      end
-terra Layout:get_selection_color   (c_i: int): uint32 return self.cursors:at(c_i, &[Cursor.empty]).selection_color.uint end
-terra Layout:get_selection_opacity (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty]).selection_opacity    end
+terra Layout:get_insert_mode       (c_i: int)         return self.cursors:at(c_i, &[Cursor.empty_const]).insert_mode          end
+terra Layout:get_caret_opacity     (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty_const]).caret_opacity        end
+terra Layout:get_caret_thickness   (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty_const]).caret_thickness      end
+terra Layout:get_selection_color   (c_i: int): uint32 return self.cursors:at(c_i, &[Cursor.empty_const]).selection_color.uint end
+terra Layout:get_selection_opacity (c_i: int): num    return self.cursors:at(c_i, &[Cursor.empty_const]).selection_opacity    end
 
 terra Layout:set_cursor_offset(c_i: int, v: num) --num to allow inf and -inf as offsets
 	self:change_cursor_state(c_i, 'offset', clamp(v, 0, maxint), 'paint')

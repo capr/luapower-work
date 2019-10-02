@@ -11,19 +11,19 @@
 
 	The segments array contain the shaped text segments in logical text order.
 
-	Each segment holds two parallel arrays, `cursor_xs` and `cursor_offsets`,
-	containing cursor position information for every codepoint in the segment
-	plus one, eg. the text "ab cd" results in segments "ab " and "cd" with
-	cursor positions "|a|b| |" and "|c|d|", so 4 and 3 cursor positions
-	respectively, and with the last position on segment "ab " being the same
-	as the first position on segment "cd".
+	Each glyph run (thus each segment) holds two parallel arrays, `cursors.xs`
+	and `cursors.offsets`, containing cursor position information for every
+	codepoint in the segment plus one, eg. the text "ab cd" results in segments
+	"ab " and "cd" with cursor positions "|a|b| |" and "|c|d|", so 4 and 3
+	cursor positions respectively, and with the last position on segment "ab "
+	being the same as the first position on segment "cd".
 
-	`cursor_offsets` maps a codepoint offset to the codepoint offset for which
+	`cursors.offsets` maps a codepoint offset to the codepoint offset for which
 	there is a cursor position that can be landed on, since not every codepoint
-	can have a cursor position. So `cursor_offsets` can have duplicate values
+	can have a cursor position. So `cursors.offsets` can have duplicate values
 	(which are always clumped together; the array is not necessarily monotonic).
 
-	`cursor_xs` maps a codepoint offset to the x-coord of the cursor position
+	`cursors.xs` maps a codepoint offset to the x-coord of the cursor position
 	in front of that codepoint (or after it for the last element).
 	Adjacent offset-distinct cursor positions have different x-coords.
 
@@ -47,11 +47,7 @@ require'terra/tr_paint'
 
 terra Layout:offset_at_cursor(p: Pos) -- O(1)
 	if p.seg ~= nil then
-		var run = self:glyph_run(p.seg)
-		--for i,o in run.cursor_offsets do pf('%d ', @o) end
-		--pfn('<- [%d] = %d', int(p.i), run.cursor_offsets(p.i))
-		--assert(p.i == run.cursor_offsets(p.i))
-		return p.seg.offset + run.cursor_offsets(p.i)
+		return p.seg.offset + self:seg_cursors(p.seg).offsets(p.i)
 	else
 		assert(p.i == 0)
 		return 0
@@ -89,7 +85,7 @@ terra Layout:rel_physical_cursor(
 	end
 	repeat
 		if dir == NEXT then
-			if p.i >= self:glyph_run(p.seg).cursor_xs.len-1 then
+			if p.i >= self:seg_cursors(p.seg).len-1 then
 				p.seg = self.segs:next(p.seg, nil)
 				p.i = 0
 				if p.seg == nil then
@@ -105,7 +101,7 @@ terra Layout:rel_physical_cursor(
 					p.i = 0
 					return p
 				end
-				p.i = self:glyph_run(p.seg).cursor_xs.len-1
+				p.i = self:seg_cursors(p.seg).xs.len-1
 			else
 				dec(p.i)
 			end
@@ -179,9 +175,9 @@ terra Layout:cursor_at_offset(offset: int, valid: valid_t, obj: &opaque) -- O(lo
 		var seg = self.segs:at(seg_i)
 		var i = offset - seg.offset
 		assert(i >= 0)
-		var run = self:glyph_run(seg)
-		i = run.cursor_offsets:clamp(i) --fix if inside inter-segment gap.
-		i = run.cursor_offsets(i) --fix if in-between navigable offsets.
+		var offsets = self:seg_cursors(seg).offsets.view
+		i = offsets:clamp(i) --fix if inside inter-segment gap.
+		i = offsets(i) --fix if in-between navigable offsets.
 		var p = Pos{seg, i}
 		if not valid(obj, p) then --fix if position is not valid.
 			return self:rel_physical_cursor(p, PREV, valid, obj)
@@ -210,7 +206,7 @@ terra Layout:hit_test_cursors(
 	var p0 = Pos{nil, 0} --previous cursor position
 	var p  = Pos{line.first, 0}
 	while p.seg ~= nil and p.seg.line_index == line_i do
-		var xs = self:glyph_run(p.seg).cursor_xs.view
+		var xs = self:seg_cursors(p.seg).xs.view
 		var x = x - p.seg.x
 		for i = 0, xs.len do
 			p.i = i
@@ -233,7 +229,7 @@ end
 --cursor geometry ------------------------------------------------------------
 
 terra Layout:seg_rtl(seg: &Seg)
-	return iif(seg ~= nil, self:glyph_run(seg).rtl, false)
+	return iif(seg ~= nil, seg.rtl, false)
 end
 
 terra Layout:seg_line(seg: &Seg)
@@ -243,7 +239,7 @@ end
 --cursor's x-coord relative to line_pos().
 terra Layout:cursor_rel_x(p: Pos)
 	if p.seg ~= nil then
-		return p.seg.x + self:glyph_run(p.seg).cursor_xs(p.i)
+		return p.seg.x + self:seg_cursors(p.seg).xs(p.i)
 	else
 		return 0
 	end
@@ -272,13 +268,9 @@ terra Layout:cursor_xs(line_i: int)
 		var seg = line.first_vis
 		var last_x = nan
 		while seg ~= nil do
-			var run = self:glyph_run(seg)
-			var i, j, step = 0, run.text.len, 1
-			if run.rtl then
-				i, j, step = j-1, i-1, -step
-			end
-			for i = i, j, step do
-				var x = seg.x + run.cursor_xs(i)
+			var xs = self:seg_cursors(seg).xs.view:ipairs(not seg.rtl)
+			for i,x in xs do
+				var x = seg.x + @x
 				if x ~= last_x then
 					self.r.xsbuf:add(x)
 				end
@@ -295,7 +287,7 @@ end
 ------------------------------------------------------------------------------
 
 terra Cursor:init(layout: &Layout)
-	@self = [Cursor.empty]
+	@self = [Cursor.empty_const]
 	self.layout = layout
 end
 
@@ -340,9 +332,9 @@ CURSOR_MODE_MAX = LINE
 
 local terra valid(obj: &opaque, p: Pos)
 	var self = [&Cursor](obj)
-	var run = self.layout:glyph_run(p.seg)
+	var cursors = self.layout:seg_cursors(p.seg)
 	--any position but the last position in a segment is always valid.
-	if p.i ~= run.cursor_xs.len-1 then
+	if p.i ~= cursors.len-1 then
 		return true
 	end
 	--the last position on a hardbreak line is always valid.
@@ -360,8 +352,7 @@ local terra valid(obj: &opaque, p: Pos)
 	--positions visually distinct so we have to invalide one of them.
 	var next_seg = self.layout.segs:next(p.seg, nil)
 	if next_seg ~= nil then
-		var next_run = self.layout:glyph_run(next_seg)
-		if run.rtl == next_run.rtl then
+		if p.seg.rtl == next_seg.rtl then
 			return false
 		end
 	end
@@ -536,11 +527,11 @@ end
 --line-relative (x, w) of a selection rectangle on two cursor
 --positions in the same segment (in whatever order).
 terra Layout:segment_xw(seg: &Seg, i1: int, i2: int)
-	var run = self:glyph_run(seg)
-	var i1 = run.cursor_xs:clamp(i1)
-	var i2 = run.cursor_xs:clamp(i2)
-	var cx1 = run.cursor_xs(i1)
-	var cx2 = run.cursor_xs(i2)
+	var xs = self:seg_cursors(seg).xs.view
+	var i1 = xs:clamp(i1)
+	var i2 = xs:clamp(i2)
+	var cx1 = xs(i1)
+	var cx2 = xs(i2)
 	if cx1 > cx2 then
 		cx1, cx2 = cx2, cx1
 	end

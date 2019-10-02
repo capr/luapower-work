@@ -17,15 +17,15 @@ terra Layout:nowrap_segments(seg_i: int)
 	var n = self.segs.len
 	for i = seg_i, n do
 		var seg = self.segs:at(i)
-		var gr = self:glyph_run(seg)
-		var ax1 = ax + gr.advance_x
+		var m = self:seg_metrics(seg)
+		var ax1 = ax + m.advance_x
 		if i == n-1 or seg.linebreak >= BREAK_LINE then --hard break, w == ax
 			return ax1, ax1, i+1
 		elseif
 			seg.linebreak ~= BREAK_NONE
 			and not (seg.span.nowrap and self.segs:at(i+1).span.nowrap)
 		then
-			var wx = ax + gr.wrap_advance_x
+			var wx = ax + m.wrap_advance_x
 			return wx, ax1, i+1
 		end
 		ax = ax1
@@ -51,9 +51,9 @@ terra Layout:max_w()
 	var n = self.segs.len
 	for i = 0, n do
 		var seg = self.segs:at(i)
-		var gr = self:glyph_run(seg)
-		var wx = gr.wrap_advance_x
-		var ax = gr.advance_x
+		var m = self:seg_metrics(seg)
+		var wx = m.wrap_advance_x
+		var ax = m.advance_x
 		var linebreak = seg.linebreak >= BREAK_LINE or i == n
 		wx = iif(linebreak, ax, wx)
 		line_w = line_w + wx
@@ -96,11 +96,11 @@ terra Layout:wrap()
 			--adjust last segment due to being wrapped.
 			--we can do this here because the last segment stays last under bidi reordering.
 			if softbreak then
-				var prev_run = self:glyph_run(prev_seg)
+				var prev_m = self:seg_metrics(prev_seg)
 				line.advance_x = line.advance_x - prev_seg.advance_x
-				prev_seg.advance_x = prev_run.wrap_advance_x
-				prev_seg.x = iif(prev_run.rtl,
-					-(prev_run.advance_x - prev_run.wrap_advance_x), 0)
+				prev_seg.advance_x = prev_m.wrap_advance_x
+				prev_seg.x = iif(prev_seg.rtl,
+					-(prev_m.advance_x - prev_m.wrap_advance_x), 0)
 				prev_seg.wrapped = true
 				line.advance_x = line.advance_x + prev_seg.advance_x
 			end
@@ -120,7 +120,7 @@ terra Layout:wrap()
 		for seg_i = seg_i, next_seg_i do
 			var seg = self.segs:at(seg_i)
 			seg.line_index = self.lines.len-1
-			seg.advance_x = self:glyph_run(seg).advance_x
+			seg.advance_x = self:seg_metrics(seg).advance_x
 			seg.x = 0
 			seg.wrapped = false
 			seg.next_vis = self.segs:at(seg_i+1, nil)

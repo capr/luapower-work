@@ -40,7 +40,7 @@ low.bithash = macro(function(size_t, k, h, len)
 end)
 
 --create getters and setters for converting from/to fixed-point decimal fields.
---all fields with the name `<name>_<digits>_<decimals>` will be processed.
+--all fields with the name `<name>_<digits>_<decimals>` will be considered.
 function fixpointfields(T)
 	for i,e in ipairs(T.entries) do
 		local priv = e.field
@@ -87,6 +87,9 @@ BREAK_NONE = 0 --wrapping not allowed
 BREAK_WRAP = 1 --wrapping allowed
 BREAK_LINE = 2 --explicit line break (CR, LF, etc.)
 BREAK_PARA = 3 --explicit paragraph break (PS).
+
+--start of codepoint range reserved for embeds.
+EMBED_START = 0x100000 --PUA-B
 
 --base types -----------------------------------------------------------------
 
@@ -172,7 +175,7 @@ struct Span (gettersandsetters) {
 }
 fixpointfields(Span)
 
-Span.empty = constant(`Span {
+Span.empty_const = constant(`Span {
 	offset = 0;
 	font_id = -1;
 	font = nil;
@@ -189,7 +192,7 @@ Span.empty = constant(`Span {
 })
 
 terra Span:init()
-	@self = [Span.empty]
+	@self = [Span.empty_const]
 end
 
 terra forget_font :: {&Renderer, int} -> {}
@@ -200,13 +203,29 @@ terra Span:free(r: &Renderer)
 	self.font = nil
 end
 
---an embed provides custom metrics for a PUA-B codepoint and it's used to
---embed widgets in text using codepoints starting at \u{100000}.
-struct Embed {
+struct SegMetrics {
 	ascent: num;
 	descent: num;
 	advance_x: num;
+	wrap_advance_x: num;
 }
+
+SegMetrics.empty = `SegMetrics{
+	ascent = 0;
+	descent = 0;
+	advance_x = 0;
+	wrap_advance_x = 0;
+}
+
+--an embed provides custom metrics for a PUA-B codepoint and it's used to
+--embed widgets in text using codepoints starting at \u{100000}.
+struct Embed {
+	metrics: SegMetrics;
+}
+
+Embed.empty_const = constant(`Embed{
+	metrics = [SegMetrics.empty];
+})
 
 --a sub-segment is a clipped part of a glyph run image, used when a single
 --glyph run is coverd by multiple spans.
@@ -227,9 +246,9 @@ struct Layout;
 -- called "glyph run" which the segment references via its `glyph_run_id`.
 -- segs are kept in an array in logical text order.
 
-struct Seg {
+struct Seg (gettersandsetters) {
 	--filled by shaping
-	glyph_run_id: int;
+	glyph_run_id: int;    --NOTE: negative ids are mapped to layout.embeds.
 	line_num: int;        --physical line number
 	linebreak: enum;      --for line/paragraph breaking
 	bidi_level: int8;     --for bidi reordering
@@ -239,7 +258,7 @@ struct Seg {
 	--filled by layouting
 	line_index: int;
 	x: num;
-	advance_x: num; --segment's x-axis boundaries
+	advance_x: num; --segment's x-axis boundaries (changes with wrapping)
 	next_vis: &Seg; --next segment <<on the same line>> in visual order
 	wrapped: bool;  --segment is the last on a wrapped line
 	visible: bool;  --segment is not entirely clipped
@@ -250,6 +269,7 @@ terra forget_glyph_run :: {&Renderer, int} -> {}
 
 --can't bundle this into Seg:free() because the Seg array doesn't have a Renderer context.
 terra Seg:forget_glyph_run(r: &Renderer)
+	if self.glyph_run_id < 0 then return end --embed
 	forget_glyph_run(r, self.glyph_run_id)
 end
 
@@ -393,6 +413,30 @@ terra GlyphImage:free()
 	self.surface = nil
 end
 
+--these arrays hold exactly text.len+1 items, one for each position in
+--front of each codepoint plus the position after the last codepoint.
+struct Cursors (gettersandsetters) {
+	offsets : arr(int8); --navigable offsets, so some are duplicates.
+	xs      : arr(num); --x-coords, so some are duplicates.
+}
+
+terra Cursors:__memsize()
+	return memsize(self.offsets) + memsize(self.xs)
+end
+
+terra Cursors:init()
+	fill(self)
+end
+
+terra Cursors:free()
+	self.offsets:free()
+	self.xs:free()
+end
+
+terra Cursors:get_len()
+	return self.offsets.len
+end
+
 struct GlyphRun (gettersandsetters) {
 	--cache key fields: no alignment holes allowed between fields `lang` and `rtl` !!!
 	text            : arr(codepoint);
@@ -406,18 +450,12 @@ struct GlyphRun (gettersandsetters) {
 	--resulting glyphs and glyph metrics
 	glyphs          : arr(GlyphInfo);
 	--for vertical positioning in horizontal flow
-	ascent          : num;
-	descent         : num;
-	advance_x       : num;
-	wrap_advance_x  : num;
+	metrics         : SegMetrics;
+	cursors         : Cursors;
 	--pre-rendered images for each subpixel offset.
 	images          : arr(GlyphImage);
 	images_memsize  : int;
 	--for cursor positioning and hit testing.
-	--these arrays hold exactly text.len+1 items, one for each position in
-	--front of each codepoint plus the position after the last codepoint.
-	cursor_offsets  : arr(int8); --navigable offsets, so some are duplicates.
-	cursor_xs       : arr(num); --x-coords, so some are duplicates.
 	trailing_space  : bool; --the text includes a trailing space (for wrapping).
 }
 fixpointfields(GlyphRun)
@@ -453,14 +491,12 @@ terra GlyphRun:__memsize() --for lru cache
 		+ memsize(self.features)
 		+ memsize(self.glyphs)
 		+ memsize(self.images)
-		+ memsize(self.cursor_offsets)
-		+ memsize(self.cursor_xs)
+		+ memsize(self.cursors)
 		+ self.images_memsize
 end
 
 terra GlyphRun:free(r: &Renderer)
-	self.cursor_xs:free()
-	self.cursor_offsets:free()
+	self.cursors:free()
 	self.text:free()
 	self.features:free()
 	self.glyphs:free()
@@ -583,7 +619,7 @@ struct Cursor (gettersandsetters) {
 	selection_opacity: num;
 }
 
-Cursor.empty = constant(`Cursor {
+Cursor.empty_const = constant(`Cursor {
 	layout = nil,
 	state = CursorState {
 		offset = 0;
@@ -662,6 +698,7 @@ struct Renderer (gettersandsetters) {
 	sbuf:            arr(char);
 	xsbuf:           arr(double);
 	paragraph_dirs:  arr(enum);
+	embed_cursors:   Cursors;
 
 	--constants that neeed to be initialized at runtime.
 	HB_LANGUAGE_EN: hb_language_t;
@@ -674,8 +711,50 @@ struct Renderer (gettersandsetters) {
 	paint_glyph_num: int;
 }
 
-terra Layout:glyph_run(seg: &Seg)
+--common struct API ----------------------------------------------------------
+
+terra Seg:get_rtl()
+	return isodd(self.bidi_level)
+end
+
+terra Layout:seg_glyph_run(seg: &Seg)
 	return &self.r.glyph_runs:pair(seg.glyph_run_id).key
 end
 
+terra Layout:seg_embed(seg: &Seg)
+	return self.embeds:at(-seg.glyph_run_id - 1, &[Embed.empty_const])
+end
+
+terra Layout:seg_metrics(seg: &Seg)
+	return iif(seg.glyph_run_id < 0,
+		self:seg_embed(seg).metrics,
+		self:seg_glyph_run(seg).metrics)
+end
+
+terra Renderer:init_embed_cursors()
+	var c = &self.embed_cursors
+	c.offsets.len = 2
+	c.offsets:set(0, 0)
+	c.offsets:set(1, 1)
+	c.xs.len = 2
+end
+
+terra Layout:seg_cursors(seg: &Seg)
+	if seg.glyph_run_id < 0 then
+		var cursors = &self.r.embed_cursors
+		var xs = &cursors.xs
+		if seg.rtl then
+			xs:set(1, 0)
+			xs:set(0, seg.advance_x)
+		else
+			xs:set(0, 0)
+			xs:set(1, seg.advance_x)
+		end
+		return cursors
+	else
+		return &self:seg_glyph_run(seg).cursors
+	end
+end
+
 return _M
+

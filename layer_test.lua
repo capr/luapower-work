@@ -27,13 +27,17 @@ end
 --const state ----------------------------------------------------------------
 
 local font_dir = 'media/fonts'
-local fonts = {
+local fonts = {}
+for _,s in ipairs{
 	'OpenSans-Regular.ttf',
 	'Amiri-Regular.ttf',
 	'SourceHanSans.ttc',
 	'SourceHanSerif.ttc',
 	'ionicons.ttf',
-}
+} do if glue.canopen(font_dir..'/'..s) then
+	table.insert(fonts, s)
+end end
+
 local font_ids = glue.index(fonts)
 
 local font_names = {}
@@ -1216,6 +1220,16 @@ save_state()
 top_e:release()
 if sel_e then sel_e:release() end
 default_e:release()
+
+local function pfn(...) return print(string.format(...)) end
+pfn('Glyph cache size     : %7.2fmB', lib.glyph_cache_size / 1024.0 / 1024.0)
+pfn('Glyph cache count    : %7.0f',   lib.glyph_cache_count)
+pfn('GlyphRun cache size  : %7.2fmB', lib.glyph_run_cache_size / 1024.0 / 1024.0)
+pfn('GlyphRun cache count : %7.0f',   lib.glyph_run_cache_count)
+pfn('Mem Font cache size  : %7.2fmB', lib.mem_font_cache_size / 1024.0 / 1024.0)
+pfn('Mem Font cache count : %7.0f',   lib.mem_font_cache_count)
+pfn('MMap Font cache count: %7.0f',   lib.mmapped_font_cache_count)
+
 lib:release()
 layer.memreport()
 

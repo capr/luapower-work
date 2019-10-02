@@ -4,16 +4,16 @@ return {
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
-		h=400,
+		h=145,
 		layout_type=1,
 		min_cw=328,
 		span_count=1,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=1,
-				text_cursor_sel_offset=2,
-				text_cursor_x=109
+				text_cursor_offset=3,
+				text_cursor_sel_offset=3,
+				text_cursor_x=195
 			}
 		},
 		text_spans={
@@ -24,11 +24,11 @@ return {
 			}
 		},
 		text_utf8='a\244\128\128\128b',
-		w=518,
+		w=328,
 		x=100,
 		y=100
 	},
 	selected_layer_path={
 	},
-	tab='Layout'
+	tab='Text'
 }

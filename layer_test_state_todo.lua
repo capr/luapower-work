@@ -20,9 +20,9 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=311,
-				text_cursor_sel_offset=311,
-				text_cursor_x=177.515625
+				text_cursor_offset=167,
+				text_cursor_sel_offset=57,
+				text_cursor_x=99.5
 			}
 		},
 		text_spans={
@@ -36,7 +36,7 @@ return {
 			{
 				span_font='SourceHanSans.ttc',
 				span_font_face_index=6,
-				span_font_size=19,
+				span_font_size=15,
 				span_lang='en-us',
 				span_offset=5,
 				span_text_color=255
@@ -52,7 +52,7 @@ return {
 			{
 				span_font='SourceHanSans.ttc',
 				span_font_face_index=6,
-				span_font_size=19,
+				span_font_size=15,
 				span_lang='en-us',
 				span_offset=35,
 				span_text_color=255

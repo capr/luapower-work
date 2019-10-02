@@ -82,10 +82,12 @@ terra Renderer:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	assert(FT_Init_FreeType(&self.ft_lib) == 0)
 	init_ub_lang()
 	init_script_lang_map()
-	init_linebreak()
+	init_linebreak() --libunibreak API
+	self:init_embed_cursors()
 end
 
 terra Renderer:free()
+	self.embed_cursors   :free()
 	self.glyphs          :free()
 	self.glyph_runs      :free()
 	self.mem_fonts       :free()

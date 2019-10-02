@@ -69,11 +69,11 @@ terra Layout:spaceout()
 			end
 		else
 			repeat
-				var run = self:glyph_run(seg)
+				var m = self:seg_metrics(seg)
 				line:_update_vertical_metrics(
 					self.line_spacing,
-					run.ascent,
-					run.descent,
+					m.ascent,
+					m.descent,
 					ascent_factor,
 					descent_factor
 				)

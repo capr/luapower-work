@@ -16,7 +16,7 @@ require'terra/tr_rle'
 
 terra GlyphRun.methods.compute_cursors :: {&GlyphRun, &Renderer, &FontFace} -> {}
 
-terra GlyphRun:shape(r: &Renderer, face: &FontFace, embeds: arrview(Embed))
+terra GlyphRun:shape(r: &Renderer, face: &FontFace)
 	self.text = self.text:copy()
 	self.features = self.features:copy()
 
@@ -44,34 +44,18 @@ terra GlyphRun:shape(r: &Renderer, face: &FontFace, embeds: arrview(Embed))
 	--3. compute the run's total advance.
 	self.glyphs:init()
 	self.glyphs.len = len
-	self.ascent = face.ascent
-	self.descent = face.descent
 	var ax: num = 0.0
 	for i,g in self.glyphs do
 		g.glyph_index = info[i].codepoint
 		g.cluster = info[i].cluster
 		g.x = ax
-		--if glyph not found, check for an embed.
-		if g.glyph_index == 0 and embeds.len > 0 then
-			var codepoint = self.text(g.cluster)
-			if codepoint >= 0x100000 then --PUA-B
-				var embed = embeds:at(codepoint - 0x100000, nil)
-				if embed ~= nil then
-					g.embed = embed
-					self.ascent = max(self.ascent, embed.ascent)
-					self.descent = min(self.descent, embed.descent)
-					ax = ax + embed.advance_x
-					goto continue
-				end
-			end
-		end
-		g.embed = nil
 		g.image_x_16_6 =  pos[i].x_offset * face.scale
 		g.image_y_16_6 = -pos[i].y_offset * face.scale
 		ax = (ax + pos[i].x_advance / 64.0) * face.scale
-		::continue::
 	end
-	self.advance_x = ax --for positioning in horizontal flow
+	self.metrics.advance_x = ax --for positioning in horizontal flow
+	self.metrics.ascent = face.ascent
+	self.metrics.descent = face.descent
 
 	hb_buffer_destroy(hb_buf)
 
@@ -81,11 +65,11 @@ terra GlyphRun:shape(r: &Renderer, face: &FontFace, embeds: arrview(Embed))
 	self:compute_cursors(r, face)
 end
 
-terra Renderer:shape(run: GlyphRun, face: &FontFace, embeds: arrview(Embed))
+terra Renderer:shape(run: GlyphRun, face: &FontFace)
 	--get the shaped run from cache or shape it and cache it.
 	var run_id, pair = self.glyph_runs:get(run)
 	if pair == nil then
-		run:shape(self, face, embeds)
+		run:shape(self, face)
 		run_id, pair = self.glyph_runs:put(run, {})
 		assert(pair ~= nil)
 	end
@@ -149,7 +133,7 @@ local get_ligature_carets = macro(function(
 end)
 
 terra GlyphRun:x(i: int)
-	return iif(i == self.glyphs.len, self.advance_x, self.glyphs:at(i).x)
+	return iif(i == self.glyphs.len, self.metrics.advance_x, self.glyphs:at(i).x)
 end
 
 terra GlyphRun:add_cursors(
@@ -161,8 +145,8 @@ terra GlyphRun:add_cursors(
 	cluster_len: int,
 	cluster_x: num
 )
-	self.cursor_offsets:set(cluster, cluster)
-	self.cursor_xs:set(cluster, cluster_x)
+	self.cursors.offsets:set(cluster, cluster)
+	self.cursors.xs:set(cluster, cluster_x)
 	if cluster_len <= 1 then return end
 
 	var str = self.text.elements
@@ -198,8 +182,8 @@ terra GlyphRun:add_cursors(
 				--create a synthetic cluster at each grapheme boundary.
 				cluster = next_grapheme(r.grapheme_breaks.view, cluster, str_len)
 				var lig_x = carets[i] / 64.0
-				self.cursor_offsets:set(cluster, cluster)
-				self.cursor_xs:set(cluster, cluster_x + lig_x)
+				self.cursors.offsets:set(cluster, cluster)
+				self.cursors.xs:set(cluster, cluster_x + lig_x)
 			end
 			--infer the number of graphemes in the glyph as being
 			--the number of ligature carets in the glyph + 1.
@@ -215,8 +199,8 @@ terra GlyphRun:add_cursors(
 				--create a synthetic cluster at each grapheme boundary.
 				cluster = next_grapheme(r.grapheme_breaks.view, cluster, str_len)
 				var lig_x = i * w
-				self.cursor_offsets:set(cluster, cluster)
-				self.cursor_xs:set(cluster, cluster_x + lig_x)
+				self.cursors.offsets:set(cluster, cluster)
+				self.cursors.xs:set(cluster, cluster_x + lig_x)
 			end
 			grapheme_count = 0
 		end
@@ -229,17 +213,17 @@ end
 terra GlyphRun:compute_cursors(r: &Renderer, f: &FontFace)
 
 	--NOTE: cursors are kept in logical order.
-	self.cursor_offsets:init()
-	self.cursor_offsets.len = self.text.len + 1
-	self.cursor_xs:init()
-	self.cursor_xs.len = self.text.len + 1
-	self.cursor_offsets:fill(-1) --set all to invalid offset, fixed later
+	self.cursors:init()
+	self.cursors.offsets.len = self.text.len + 1
+	self.cursors.xs:init()
+	self.cursors.xs.len = self.text.len + 1
+	self.cursors.offsets:fill(-1) --set all to invalid offset, fixed later
 	r.grapheme_breaks.len = 0
 
 	if self.rtl then
 		--add last logical (first visual), after-the-text cursor
-		self.cursor_offsets:set(self.text.len, self.text.len)
-		self.cursor_xs:set(self.text.len, 0)
+		self.cursors.offsets:set(self.text.len, self.text.len)
+		self.cursors.xs:set(self.text.len, 0)
 		var i: int = -1 --index in glyph_info
 		var n: int --glyph count
 		var c: int --cluster
@@ -255,7 +239,7 @@ terra GlyphRun:compute_cursors(r: &Renderer, f: &FontFace)
 			i, n, c, cn = i1, n1, c1, cn1
 		end
 		if i ~= -1 then
-			cx = self.advance_x
+			cx = self.metrics.advance_x
 			self:add_cursors(r, f, i, n, c, cn, cx)
 		end
 	else
@@ -276,8 +260,8 @@ terra GlyphRun:compute_cursors(r: &Renderer, f: &FontFace)
 			self:add_cursors(r, f, i, n, c, cn, cx)
 		end
 		--add last logical (last visual), after-the-text cursor
-		self.cursor_offsets:set(self.text.len, self.text.len)
-		self.cursor_xs:set(self.text.len, self.advance_x)
+		self.cursors.offsets:set(self.text.len, self.text.len)
+		self.cursors.xs:set(self.text.len, self.metrics.advance_x)
 	end
 
 	--add cursor offsets for all codepoints which are missing one.
@@ -285,22 +269,22 @@ terra GlyphRun:compute_cursors(r: &Renderer, f: &FontFace)
 		var c: int --cluster
 		var x: num --cluster x
 		for i = 0, self.text.len + 1 do
-			if self.cursor_offsets(i) == -1 then
-				self.cursor_offsets:set(i, c)
-				self.cursor_xs:set(i, x)
+			if self.cursors.offsets(i) == -1 then
+				self.cursors.offsets:set(i, c)
+				self.cursors.xs:set(i, x)
 			else
-				c = self.cursor_offsets(i)
-				x = self.cursor_xs(i)
+				c = self.cursors.offsets(i)
+				x = self.cursors.xs(i)
 			end
 		end
 	end
 
 	--compute `wrap_advance_x` by removing the advance of the trailing space.
-	var wx = self.advance_x
+	var wx = self.metrics.advance_x
 	if self.trailing_space then
 		var i = iif(self.rtl, 0, self.glyphs.len-1)
 		assert(self.glyphs:at(i).cluster == self.text.len-1)
 		wx = wx - (self:x(i+1) - self:x(i))
 	end
-	self.wrap_advance_x = wx
+	self.metrics.wrap_advance_x = wx
 end

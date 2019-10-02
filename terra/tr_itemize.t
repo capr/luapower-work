@@ -82,6 +82,7 @@ do --iterate text segments having the same shaping-relevant properties.
 
 	local word_iter_state = struct {
 		layout: &Layout;
+		text: arrview(codepoint);
 		levels: arrview(FriBidiLevel);
 		scripts: arrview(hb_script_t);
 		langs: arrview(hb_language_t);
@@ -148,6 +149,8 @@ do --iterate text segments having the same shaping-relevant properties.
 			or level1  ~= level0
 			or script1 ~= script0
 			or lang1   ~= lang0
+			or self.text(i-1) >= EMBED_START --before embed
+			or self.text(i  ) >= EMBED_START  --after embed
 	end
 
 	local word_iter = rle_iterator(iter)
@@ -156,6 +159,7 @@ do --iterate text segments having the same shaping-relevant properties.
 		return `word_iter{
 			word_iter_state{
 				layout = &self,
+				text = self.text.view,
 				levels = levels,
 				scripts = scripts,
 				langs = langs,
@@ -376,42 +380,24 @@ terra Layout:shape()
 		r.linebreaks.view
 	) do
 
+		var last_cp = self.text(offset + len - 1)
 		var linebreak_code = r.linebreaks(offset + len - 1)
-		--our codes: 0: not allowed, 1: allowed, 2: line, 3: paragraph.
 		var linebreak = iif(linebreak_code == LINEBREAK_MUSTBREAK,
-			iif(self.text(offset + len - 1) == PS, BREAK_PARA, BREAK_LINE),
-			iif(linebreak_code == LINEBREAK_ALLOWBREAK, BREAK_WRAP, BREAK_NONE))
+			iif(last_cp == PS, BREAK_PARA, BREAK_LINE),
+			iif(linebreak_code == LINEBREAK_ALLOWBREAK or last_cp >= EMBED_START,
+				BREAK_WRAP, BREAK_NONE))
 
 		--find the seg length without trailing linebreak chars.
-		while len > 0 and isnewline(self.text(offset + len - 1)) do
+		while len > 0 and isnewline(last_cp) do
 			dec(len)
+			last_cp = self.text(offset + len - 1)
 		end
 
 		--find if the seg has a trailing space char (before any linebreak chars).
 		var trailing_space = len > 0
 			and FRIBIDI_IS_EXPLICIT_OR_BN_OR_WS(r.bidi_types(offset + len - 1))
 
-		--shape the seg excluding trailing linebreak chars.
-		var run_key = GlyphRun {
-			--cache key
-			text            = arr(codepoint);
-			features        = span.features;
-			lang            = lang;
-			script          = script;
-			font_id         = span.font_id;
-			font_face_index = span.font_face_index;
-			font_size_16_6  = span.font_size_16_6;
-			rtl             = isodd(level);
-			--info for shaping a new glyph run
-			trailing_space  = trailing_space;
-		}
-		run_key.text.view = self.text:sub(offset, offset + len)
-		--^^fake a dynarray to avoid copying.
-
-		var glyph_run_id, run = r:shape(run_key, span.face, self.embeds.view)
-
 		var seg = segs:add()
-		seg.glyph_run_id = glyph_run_id
 		seg.line_num = line_num --physical line number (for code editors)
 		seg.linebreak = linebreak
 		seg.bidi_level = level --for bidi reordering
@@ -434,7 +420,32 @@ terra Layout:shape()
 			end
 		end
 
-		self:create_subsegs(seg, run, span)
+		if last_cp >= EMBED_START then
+			seg.glyph_run_id = -(last_cp - EMBED_START + 1)
+			assert(seg.glyph_run_id < 0)
+		else
+			--shape the seg excluding trailing linebreak chars.
+			var run_key = GlyphRun {
+				--cache key
+				text            = arr(codepoint);
+				features        = span.features;
+				lang            = lang;
+				script          = script;
+				font_id         = span.font_id;
+				font_face_index = span.font_face_index;
+				font_size_16_6  = span.font_size_16_6;
+				rtl             = isodd(level);
+				--info for shaping a new glyph run
+				trailing_space  = trailing_space;
+			}
+			run_key.text.view = self.text:sub(offset, offset + len)
+			--^^fake a dynarray to avoid copying.
+			var glyph_run_id, run = r:shape(run_key, span.face)
+			assert(glyph_run_id >= 0)
+			seg.glyph_run_id = glyph_run_id
+			self:create_subsegs(seg, run, span)
+		end
+
 	end
 
 end
@@ -473,14 +484,14 @@ terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
 		var o1 = max(span.offset, bof) - bof
 		var o2 = min(next_offset, eof) - bof
 		--adjust the offsets to grapheme positions.
-		o1 = run.cursor_offsets(o1)
-		o2 = run.cursor_offsets(o2)
+		o1 = run.cursors.offsets(o1)
+		o2 = run.cursors.offsets(o2)
 		--find the glyph range covering o1..(o2-1).
 		var i1, clip1 = run:glyph_index_at_offset(o1)
 		var i2, clip2 = run:glyph_index_at_offset(o2)
 		if clip2 then inc(i2) end --think about it
-		var clip_left  = iif(clip1, run.cursor_xs(o1), -1e6)
-		var clip_right = iif(clip2, run.cursor_xs(o2),  1e6)
+		var clip_left  = iif(clip1, run.cursors.xs(o1), -1e6)
+		var clip_right = iif(clip2, run.cursors.xs(o2),  1e6)
 		seg.subsegs:add(SubSeg {
 			span = span,
 			glyph_index1 = i1,

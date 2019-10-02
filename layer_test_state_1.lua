@@ -267,9 +267,9 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=3,
-						text_cursor_sel_offset=3,
-						text_cursor_x=38.700000762939453
+						text_cursor_offset=36,
+						text_cursor_sel_offset=36,
+						text_cursor_x=114.69999694824219
 					}
 				},
 				text_spans={

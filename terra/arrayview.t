@@ -21,7 +21,9 @@
 	v(i[,default]) -> t|default                 get element at index
 	v:at(i[,default]) -> &t|default             get element address at index
 	v:set(i,t)                                  set element at index
-	for i,&t in v[:backwards()] do ... end      iterate elements
+	for i,&t in v do ... end                    iterate elements
+	for i,&t in v:ipairs([forward],[step]) do.. iterate elements with iterator
+	for i,&t in v:backwards([step]) do..        iterate elements backwards
 
 	v:range(i,j) -> start,len                   v:range(5, 5) -> 5, 0
 	v:sub(i,j) -> v                             create a sub-view
@@ -109,15 +111,31 @@ local function view_type(T, size_t, cmp)
 		end
 	end
 
-	local struct backwards_iter { view: view; }
-	backwards_iter.metamethods.__for = function(self, body)
+	local struct iter { view: view; forward: bool; step: size_t; }
+	iter.metamethods.__for = function(self, body)
 		return quote
 			var self = self --workaround for terra issue #368
-			for i = self.view.len-1, -1, -1 do
-				[ body(i, `&self.view.elements[i]) ]
+			if self.forward then
+				for i = 0, self.view.len, self.step do
+					[ body(i, `&self.view.elements[i]) ]
+				end
+			else
+				for i = self.view.len-1, -1, -self.step do
+					[ body(i, `&self.view.elements[i]) ]
+				end
 			end
 		end
 	end
+	view.methods.ipairs = macro(function(self, forward, step)
+		forward = forward or true
+		step = step or 1
+		return `iter {self, forward, step}
+	end)
+
+	view.methods.backwards = macro(function(self, step)
+		step = step or 1
+		return `iter {self, false, step}
+	end)
 
 	addmethods(view, function()
 
@@ -171,10 +189,6 @@ local function view_type(T, size_t, cmp)
 				in self.elements[self.len-1]
 			end
 		end)
-
-		--iteration
-
-		terra view:backwards() return backwards_iter {@self} end
 
 		--sub-views
 
