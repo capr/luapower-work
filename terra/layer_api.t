@@ -119,7 +119,6 @@ local MAX_SCALE = 1000
 local MAX_SHADOW_COUNT = 10
 local MAX_SHADOW_BLUR = 255
 local MAX_SHADOW_PASSES = 10
-local MAX_SPAN_COUNT = 10^9
 local MAX_GRID_ITEM_COUNT = 10^9
 local MAX_CHILD_COUNT = 10^9
 local MAX_CURSOR_COUNT = 10000
@@ -148,7 +147,7 @@ terra Lib:get_glyph_cache_max_size         (): double return self.l.text_rendere
 terra Lib:get_glyph_run_cache_max_size     (): double return self.l.text_renderer.glyph_run_cache_size end
 terra Lib:get_mem_font_cache_max_size      (): double return self.l.text_renderer.mem_font_cache_max_size end
 terra Lib:get_mmapped_font_cache_max_count (): double return self.l.text_renderer.mmapped_font_cache_max_count end
-terra Lib:get_error_function               (): ErrorFunction return self.l.text_renderer.error_function end
+terra Lib:get_error_function               (): ErrorFunc return self.l.text_renderer.error_function end
 
 terra Lib:set_font_size_resolution         (v: double) self.l.text_renderer.font_size_resolution = v end
 terra Lib:set_subpixel_x_resolution        (v: double) self.l.text_renderer.subpixel_x_resolution = v end
@@ -157,7 +156,7 @@ terra Lib:set_glyph_cache_max_size         (v: double) self.l.text_renderer.glyp
 terra Lib:set_glyph_run_cache_max_size     (v: double) self.l.text_renderer.glyph_run_cache_max_size = v end
 terra Lib:set_mem_font_cache_max_size      (v: double) self.l.text_renderer.mem_font_cache_max_size = v end
 terra Lib:set_mmapped_font_cache_max_count (v: double) self.l.text_renderer.mmapped_font_cache_max_count = v end
-terra Lib:set_error_function               (v: ErrorFunction) self.l.text_renderer.error_function = v end
+terra Lib:set_error_function               (v: ErrorFunc) self.l.text_renderer.error_function = v end
 
 do end --text rendering engine stats
 
@@ -748,11 +747,8 @@ terra Layer:get_span_count(): int
 end
 
 terra Layer:set_span_count(n: int)
-	n = clamp(n, 0, MAX_SPAN_COUNT)
-	if self.span_count ~= n then
-		self.l.text.layout.span_count = n
-		self.l:invalidate'text'
-	end
+	self.l.text.layout.span_count = n
+	self.l:invalidate'text'
 end
 
 local prefixed = {
@@ -772,10 +768,8 @@ for _,FIELD in ipairs(tr.SPAN_FIELDS) do
 	end
 
 	Layer.methods['set_span_'..PFIELD] = terra(self: &Layer, span_i: int, v: T)
-		if self:checkindex('span index', span_i, MAX_SPAN_COUNT) then
-			self.l.text.layout:['set_span_'..FIELD](span_i, v)
-			self.l:invalidate'text'
-		end
+		self.l.text.layout:['set_span_'..FIELD](span_i, v)
+		self.l:invalidate'text'
 	end
 
 end

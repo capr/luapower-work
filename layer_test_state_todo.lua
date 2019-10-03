@@ -20,9 +20,9 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=167,
-				text_cursor_sel_offset=57,
-				text_cursor_x=99.5
+				text_cursor_offset=12,
+				text_cursor_sel_offset=12,
+				text_cursor_x=31.5
 			}
 		},
 		text_spans={
@@ -58,7 +58,7 @@ return {
 				span_text_color=255
 			}
 		},
-		text_utf8='TODO:\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implements embeds.\r- implement tab-stops.\r- implement underline and strike-through (simple version).\r- test color fonts and emoji scaling.\r\r\n',
+		text_utf8='TODO:\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement embeds.\r- implement tab-stops.\r- implement underline and strike-through (simple version).\r- test color fonts and emoji scaling.\r- \r\n',
 		w=794.5,
 		x=61,
 		y=39

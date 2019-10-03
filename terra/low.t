@@ -883,6 +883,7 @@ maxint64 = int64:max()
 minint64 = int64:min()
 
 minmax = macro(function(x, y) return `iif(x < y, {x, y}, {y, x}) end)
+between = macro(function(x, min, max) return `x >= min and x <= max end)
 
 --find the next power-of-two number that is >= x.
 nextpow2 = macro(function(x)

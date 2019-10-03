@@ -88,8 +88,10 @@ BREAK_WRAP = 1 --wrapping allowed
 BREAK_LINE = 2 --explicit line break (CR, LF, etc.)
 BREAK_PARA = 3 --explicit paragraph break (PS).
 
---start of codepoint range reserved for embeds.
-EMBED_START = 0x100000 --PUA-B
+--codepoint range reserved for embeds.
+EMBED_MIN       = 0x100000 --PUA-B
+EMBED_MAX       = 0x10FFFD
+MAX_EMBED_COUNT = EMBED_MAX - EMBED_MIN
 
 --base types -----------------------------------------------------------------
 
@@ -343,6 +345,7 @@ struct Layout (gettersandsetters) {
 	last_visible_line: int;  --clip/out
 	_min_w: num;             --get_min_w/cache
 	_max_w: num;             --get_max_w/cache
+	userdata: &opaque;
 }
 
 terra arr_Span:free_element(span: &Span)
@@ -391,7 +394,6 @@ end
 -- with clusters (3, 0), the second glyph represents codepoints (0, 1, 2).
 
 struct GlyphInfo (gettersandsetters) {
-	embed: &Embed;
 	glyph_index: int; --in the font's charmap
 	x: num; --glyph origin relative to glyph run's origin
 	image_x_16_6: int16; --glyph image origin relative to glyph origin
@@ -664,7 +666,8 @@ GlyphRunCache = lrucache {size_t = int, key_t = GlyphRun, context_t = &Renderer,
 GlyphCache    = lrucache {size_t = int, key_t = Glyph, context_t = &Renderer, own_keys = true}
 FontCache     = lrucache {size_t = int, key_t = int, val_t = &Font, own_values = true}
 
---GlyphRunCache
+EmbedSetSizeFunc = {&Layout, int, &Embed, &Span} -> {}
+EmbedDrawFunc    = {&Layout, &context, int, &Embed, &Span} -> {}
 
 struct Renderer (gettersandsetters) {
 
@@ -675,8 +678,10 @@ struct Renderer (gettersandsetters) {
 
 	ft_lib: FT_Library;
 
-	load_font   : FontLoadFunc;
-	unload_font : FontUnloadFunc;
+	load_font               : FontLoadFunc;
+	unload_font             : FontUnloadFunc;
+	embed_set_size_function : EmbedSetSizeFunc;
+	embed_draw_function     : EmbedDrawFunc;
 
 	glyphs        : GlyphCache;
 	glyph_runs    : GlyphRunCache;
@@ -717,17 +722,30 @@ terra Seg:get_rtl()
 	return isodd(self.bidi_level)
 end
 
+terra Seg:get_is_embed()
+	return self.glyph_run_id < 0
+end
+
+terra Seg:get_embed_index()
+	return -self.glyph_run_id - 1
+end
+
+terra Seg:set_embed_index(i: int)
+	self.glyph_run_id = -(i + 1)
+end
+
 terra Layout:seg_glyph_run(seg: &Seg)
 	return &self.r.glyph_runs:pair(seg.glyph_run_id).key
 end
 
-terra Layout:seg_embed(seg: &Seg)
-	return self.embeds:at(-seg.glyph_run_id - 1, &[Embed.empty_const])
+terra Layout:seg_embed_or_default(seg: &Seg)
+	var embed = self.embeds:at(seg.embed_index, nil)
+	return iif(embed ~= nil, embed, &[Embed.empty_const])
 end
 
 terra Layout:seg_metrics(seg: &Seg)
-	return iif(seg.glyph_run_id < 0,
-		self:seg_embed(seg).metrics,
+	return iif(seg.is_embed,
+		self:seg_embed_or_default(seg).metrics,
 		self:seg_glyph_run(seg).metrics)
 end
 
@@ -740,7 +758,7 @@ terra Renderer:init_embed_cursors()
 end
 
 terra Layout:seg_cursors(seg: &Seg)
-	if seg.glyph_run_id < 0 then
+	if seg.is_embed then
 		var cursors = &self.r.embed_cursors
 		var xs = &cursors.xs
 		if seg.rtl then

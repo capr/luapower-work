@@ -12,15 +12,14 @@ typedef void (*tr_font_load_func_t) (int32_t, void**, uint64_t*, bool*);
 typedef void (*tr_font_unload_func_t) (int32_t, void*, uint64_t, bool);
 renderer_t* tr_renderer(tr_font_load_func_t, tr_font_unload_func_t);
 typedef struct renderer_t renderer_t;
-typedef void (*error_function_t) (int8_t*);
-error_function_t renderer_get_error_function(renderer_t*);
+typedef void (*error_func_t) (int8_t*);
+error_func_t renderer_get_error_function(renderer_t*);
 void renderer_free(renderer_t*);
 void renderer_set_subpixel_x_resolution(renderer_t*, double);
 double renderer_get_glyph_cache_size(renderer_t*);
 void renderer_set_font_size_resolution(renderer_t*, double);
 void renderer_init(renderer_t*, tr_font_load_func_t, tr_font_unload_func_t);
-void renderer_set_paint_glyph_num(renderer_t*, int32_t);
-void renderer_set_error_function(renderer_t*, error_function_t);
+void renderer_set_error_function(renderer_t*, error_func_t);
 void renderer_set_word_subpixel_x_resolution(renderer_t*, double);
 void renderer_set_glyph_run_cache_max_size(renderer_t*, double);
 double renderer_get_font_size_resolution(renderer_t*);
@@ -29,18 +28,29 @@ void renderer_set_mmapped_font_cache_max_count(renderer_t*, double);
 double renderer_get_mem_font_cache_count(renderer_t*);
 double renderer_get_mem_font_cache_size(renderer_t*);
 double renderer_get_word_subpixel_x_resolution(renderer_t*);
+int32_t renderer_font_face_num(renderer_t*, int32_t);
+void renderer_set_paint_glyph_num(renderer_t*, int32_t);
+typedef struct layout_t layout_t;
+layout_t* renderer_layout(renderer_t*);
+typedef struct Layout Layout;
+typedef struct Embed Embed;
+typedef struct Span Span;
+typedef void (*embed_set_size_func_t) (Layout*, int32_t, Embed*, Span*);
+embed_set_size_func_t renderer_get_embed_set_size_function(renderer_t*);
 double renderer_get_mmapped_font_cache_count(renderer_t*);
 void renderer_set_mem_font_cache_max_size(renderer_t*, double);
 void renderer_set_glyph_cache_max_size(renderer_t*, double);
-int32_t renderer_font_face_num(renderer_t*, int32_t);
-double renderer_get_glyph_run_cache_count(renderer_t*);
-typedef struct layout_t layout_t;
-layout_t* renderer_layout(renderer_t*);
+typedef struct _cairo _cairo;
+typedef void (*embed_draw_func_t) (_cairo*, layout_t*, int32_t, Embed*, Span*);
+void renderer_set_embed_draw_function(renderer_t*, embed_draw_func_t);
 void renderer_release(renderer_t*);
 double renderer_get_mem_font_cache_max_size(renderer_t*);
+double renderer_get_glyph_run_cache_count(renderer_t*);
 double renderer_get_glyph_run_cache_max_size(renderer_t*);
+embed_draw_func_t renderer_get_embed_draw_function(renderer_t*);
 double renderer_get_subpixel_x_resolution(renderer_t*);
 double renderer_get_glyph_cache_count(renderer_t*);
+void renderer_set_embed_set_size_function(renderer_t*, embed_set_size_func_t);
 double renderer_get_glyph_run_cache_size(renderer_t*);
 int64_t renderer_get_paint_glyph_num(renderer_t*);
 double renderer_get_glyph_cache_max_size(renderer_t*);
@@ -55,7 +65,7 @@ void layout_set_hardline_spacing(layout_t*, double);
 int32_t layout_get_selected_text_utf8_len(layout_t*, int32_t);
 int8_t* layout_get_span_script(layout_t*, int32_t);
 void layout_set_caret_thickness(layout_t*, int32_t, double);
-double* layout_get_cursor_xs(layout_t*);
+void layout_set_embed_ascent(layout_t*, int32_t, double);
 double layout_get_spaced_h(layout_t*);
 double layout_get_line_spacing(layout_t*);
 void layout_cursor_move_to_point(layout_t*, int32_t, double, double, bool);
@@ -68,7 +78,7 @@ int32_t layout_insert_text(layout_t*, int32_t, uint32_t*, int32_t);
 void layout_set_line_spacing(layout_t*, double);
 double layout_get_x(layout_t*);
 void layout_remove_selected_text(layout_t*, int32_t);
-int32_t layout_get_span_font_id(layout_t*, int32_t);
+void layout_set_embed_descent(layout_t*, int32_t, double);
 int32_t layout_get_text_len(layout_t*);
 void layout_set_clip_h(layout_t*, double);
 void layout_set_font_id(layout_t*, int32_t, int32_t, int32_t);
@@ -78,7 +88,6 @@ bool layout_has_color(layout_t*, int32_t, int32_t);
 void layout_set_span_color(layout_t*, int32_t, uint32_t);
 int32_t layout_get_cursor_which(layout_t*, int32_t);
 void layout_set_clip_w(layout_t*, double);
-void layout_set_nowrap(layout_t*, int32_t, int32_t, bool);
 int8_t layout_get_align_y(layout_t*);
 void layout_set_opacity(layout_t*, int32_t, int32_t, double);
 bool layout_get_caret_visible(layout_t*, int32_t);
@@ -98,6 +107,7 @@ void layout_set_span_font_size(layout_t*, int32_t, double);
 void layout_insert_text_at_cursor(layout_t*, int32_t, uint32_t*, int32_t);
 void layout_set_selection_color(layout_t*, int32_t, uint32_t);
 void layout_layout(layout_t*);
+float layout_get_embed_ascent(layout_t*, int32_t);
 bool layout_get_pixels_valid(layout_t*);
 double layout_get_clip_x(layout_t*);
 double layout_get_max_w(layout_t*);
@@ -114,39 +124,46 @@ int32_t layout_get_span_font_face_index(layout_t*, int32_t);
 void layout_set_x(layout_t*, double);
 double layout_get_y(layout_t*);
 int32_t layout_get_cursor_sel_offset(layout_t*, int32_t);
-bool layout_get_valid(layout_t*);
+double* layout_get_cursor_xs(layout_t*);
+bool layout_has_font_face_index(layout_t*, int32_t, int32_t);
+double layout_get_baseline(layout_t*);
 int8_t* layout_get_span_features(layout_t*, int32_t);
 int32_t layout_get_selected_text_utf8(layout_t*, int32_t, int8_t*, int32_t);
-uint32_t* layout_get_text(layout_t*);
+double layout_get_align_w(layout_t*);
+float layout_get_embed_descent(layout_t*, int32_t);
 int32_t layout_get_selected_text_len(layout_t*, int32_t);
-void layout_set_align_y(layout_t*, int8_t);
 void layout_insert_text_utf8_at_cursor(layout_t*, int32_t, int8_t*, int32_t);
 int32_t layout_get_selection_first_span(layout_t*, int32_t);
 void layout_cursor_move_near_page(layout_t*, int32_t, double, double, bool);
+void layout_set_align_y(layout_t*, int8_t);
 void layout_cursor_move_near_line(layout_t*, int32_t, double, double, bool);
-void layout_set_align_x(layout_t*, int8_t);
 void layout_cursor_move_near(layout_t*, int32_t, int8_t, int8_t, int8_t, bool);
-renderer_t* layout_get_r(layout_t*);
-int32_t layout_get_text_utf8_len(layout_t*);
-void layout_set_y(layout_t*, double);
+bool layout_has_opacity(layout_t*, int32_t, int32_t);
 void layout_set_selection_opacity(layout_t*, int32_t, double);
 void layout_set_caret_opacity(layout_t*, int32_t, double);
+void layout_set_align_x(layout_t*, int8_t);
+float layout_get_embed_advance_x(layout_t*, int32_t);
+renderer_t* layout_get_r(layout_t*);
+int32_t layout_get_text_utf8_len(layout_t*);
 void layout_set_insert_mode(layout_t*, int32_t, bool);
-void layout_set_dir(layout_t*, int8_t);
-int32_t layout_get_span_offset(layout_t*, int32_t);
 void layout_set_caret_visible(layout_t*, int32_t, bool);
 void layout_set_cursor_sel_offset(layout_t*, int32_t, double);
-void layout_set_maxlen(layout_t*, int32_t);
-void layout_release(layout_t*);
 void layout_set_cursor_which(layout_t*, int32_t, int8_t);
+void layout_set_dir(layout_t*, int8_t);
+int32_t layout_get_span_offset(layout_t*, int32_t);
 void layout_set_cursor_offset(layout_t*, int32_t, double);
 uint32_t layout_get_selection_color(layout_t*, int32_t);
-double layout_get_span_opacity(layout_t*, int32_t);
-double layout_get_baseline(layout_t*);
-int32_t layout_get_span_paragraph_dir(layout_t*, int32_t);
-void layout_set_font_face_index(layout_t*, int32_t, int32_t, int32_t);
+void layout_set_maxlen(layout_t*, int32_t);
+void layout_release(layout_t*);
+bool layout_has_script(layout_t*, int32_t, int32_t);
 double layout_get_caret_opacity(layout_t*, int32_t);
 bool layout_get_insert_mode(layout_t*, int32_t);
+bool layout_get_selection_visible(layout_t*, int32_t);
+void layout_shape(layout_t*);
+double layout_get_span_opacity(layout_t*, int32_t);
+void layout_set_embed_advance_x(layout_t*, int32_t, double);
+double layout_get_cursor_x(layout_t*, int32_t);
+int32_t layout_get_cursor_offset(layout_t*, int32_t);
 void layout_remove_trailing_spans(layout_t*);
 bool layout_has_operator(layout_t*, int32_t, int32_t);
 int8_t layout_get_span_operator(layout_t*, int32_t);
@@ -154,28 +171,29 @@ void layout_set_span_font_face_index(layout_t*, int32_t, int32_t);
 int8_t layout_get_align_x(layout_t*);
 int32_t layout_set_cursor_count(layout_t*, int32_t);
 double layout_get_min_w(layout_t*);
-bool layout_get_selection_visible(layout_t*, int32_t);
 void layout_set_span_paragraph_dir(layout_t*, int32_t, int32_t);
 void layout_set_script(layout_t*, int32_t, int32_t, int8_t*);
-double layout_get_cursor_x(layout_t*, int32_t);
-int32_t layout_get_cursor_offset(layout_t*, int32_t);
+double layout_get_clip_w(layout_t*);
 void layout_set_operator(layout_t*, int32_t, int32_t, int8_t);
 void layout_load_cursor_xs(layout_t*, int32_t);
 bool layout_get_min_size_valid(layout_t*);
 void layout_set_clip_extents(layout_t*, double, double, double, double);
+uint32_t layout_get_span_color(layout_t*, int32_t);
 int8_t layout_get_dir(layout_t*);
-bool layout_has_script(layout_t*, int32_t, int32_t);
+void layout_align(layout_t*);
 uint32_t* layout_get_selected_text(layout_t*, int32_t);
 int8_t* layout_get_span_lang(layout_t*, int32_t);
 void layout_wrap(layout_t*);
 void layout_set_font_size(layout_t*, int32_t, int32_t, double);
-void layout_set_text_utf8(layout_t*, int8_t*, int32_t);
+int32_t layout_get_maxlen(layout_t*);
 void layout_set_span_lang(layout_t*, int32_t, int8_t*);
+bool layout_has_font_size(layout_t*, int32_t, int32_t);
 bool layout_get_visible(layout_t*);
-void layout_shape(layout_t*);
 void layout_set_text(layout_t*, uint32_t*, int32_t);
 int32_t layout_get_text_utf8(layout_t*, int8_t*, int32_t);
-void layout_align(layout_t*);
+uint32_t* layout_get_text(layout_t*);
+void layout_free(layout_t*);
+void layout_paint(layout_t*, _cairo*);
 bool layout_has_lang(layout_t*, int32_t, int32_t);
 typedef struct {
 	double _0;
@@ -185,27 +203,26 @@ typedef struct {
 } double4;
 double4 layout_bbox(layout_t*);
 void layout_set_span_features(layout_t*, int32_t, int8_t*);
-double layout_get_clip_w(layout_t*);
-typedef struct _cairo _cairo;
-void layout_paint(layout_t*, _cairo*);
-bool layout_has_font_face_index(layout_t*, int32_t, int32_t);
-bool layout_has_font_size(layout_t*, int32_t, int32_t);
+void layout_set_y(layout_t*, double);
+void layout_set_span_nowrap(layout_t*, int32_t, bool);
+int32_t layout_get_span_font_id(layout_t*, int32_t);
+void layout_set_text_utf8(layout_t*, int8_t*, int32_t);
+void layout_set_font_face_index(layout_t*, int32_t, int32_t, int32_t);
 bool layout_get_offsets_valid(layout_t*);
 void layout_clip(layout_t*);
-int32_t layout_get_maxlen(layout_t*);
+int32_t layout_get_span_paragraph_dir(layout_t*, int32_t);
+void layout_set_nowrap(layout_t*, int32_t, int32_t, bool);
 bool layout_get_span_nowrap(layout_t*, int32_t);
-void layout_set_span_nowrap(layout_t*, int32_t, bool);
-void layout_free(layout_t*);
-uint32_t layout_get_span_color(layout_t*, int32_t);
-bool layout_has_opacity(layout_t*, int32_t, int32_t);
 bool layout_has_font_id(layout_t*, int32_t, int32_t);
 void layout_set_span_font_id(layout_t*, int32_t, int32_t);
 void layout_set_span_offset(layout_t*, int32_t, int32_t);
 double layout_get_caret_thickness(layout_t*, int32_t);
 void layout_cursor_move_to(layout_t*, int32_t, double, int8_t, bool);
-double layout_get_align_w(layout_t*);
+bool layout_get_valid(layout_t*);
 ]]
 local getters = {
+	embed_draw_function = C.renderer_get_embed_draw_function,
+	embed_set_size_function = C.renderer_get_embed_set_size_function,
 	error_function = C.renderer_get_error_function,
 	font_size_resolution = C.renderer_get_font_size_resolution,
 	glyph_cache_count = C.renderer_get_glyph_cache_count,
@@ -224,6 +241,8 @@ local getters = {
 	word_subpixel_x_resolution = C.renderer_get_word_subpixel_x_resolution,
 }
 local setters = {
+	embed_draw_function = C.renderer_set_embed_draw_function,
+	embed_set_size_function = C.renderer_set_embed_set_size_function,
 	error_function = C.renderer_set_error_function,
 	font_size_resolution = C.renderer_set_font_size_resolution,
 	glyph_cache_max_size = C.renderer_set_glyph_cache_max_size,
@@ -327,6 +346,9 @@ local methods = {
 	get_cursor_sel_which = C.layout_get_cursor_sel_which,
 	get_cursor_which = C.layout_get_cursor_which,
 	get_cursor_x = C.layout_get_cursor_x,
+	get_embed_advance_x = C.layout_get_embed_advance_x,
+	get_embed_ascent = C.layout_get_embed_ascent,
+	get_embed_descent = C.layout_get_embed_descent,
 	get_insert_mode = C.layout_get_insert_mode,
 	get_selected_text = C.layout_get_selected_text,
 	get_selected_text_len = C.layout_get_selected_text_len,
@@ -381,6 +403,9 @@ local methods = {
 	set_cursor_sel_which = C.layout_set_cursor_sel_which,
 	set_cursor_which = C.layout_set_cursor_which,
 	set_cursor_x = C.layout_set_cursor_x,
+	set_embed_advance_x = C.layout_set_embed_advance_x,
+	set_embed_ascent = C.layout_set_embed_ascent,
+	set_embed_descent = C.layout_set_embed_descent,
 	set_features = C.layout_set_features,
 	set_font_face_index = C.layout_set_font_face_index,
 	set_font_id = C.layout_set_font_id,

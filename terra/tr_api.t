@@ -54,6 +54,7 @@ local tr = require'terra/tr'
 setfenv(1, require'terra/low'.module(tr))
 
 num = double
+MAX_SPAN_COUNT = 10^9
 MAX_CURSOR_COUNT = 2^16
 MAX_FONT_SIZE = 10000
 MAX_MAXLEN = maxint - 1 --maxint is used as sentinel in tr_itemize.
@@ -66,8 +67,8 @@ struct Renderer;
 
 --Renderer & Layout wrappers and self-allocating constructors ----------------
 
-ErrorFunction = {rawstring} -> {}
-ErrorFunction.type.cname = 'error_function_t'
+ErrorFunc = {rawstring} -> {}
+ErrorFunc.type.cname = 'error_func_t'
 
 local terra default_error_function(message: rawstring)
 	fprintf(stderr(), '%s\n', message)
@@ -75,7 +76,7 @@ end
 
 struct Renderer (gettersandsetters) {
 	r: tr.Renderer;
-	error_function: ErrorFunction;
+	error_function: ErrorFunc;
 }
 
 terra Renderer:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
@@ -99,8 +100,28 @@ terra Renderer:release()
 	release(self)
 end
 
-terra Renderer:get_error_function(): ErrorFunction return self.error_function end
-terra Renderer:set_error_function(v: ErrorFunction) self.error_function = v end
+terra Renderer:get_error_function(): ErrorFunc return self.error_function end
+terra Renderer:set_error_function(v: ErrorFunc) self.error_function = v end
+
+EmbedSetSizeFunc = {&Layout, int, &Embed, &Span} -> {}
+EmbedDrawFunc    = {&context, &Layout, int, &Embed, &Span} -> {}
+
+EmbedSetSizeFunc.type.cname = 'embed_set_size_func_t'
+EmbedDrawFunc.type.cname   = 'embed_draw_func_t'
+
+terra Renderer:get_embed_set_size_function(): EmbedSetSizeFunc
+	return EmbedSetSizeFunc(self.r.embed_set_size_function)
+end
+terra Renderer:set_embed_set_size_function(v: EmbedSetSizeFunc)
+	self.r.embed_set_size_function = tr.EmbedSetSizeFunc(v)
+end
+
+terra Renderer:get_embed_draw_function(): EmbedDrawFunc
+	return EmbedDrawFunc(self.r.embed_draw_function)
+end
+terra Renderer:set_embed_draw_function(v: EmbedDrawFunc)
+	self.r.embed_draw_function = tr.EmbedDrawFunc(v)
+end
 
 struct Layout (gettersandsetters) {
 	l: tr.Layout;
@@ -191,6 +212,10 @@ end)
 
 Layout.methods.checkindex = macro(function(self, NAME, i, MAX)
 	return `self:check(NAME, i, i >= 0) and i < MAX
+end)
+
+Layout.methods.checkcount = macro(function(self, NAME, n, MAX)
+	return `self:check(NAME, n, n >= 0) and n <= MAX
 end)
 
 --Renderer config ------------------------------------------------------------
@@ -896,9 +921,11 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 	end
 
 	Layout.methods['set_span_'..FIELD] = terra(self: &Layout, span_i: int, val: T)
-		var span = self.l.spans:getat(span_i, [Span.empty_const])
-		if LOAD(span, &self.l, val) then
-			self:invalidate(INVALIDATE)
+		if self:checkindex('span_index', span_i, MAX_SPAN_COUNT) then
+			var span = self.l.spans:getat(span_i, [Span.empty_const])
+			if LOAD(span, &self.l, val) then
+				self:invalidate(INVALIDATE)
+			end
 		end
 	end
 
@@ -918,10 +945,11 @@ terra Layout:get_span_count(): int
 end
 
 terra Layout:set_span_count(n: int)
-	n = max(n, 0)
-	if self.l.spans.len ~= n then
-		self.l.spans:setlen(n, [Span.empty_const])
-		self:invalidate()
+	if self:checkcount('span_count', n, MAX_SPAN_COUNT) then
+		if self.l.spans.len ~= n then
+			self.l.spans:setlen(n, [Span.empty_const])
+			self:invalidate()
+		end
 	end
 end
 
@@ -1009,6 +1037,30 @@ terra Layout:insert_text(offset: int, s: &codepoint, len: int)
 	return offset + len
 end
 
+--embed editing --------------------------------------------------------------
+
+local get_metrics = macro(function(self, i, FIELD)
+	return quote
+		self:checkindex('embed_index', i, MAX_EMBED_COUNT)
+		in self.l.embeds:at(i, &[Embed.empty_const]).metrics.[FIELD:asvalue()]
+	end
+end)
+terra Layout:get_embed_advance_x(i: int) return get_metrics(self, i, 'advance_x') end
+terra Layout:get_embed_ascent   (i: int) return get_metrics(self, i, 'ascent'   ) end
+terra Layout:get_embed_descent  (i: int) return get_metrics(self, i, 'descent'  ) end
+
+local set_metrics = macro(function(self, i, FIELD, v, INVALID)
+	return quote
+		if self:checkindex('embed_index', i, MAX_EMBED_COUNT) then
+			var embed = self.l.embeds:getat(i, [Embed.empty_const])
+			self:change(&embed.metrics, [FIELD:asvalue()], v, INVALID)
+		end
+	end
+end)
+terra Layout:set_embed_advance_x(i: int, v: num) set_metrics(self, i, 'advance_x', v, 'wrap') end
+terra Layout:set_embed_ascent   (i: int, v: num) set_metrics(self, i, 'ascent'   , v, 'wrap') end
+terra Layout:set_embed_descent  (i: int, v: num) set_metrics(self, i, 'descent'  , v, 'wrap') end
+
 --layouting helper APIs ------------------------------------------------------
 
 terra Layout:get_min_size_valid() --text box might need re-layouting.
@@ -1071,7 +1123,7 @@ end
 terra Layout:get_cursor_count(): int
 	return self.cursors.len
 end
-terra Layout:set_cursor_count(n: int): int
+terra Layout:set_cursor_count(n: int): int --TODO: checklen
 	n = clamp(n, 0, MAX_CURSOR_COUNT)
 	if self.cursors.len ~= n then
 		for _,c in self.cursors:setlen(n) do

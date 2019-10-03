@@ -69,7 +69,7 @@ rect = rect(num)
 Bitmap = bitmap.Bitmap
 FontLoadFunc   = tr.FontLoadFunc
 FontUnloadFunc = tr.FontUnloadFunc
-ErrorFunction  = tr.ErrorFunction
+ErrorFunc      = tr.ErrorFunc
 
 --common enums ---------------------------------------------------------------
 
@@ -451,11 +451,10 @@ struct Text (gettersandsetters) {
 	layout: tr.Layout;
 }
 
-terra Text:init(r: &tr.Renderer)
+terra Text:init(r: &tr.Renderer, layer: &Layer)
 	self.layout:init(r)
 	self.layout.maxlen = 4096
-	self.layout.l.embeds:add(tr.Embed{metrics = tr.SegMetrics{
-		ascent = 200, descent = -200, advance_x = 400}})
+	self.layout.l.userdata = layer
 end
 
 terra Text:free()
@@ -673,7 +672,7 @@ terra Layer:init(lib: &Lib, parent: &Layer)
 	self.transform:init()
 	self.border:init()
 	self.background:init()
-	self.text:init(&lib.text_renderer)
+	self.text:init(&lib.text_renderer, self)
 
 	self.align_items_x = ALIGN_STRETCH
 	self.align_items_y = ALIGN_STRETCH
@@ -1574,6 +1573,14 @@ terra Layer:sync_text_align()
 	self.text.layout:align()
 end
 
+--TODO: make tr STATE_EMBEDS_SIZED to avoid updating these on every text box?
+terra Layer:sync_text_embeds()
+	for i = 0, min(self.text.layout.l.embeds.len, self.children.len) do
+		var layout = self.children:at(i)
+
+	end
+end
+
 terra Layer:get_show_text()
 	return self.layout_solver.show_text
 end
@@ -1584,6 +1591,18 @@ end
 
 terra Layer:get_baseline()
 	return self.text.layout.baseline
+end
+
+terra Layer:get_ascent()
+	return -self.baseline
+end
+
+terra Layer:get_descent()
+	return -(self.h - self.baseline)
+end
+
+terra Layer:get_advance_x()
+	return self.w
 end
 
 terra Layer:draw_text(cr: &context)
@@ -1606,6 +1625,20 @@ terra Layer:hit_test_text(cr: &context, x: num, y: num)
 	else
 		return false
 	end
+end
+
+local terra text_embed_set_size(layout: &tr.Layout, embed_index: int, embed: &tr.Embed, span: &tr.Span)
+	var self = [&Layer](layout.l.userdata)
+	var layer = self.children(embed_index, nil)
+	if layer == nil then return end
+	--
+end
+
+local terra text_embed_draw(cr: &context, layout: &tr.Layout, embed_index: int, embed: &tr.Embed, span: &tr.Span)
+	var self = [&Layer](layout.l.userdata)
+	var layer = self.children(embed_index, nil)
+	if layer == nil then return end
+	--
 end
 
 --[[
@@ -1937,10 +1970,12 @@ end
 --layouting system entry point: called on the top layer.
 --called by null-layout layers to layout themselves and their children.
 local terra null_sync(self: &Layer)
+	--sync children first since we're gonna use them as text embeds.
+	self:sync_layout_children()
+	self:sync_text_embeds()
 	self:sync_text_shape()
 	self:sync_text_wrap()
 	self:sync_text_align()
-	self:sync_layout_children()
 end
 
 --called by flexible layouts to know the minimum width of their children.
@@ -1981,12 +2016,14 @@ local null_layout = constant(`LayoutSolver {
 --textbox layout -------------------------------------------------------------
 
 local terra text_sync(self: &Layer)
+	--sync children first since we're gonna use them as text embeds.
+	self:sync_layout_children()
+	self:sync_text_embeds()
 	self:sync_text_shape()
 	self.cw = max(self.text.layout.min_w, self.min_cw)
 	self:sync_text_wrap()
 	self.ch = max(self.min_ch, self.text.layout.spaced_h)
 	self:sync_text_align()
-	self:sync_layout_children()
 end
 
 terra Layer:get_nowrap()
@@ -3065,6 +3102,8 @@ end
 
 terra Lib:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	self.text_renderer:init(load_font, unload_font)
+	self.text_renderer.embed_set_size_function = text_embed_set_size
+	self.text_renderer.embed_draw_function = text_embed_draw
 	self.grid_occupied:init()
 	self.default_shadow:init(nil)
 end

@@ -149,8 +149,8 @@ do --iterate text segments having the same shaping-relevant properties.
 			or level1  ~= level0
 			or script1 ~= script0
 			or lang1   ~= lang0
-			or self.text(i-1) >= EMBED_START --before embed
-			or self.text(i  ) >= EMBED_START  --after embed
+			or between(self.text(i-1), EMBED_MIN, EMBED_MAX) --before embed
+			or between(self.text(i  ), EMBED_MIN, EMBED_MAX)  --after embed
 	end
 
 	local word_iter = rle_iterator(iter)
@@ -372,6 +372,7 @@ terra Layout:shape()
 	var line_num = 0
 	var para_num = 0
 	var para_dir = r.paragraph_dirs(0)
+	self.embeds.len = 0
 
 	for offset, len, span, level, script, lang in self:word_spans(
 		r.levels.view,
@@ -384,7 +385,8 @@ terra Layout:shape()
 		var linebreak_code = r.linebreaks(offset + len - 1)
 		var linebreak = iif(linebreak_code == LINEBREAK_MUSTBREAK,
 			iif(last_cp == PS, BREAK_PARA, BREAK_LINE),
-			iif(linebreak_code == LINEBREAK_ALLOWBREAK or last_cp >= EMBED_START,
+			iif(linebreak_code == LINEBREAK_ALLOWBREAK
+					or between(last_cp, EMBED_MIN, EMBED_MAX),
 				BREAK_WRAP, BREAK_NONE))
 
 		--find the seg length without trailing linebreak chars.
@@ -420,9 +422,10 @@ terra Layout:shape()
 			end
 		end
 
-		if last_cp >= EMBED_START then
-			seg.glyph_run_id = -(last_cp - EMBED_START + 1)
-			assert(seg.glyph_run_id < 0)
+		if between(last_cp, EMBED_MIN, EMBED_MAX) then
+			var embed_index = last_cp - EMBED_MIN
+			seg.embed_index = embed_index
+			self.embeds:getat(embed_index, [Embed.empty_const])
 		else
 			--shape the seg excluding trailing linebreak chars.
 			var run_key = GlyphRun {

@@ -34,8 +34,10 @@ terra Renderer:paint_glyph_run_subseg(cr: &context, run: &GlyphRun, sub: &SubSeg
 	inc(self.paint_glyph_num, run.glyphs.len)
 end
 
-terra Renderer:paint_embed(cr: &context, embed: &Embed, span: &Span)
-
+terra Layout:draw_embed(cr: &context, embed_i: int, embed: &Embed, span: &Span)
+	if self.r.embed_draw_function ~= nil then
+		self.r.embed_draw_function(self, cr, embed_i, embed, span)
+	end
 end
 
 terra Layout:paint_text(cr: &context)
@@ -52,9 +54,12 @@ terra Layout:paint_text(cr: &context)
 		for seg in line do
 			if seg.visible then
 				var x, y = ax + seg.x, ay
-				if seg.glyph_run_id < 0 then
-					var embed = self:seg_embed(seg)
-					self.r:paint_embed(cr, embed, seg.span)
+				if seg.is_embed then
+					var embed_index = seg.embed_index
+					var embed = self.embeds:at(embed_index, nil)
+					if embed ~= nil then
+						self:draw_embed(cr, embed_index, embed, seg.span)
+					end
 				else
 					var run = self:seg_glyph_run(seg)
 					if seg.subsegs.len > 0 then --has sub-segments, paint those instead.
