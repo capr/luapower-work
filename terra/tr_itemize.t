@@ -372,7 +372,6 @@ terra Layout:shape()
 	var line_num = 0
 	var para_num = 0
 	var para_dir = r.paragraph_dirs(0)
-	self.embeds.len = 0
 
 	for offset, len, span, level, script, lang in self:word_spans(
 		r.levels.view,
@@ -425,7 +424,6 @@ terra Layout:shape()
 		if between(last_cp, EMBED_MIN, EMBED_MAX) then
 			var embed_index = last_cp - EMBED_MIN
 			seg.embed_index = embed_index
-			self.embeds:getat(embed_index, [Embed.empty_const])
 		else
 			--shape the seg excluding trailing linebreak chars.
 			var run_key = GlyphRun {

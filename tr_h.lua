@@ -29,28 +29,24 @@ double renderer_get_mem_font_cache_count(renderer_t*);
 double renderer_get_mem_font_cache_size(renderer_t*);
 double renderer_get_word_subpixel_x_resolution(renderer_t*);
 int32_t renderer_font_face_num(renderer_t*, int32_t);
-void renderer_set_paint_glyph_num(renderer_t*, int32_t);
-typedef struct layout_t layout_t;
-layout_t* renderer_layout(renderer_t*);
-typedef struct Layout Layout;
-typedef struct Embed Embed;
-typedef struct Span Span;
-typedef void (*embed_set_size_func_t) (Layout*, int32_t, Embed*, Span*);
-embed_set_size_func_t renderer_get_embed_set_size_function(renderer_t*);
 double renderer_get_mmapped_font_cache_count(renderer_t*);
+void renderer_set_paint_glyph_num(renderer_t*, int32_t);
 void renderer_set_mem_font_cache_max_size(renderer_t*, double);
 void renderer_set_glyph_cache_max_size(renderer_t*, double);
+double renderer_get_mem_font_cache_max_size(renderer_t*);
 typedef struct _cairo _cairo;
+typedef struct layout_t layout_t;
+typedef struct Embed Embed;
+typedef struct Span Span;
 typedef void (*embed_draw_func_t) (_cairo*, layout_t*, int32_t, Embed*, Span*);
 void renderer_set_embed_draw_function(renderer_t*, embed_draw_func_t);
+layout_t* renderer_layout(renderer_t*);
 void renderer_release(renderer_t*);
-double renderer_get_mem_font_cache_max_size(renderer_t*);
 double renderer_get_glyph_run_cache_count(renderer_t*);
-double renderer_get_glyph_run_cache_max_size(renderer_t*);
 embed_draw_func_t renderer_get_embed_draw_function(renderer_t*);
 double renderer_get_subpixel_x_resolution(renderer_t*);
 double renderer_get_glyph_cache_count(renderer_t*);
-void renderer_set_embed_set_size_function(renderer_t*, embed_set_size_func_t);
+double renderer_get_glyph_run_cache_max_size(renderer_t*);
 double renderer_get_glyph_run_cache_size(renderer_t*);
 int64_t renderer_get_paint_glyph_num(renderer_t*);
 double renderer_get_glyph_cache_max_size(renderer_t*);
@@ -222,7 +218,6 @@ bool layout_get_valid(layout_t*);
 ]]
 local getters = {
 	embed_draw_function = C.renderer_get_embed_draw_function,
-	embed_set_size_function = C.renderer_get_embed_set_size_function,
 	error_function = C.renderer_get_error_function,
 	font_size_resolution = C.renderer_get_font_size_resolution,
 	glyph_cache_count = C.renderer_get_glyph_cache_count,
@@ -242,7 +237,6 @@ local getters = {
 }
 local setters = {
 	embed_draw_function = C.renderer_set_embed_draw_function,
-	embed_set_size_function = C.renderer_set_embed_set_size_function,
 	error_function = C.renderer_set_error_function,
 	font_size_resolution = C.renderer_set_font_size_resolution,
 	glyph_cache_max_size = C.renderer_set_glyph_cache_max_size,

@@ -567,6 +567,7 @@ struct Layer (gettersandsetters) {
 	_y: num;
 	_w: num;
 	_h: num;
+	_baseline: num;
 
 	visible      : bool;
 	operator     : enum;
@@ -643,17 +644,20 @@ struct Layer (gettersandsetters) {
 	hit_test_mask: enum;
 }
 
-terra Layer.methods.invalidate_layout :: {&Layer} -> {}
-terra Layer.methods.invalidate_parent_layout :: {&Layer} -> {}
-terra Layer.methods.invalidate_pixels :: {&Layer} -> {}
-terra Layer.methods.invalidate_background :: {&Layer} -> {}
-terra Layer.methods.invalidate_text :: {&Layer} -> {}
-terra Layer.methods.invalidate_box_shadows :: {&Layer} -> {}
-terra Layer.methods.invalidate_content_shadows :: {&Layer} -> {}
-terra Layer.methods.invalidate_parent_content_shadows :: {&Layer} -> {}
+terra Layer.methods.invalidate_layout                       :: {&Layer} -> {}
+terra Layer.methods.invalidate_parent_layout                :: {&Layer} -> {}
+terra Layer.methods.invalidate_pixels                       :: {&Layer} -> {}
+terra Layer.methods.invalidate_background                   :: {&Layer} -> {}
+terra Layer.methods.invalidate_text                         :: {&Layer} -> {}
+terra Layer.methods.invalidate_box_shadows                  :: {&Layer} -> {}
+terra Layer.methods.invalidate_content_shadows              :: {&Layer} -> {}
+terra Layer.methods.invalidate_parent_content_shadows       :: {&Layer} -> {}
 terra Layer.methods.invalidate_parent_content_shadows_force :: {&Layer} -> {}
+terra Layer.methods.invalidate_embed                        :: {&Layer} -> {}
+terra Layer.methods.invalidate_embed_advance_x              :: {&Layer} -> {}
+terra Layer.methods.invalidate_embed_ascent_descent         :: {&Layer} -> {}
 
-terra Layer.methods.init_layout :: {&Layer} -> {}
+terra Layer.methods.init_layout  :: {&Layer} -> {}
 terra Layer.methods.content_bbox :: {&Layer, bool} -> {num, num, num, num}
 terra Layer.methods.draw_content :: {&Layer, &context, bool} -> {}
 
@@ -737,13 +741,13 @@ terra Layer:move(parent: &Layer, i: int)
 			return false
 		end
 		parent.children:move(i0, i)
-		self:invalidate'pixels parent_layout parent_content_shadows'
+		self:invalidate'pixels parent_layout parent_content_shadows embed'
 	else
 		if parent ~= nil and (parent == self or parent:is_child_of(self)) then
 			return false
 		end
 		--invalidate things in the old hierarchy...
-		self:invalidate'pixels parent_layout parent_content_shadows'
+		self:invalidate'pixels parent_layout parent_content_shadows embed'
 		if self.parent ~= nil then
 			self.parent.children:leak(self.index)
 		end
@@ -754,7 +758,7 @@ terra Layer:move(parent: &Layer, i: int)
 		self._parent = parent
 		self.top_layer = iif(parent ~= nil, parent.top_layer, self)
 		--invalidate things in the new hierarchy...
-		self:invalidate'pixels parent_layout parent_content_shadows_force'
+		self:invalidate'pixels parent_layout parent_content_shadows_force embed'
 	end
 	return true
 end
@@ -815,7 +819,7 @@ terra Layer:set_w(w: num)
 	if self.in_transition then
 		self.final_w = w
 	else
-		self:change(self, '_w', w, 'pixels box_shadows parent_content_shadows')
+		self:change(self, '_w', w, 'pixels box_shadows parent_content_shadows embed_advance_x')
 	end
 end
 terra Layer:set_h(h: num)
@@ -823,7 +827,7 @@ terra Layer:set_h(h: num)
 	if self.in_transition then
 		self.final_h = h
 	else
-		self:change(self, '_h', h, 'pixels box_shadows parent_content_shadows')
+		self:change(self, '_h', h, 'pixels box_shadows parent_content_shadows embed_ascent_descent')
 	end
 end
 
@@ -836,6 +840,28 @@ terra Layer:set_cx(cx: num) self.x = cx - self.w / 2 end
 terra Layer:set_cy(cy: num) self.y = cy - self.h / 2 end
 terra Layer:set_cw(cw: num) self.w = cw + (self.w - self.cw) end
 terra Layer:set_ch(ch: num) self.h = ch + (self.h - self.ch) end
+
+--layer geometry for layers embedded in text ---------------------------------
+
+terra Layer:get_baseline()
+	return self._baseline
+end
+
+terra Layer:set_baseline(v: num)
+	self:change(self, '_baseline', v, 'embed_ascent_descent')
+end
+
+terra Layer:get_ascent()
+	return -self.baseline
+end
+
+terra Layer:get_descent()
+	return -(self.h - self.baseline)
+end
+
+terra Layer:get_advance_x()
+	return self.w
+end
 
 --layer relative geometry & matrix -------------------------------------------
 
@@ -1559,6 +1585,10 @@ terra Layer:invalidate_text()
 	end
 end
 
+terra Layer:get_show_text()
+	return self.layout_solver.show_text
+end
+
 terra Layer:sync_text_shape()
 	self.text.layout:shape()
 end
@@ -1571,38 +1601,11 @@ end
 terra Layer:sync_text_align()
 	self.text.layout.align_h = self.ch
 	self.text.layout:align()
-end
-
---TODO: make tr STATE_EMBEDS_SIZED to avoid updating these on every text box?
-terra Layer:sync_text_embeds()
-	for i = 0, min(self.text.layout.l.embeds.len, self.children.len) do
-		var layout = self.children:at(i)
-
-	end
-end
-
-terra Layer:get_show_text()
-	return self.layout_solver.show_text
+	self.baseline = self.text.layout.baseline
 end
 
 terra Layer:get_text_laid_out()
 	return self.text.layout.align_valid
-end
-
-terra Layer:get_baseline()
-	return self.text.layout.baseline
-end
-
-terra Layer:get_ascent()
-	return -self.baseline
-end
-
-terra Layer:get_descent()
-	return -(self.h - self.baseline)
-end
-
-terra Layer:get_advance_x()
-	return self.w
 end
 
 terra Layer:draw_text(cr: &context)
@@ -1625,13 +1628,6 @@ terra Layer:hit_test_text(cr: &context, x: num, y: num)
 	else
 		return false
 	end
-end
-
-local terra text_embed_set_size(layout: &tr.Layout, embed_index: int, embed: &tr.Embed, span: &tr.Span)
-	var self = [&Layer](layout.l.userdata)
-	var layer = self.children(embed_index, nil)
-	if layer == nil then return end
-	--
 end
 
 local terra text_embed_draw(cr: &context, layout: &tr.Layout, embed_index: int, embed: &tr.Embed, span: &tr.Span)
@@ -1899,6 +1895,27 @@ terra Layer:invalidate_parent_layout()
 	end
 end
 
+terra Layer:invalidate_embed_advance_x()
+	if self.parent ~= nil and self.parent.show_text and self.inlayout then
+		self.parent.text.layout:set_embed_advance_x(self.index, self.advance_x)
+	end
+end
+
+terra Layer:invalidate_embed_ascent_descent()
+	if self.parent ~= nil and self.parent.show_text and self.inlayout then
+		self.parent.text.layout:set_embed_ascent (self.index, self.ascent)
+		self.parent.text.layout:set_embed_descent(self.index, self.descent)
+	end
+end
+
+terra Layer:invalidate_embed()
+	if self.parent ~= nil and self.parent.show_text and self.inlayout then
+		self.parent.text.layout:set_embed_advance_x(self.index, self.advance_x)
+		self.parent.text.layout:set_embed_ascent   (self.index, self.ascent)
+		self.parent.text.layout:set_embed_descent  (self.index, self.descent)
+	end
+end
+
 terra Layer:invalidate_pixels()
 	if self.visible then
 		self.top_layer.pixels_valid = false
@@ -1970,9 +1987,7 @@ end
 --layouting system entry point: called on the top layer.
 --called by null-layout layers to layout themselves and their children.
 local terra null_sync(self: &Layer)
-	--sync children first since we're gonna use them as text embeds.
-	self:sync_layout_children()
-	self:sync_text_embeds()
+	self:sync_layout_children() --used as text embeds.
 	self:sync_text_shape()
 	self:sync_text_wrap()
 	self:sync_text_align()
@@ -2016,9 +2031,7 @@ local null_layout = constant(`LayoutSolver {
 --textbox layout -------------------------------------------------------------
 
 local terra text_sync(self: &Layer)
-	--sync children first since we're gonna use them as text embeds.
-	self:sync_layout_children()
-	self:sync_text_embeds()
+	self:sync_layout_children() --used as text embeds.
 	self:sync_text_shape()
 	self.cw = max(self.text.layout.min_w, self.min_cw)
 	self:sync_text_wrap()
@@ -3102,7 +3115,6 @@ end
 
 terra Lib:init(load_font: FontLoadFunc, unload_font: FontUnloadFunc)
 	self.text_renderer:init(load_font, unload_font)
-	self.text_renderer.embed_set_size_function = text_embed_set_size
 	self.text_renderer.embed_draw_function = text_embed_draw
 	self.grid_occupied:init()
 	self.default_shadow:init(nil)

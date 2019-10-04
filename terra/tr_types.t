@@ -339,7 +339,7 @@ struct Layout (gettersandsetters) {
 	max_ax: num;            --wrap/out:     maximum x-advance
 	h: num;                 --spaceout/out: wrapped height.
 	spaced_h: num;          --spaceout/out: wrapped height incl. line/paragraph spacing.
-	baseline: num;
+	baseline: num;          --spaceout/out: y of first line.
 	min_x: num;
 	first_visible_line: int; --clip/out
 	last_visible_line: int;  --clip/out
@@ -666,7 +666,6 @@ GlyphRunCache = lrucache {size_t = int, key_t = GlyphRun, context_t = &Renderer,
 GlyphCache    = lrucache {size_t = int, key_t = Glyph, context_t = &Renderer, own_keys = true}
 FontCache     = lrucache {size_t = int, key_t = int, val_t = &Font, own_values = true}
 
-EmbedSetSizeFunc = {&Layout, int, &Embed, &Span} -> {}
 EmbedDrawFunc    = {&Layout, &context, int, &Embed, &Span} -> {}
 
 struct Renderer (gettersandsetters) {
@@ -678,10 +677,9 @@ struct Renderer (gettersandsetters) {
 
 	ft_lib: FT_Library;
 
-	load_font               : FontLoadFunc;
-	unload_font             : FontUnloadFunc;
-	embed_set_size_function : EmbedSetSizeFunc;
-	embed_draw_function     : EmbedDrawFunc;
+	load_font           : FontLoadFunc;
+	unload_font         : FontUnloadFunc;
+	embed_draw_function : EmbedDrawFunc;
 
 	glyphs        : GlyphCache;
 	glyph_runs    : GlyphRunCache;

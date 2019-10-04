@@ -103,18 +103,9 @@ end
 terra Renderer:get_error_function(): ErrorFunc return self.error_function end
 terra Renderer:set_error_function(v: ErrorFunc) self.error_function = v end
 
-EmbedSetSizeFunc = {&Layout, int, &Embed, &Span} -> {}
-EmbedDrawFunc    = {&context, &Layout, int, &Embed, &Span} -> {}
+EmbedDrawFunc = {&context, &Layout, int, &Embed, &Span} -> {}
 
-EmbedSetSizeFunc.type.cname = 'embed_set_size_func_t'
-EmbedDrawFunc.type.cname   = 'embed_draw_func_t'
-
-terra Renderer:get_embed_set_size_function(): EmbedSetSizeFunc
-	return EmbedSetSizeFunc(self.r.embed_set_size_function)
-end
-terra Renderer:set_embed_set_size_function(v: EmbedSetSizeFunc)
-	self.r.embed_set_size_function = tr.EmbedSetSizeFunc(v)
-end
+EmbedDrawFunc.type.cname = 'embed_draw_func_t'
 
 terra Renderer:get_embed_draw_function(): EmbedDrawFunc
 	return EmbedDrawFunc(self.r.embed_draw_function)
