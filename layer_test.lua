@@ -80,7 +80,7 @@ local test_texts = {
 	ar = 'السَّلَامُ عَلَيْكُمْ‎',
 	ch = '这是一些中文文本',
 	par = u'Hey\nYou&ps;New Paragraph',
-	embed = u'a\u{100000}&zwsp;&zwsp;&zwsp;b',
+	embed = u'a\u{100000}\u{100001}b',
 }
 local test_text_names = glue.index(test_texts)
 

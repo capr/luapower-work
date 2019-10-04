@@ -34,13 +34,13 @@ terra Renderer:paint_glyph_run_subseg(cr: &context, run: &GlyphRun, sub: &SubSeg
 	inc(self.paint_glyph_num, run.glyphs.len)
 end
 
-terra Layout:draw_embed(cr: &context, embed_i: int, embed: &Embed, span: &Span)
+terra Layout:draw_embed(cr: &context, x: num, y: num, embed_i: int, embed: &Embed, span: &Span, for_shadow: bool)
 	if self.r.embed_draw_function ~= nil then
-		self.r.embed_draw_function(self, cr, embed_i, embed, span)
+		self.r.embed_draw_function(cr, x, y, self, embed_i, embed, span, for_shadow)
 	end
 end
 
-terra Layout:paint_text(cr: &context)
+terra Layout:paint_text(cr: &context, for_shadow: bool)
 
 	var segs = &self.segs
 	var lines = &self.lines
@@ -58,7 +58,7 @@ terra Layout:paint_text(cr: &context)
 					var embed_index = seg.embed_index
 					var embed = self.embeds:at(embed_index, nil)
 					if embed ~= nil then
-						self:draw_embed(cr, embed_index, embed, seg.span)
+						self:draw_embed(cr, x, y, embed_index, embed, seg.span, for_shadow)
 					end
 				else
 					var run = self:seg_glyph_run(seg)

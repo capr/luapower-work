@@ -4,16 +4,59 @@ return {
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
-		h=145,
+		children={
+			{
+				background_color=4278519137,
+				background_type=1,
+				border_width_bottom=1,
+				border_width_left=1,
+				border_width_right=1,
+				border_width_top=1,
+				h=39,
+				span_count=1,
+				text_spans={
+					{
+						span_font='OpenSans-Regular.ttf',
+						span_font_size=22
+					}
+				},
+				text_utf8='abc',
+				w=85
+			},
+			{
+				background_color=570482798,
+				background_type=1,
+				border_width_bottom=1,
+				border_width_left=1,
+				border_width_right=1,
+				border_width_top=1,
+				h=98,
+				layout_type=1,
+				padding_bottom=17.5,
+				padding_left=17.5,
+				padding_right=17.5,
+				padding_top=17.5,
+				span_count=1,
+				text_spans={
+					{
+						span_font='Amiri-Regular.ttf',
+						span_font_size=35
+					}
+				},
+				text_utf8='xyz',
+				w=82
+			}
+		},
+		h=464,
 		layout_type=1,
-		min_cw=328,
+		min_cw=352.5,
 		span_count=1,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=3,
-				text_cursor_sel_offset=3,
-				text_cursor_x=195
+				text_cursor_offset=14,
+				text_cursor_sel_offset=14,
+				text_cursor_x=357
 			}
 		},
 		text_spans={
@@ -23,12 +66,12 @@ return {
 				span_font_size=100
 			}
 		},
-		text_utf8='a\244\128\128\128b',
-		w=328,
+		text_utf8='abcd \244\128\128\128 xyz\244\128\128\129123',
+		w=352.5,
 		x=100,
 		y=100
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Layout'
 }

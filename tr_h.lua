@@ -38,7 +38,7 @@ typedef struct _cairo _cairo;
 typedef struct layout_t layout_t;
 typedef struct Embed Embed;
 typedef struct Span Span;
-typedef void (*embed_draw_func_t) (_cairo*, layout_t*, int32_t, Embed*, Span*);
+typedef void (*embed_draw_func_t) (_cairo*, double, double, layout_t*, int32_t, Embed*, Span*, bool);
 void renderer_set_embed_draw_function(renderer_t*, embed_draw_func_t);
 layout_t* renderer_layout(renderer_t*);
 void renderer_release(renderer_t*);
@@ -59,6 +59,7 @@ void layout_set_lang(layout_t*, int32_t, int32_t, int8_t*);
 int32_t layout_get_cursor_xs_len(layout_t*);
 void layout_set_hardline_spacing(layout_t*, double);
 int32_t layout_get_selected_text_utf8_len(layout_t*, int32_t);
+int32_t layout_get_embed_count(layout_t*);
 int8_t* layout_get_span_script(layout_t*, int32_t);
 void layout_set_caret_thickness(layout_t*, int32_t, double);
 void layout_set_embed_ascent(layout_t*, int32_t, double);
@@ -71,6 +72,7 @@ int32_t layout_get_cursor_count(layout_t*);
 void layout_set_span_script(layout_t*, int32_t, int8_t*);
 double layout_get_hardline_spacing(layout_t*);
 int32_t layout_insert_text(layout_t*, int32_t, uint32_t*, int32_t);
+void layout_set_embed_count(layout_t*, int32_t);
 void layout_set_line_spacing(layout_t*, double);
 double layout_get_x(layout_t*);
 void layout_remove_selected_text(layout_t*, int32_t);
@@ -103,8 +105,8 @@ void layout_set_span_font_size(layout_t*, int32_t, double);
 void layout_insert_text_at_cursor(layout_t*, int32_t, uint32_t*, int32_t);
 void layout_set_selection_color(layout_t*, int32_t, uint32_t);
 void layout_layout(layout_t*);
-float layout_get_embed_ascent(layout_t*, int32_t);
-bool layout_get_pixels_valid(layout_t*);
+double layout_get_embed_ascent(layout_t*, int32_t);
+bool layout_get_span_nowrap(layout_t*, int32_t);
 double layout_get_clip_x(layout_t*);
 double layout_get_max_w(layout_t*);
 bool layout_get_align_valid(layout_t*);
@@ -121,44 +123,44 @@ void layout_set_x(layout_t*, double);
 double layout_get_y(layout_t*);
 int32_t layout_get_cursor_sel_offset(layout_t*, int32_t);
 double* layout_get_cursor_xs(layout_t*);
-bool layout_has_font_face_index(layout_t*, int32_t, int32_t);
 double layout_get_baseline(layout_t*);
-int8_t* layout_get_span_features(layout_t*, int32_t);
+bool layout_has_font_face_index(layout_t*, int32_t, int32_t);
 int32_t layout_get_selected_text_utf8(layout_t*, int32_t, int8_t*, int32_t);
-double layout_get_align_w(layout_t*);
-float layout_get_embed_descent(layout_t*, int32_t);
+int8_t* layout_get_span_features(layout_t*, int32_t);
+uint32_t layout_get_span_color(layout_t*, int32_t);
 int32_t layout_get_selected_text_len(layout_t*, int32_t);
+double layout_get_embed_descent(layout_t*, int32_t);
 void layout_insert_text_utf8_at_cursor(layout_t*, int32_t, int8_t*, int32_t);
 int32_t layout_get_selection_first_span(layout_t*, int32_t);
 void layout_cursor_move_near_page(layout_t*, int32_t, double, double, bool);
-void layout_set_align_y(layout_t*, int8_t);
 void layout_cursor_move_near_line(layout_t*, int32_t, double, double, bool);
+void layout_set_align_y(layout_t*, int8_t);
 void layout_cursor_move_near(layout_t*, int32_t, int8_t, int8_t, int8_t, bool);
 bool layout_has_opacity(layout_t*, int32_t, int32_t);
 void layout_set_selection_opacity(layout_t*, int32_t, double);
 void layout_set_caret_opacity(layout_t*, int32_t, double);
+void layout_set_insert_mode(layout_t*, int32_t, bool);
 void layout_set_align_x(layout_t*, int8_t);
-float layout_get_embed_advance_x(layout_t*, int32_t);
+double layout_get_embed_advance_x(layout_t*, int32_t);
 renderer_t* layout_get_r(layout_t*);
 int32_t layout_get_text_utf8_len(layout_t*);
-void layout_set_insert_mode(layout_t*, int32_t, bool);
 void layout_set_caret_visible(layout_t*, int32_t, bool);
 void layout_set_cursor_sel_offset(layout_t*, int32_t, double);
 void layout_set_cursor_which(layout_t*, int32_t, int8_t);
+void layout_set_cursor_offset(layout_t*, int32_t, double);
 void layout_set_dir(layout_t*, int8_t);
 int32_t layout_get_span_offset(layout_t*, int32_t);
-void layout_set_cursor_offset(layout_t*, int32_t, double);
 uint32_t layout_get_selection_color(layout_t*, int32_t);
+bool layout_has_script(layout_t*, int32_t, int32_t);
 void layout_set_maxlen(layout_t*, int32_t);
 void layout_release(layout_t*);
-bool layout_has_script(layout_t*, int32_t, int32_t);
 double layout_get_caret_opacity(layout_t*, int32_t);
 bool layout_get_insert_mode(layout_t*, int32_t);
 bool layout_get_selection_visible(layout_t*, int32_t);
+double layout_get_cursor_x(layout_t*, int32_t);
 void layout_shape(layout_t*);
 double layout_get_span_opacity(layout_t*, int32_t);
 void layout_set_embed_advance_x(layout_t*, int32_t, double);
-double layout_get_cursor_x(layout_t*, int32_t);
 int32_t layout_get_cursor_offset(layout_t*, int32_t);
 void layout_remove_trailing_spans(layout_t*);
 bool layout_has_operator(layout_t*, int32_t, int32_t);
@@ -169,27 +171,27 @@ int32_t layout_set_cursor_count(layout_t*, int32_t);
 double layout_get_min_w(layout_t*);
 void layout_set_span_paragraph_dir(layout_t*, int32_t, int32_t);
 void layout_set_script(layout_t*, int32_t, int32_t, int8_t*);
-double layout_get_clip_w(layout_t*);
+void layout_paint(layout_t*, _cairo*, bool);
 void layout_set_operator(layout_t*, int32_t, int32_t, int8_t);
 void layout_load_cursor_xs(layout_t*, int32_t);
 bool layout_get_min_size_valid(layout_t*);
-void layout_set_clip_extents(layout_t*, double, double, double, double);
-uint32_t layout_get_span_color(layout_t*, int32_t);
+double layout_get_align_w(layout_t*);
+bool layout_get_pixels_valid(layout_t*);
 int8_t layout_get_dir(layout_t*);
-void layout_align(layout_t*);
+void layout_set_clip_extents(layout_t*, double, double, double, double);
 uint32_t* layout_get_selected_text(layout_t*, int32_t);
 int8_t* layout_get_span_lang(layout_t*, int32_t);
 void layout_wrap(layout_t*);
 void layout_set_font_size(layout_t*, int32_t, int32_t, double);
-int32_t layout_get_maxlen(layout_t*);
+void layout_align(layout_t*);
 void layout_set_span_lang(layout_t*, int32_t, int8_t*);
 bool layout_has_font_size(layout_t*, int32_t, int32_t);
 bool layout_get_visible(layout_t*);
+int32_t layout_get_span_paragraph_dir(layout_t*, int32_t);
 void layout_set_text(layout_t*, uint32_t*, int32_t);
 int32_t layout_get_text_utf8(layout_t*, int8_t*, int32_t);
 uint32_t* layout_get_text(layout_t*);
 void layout_free(layout_t*);
-void layout_paint(layout_t*, _cairo*);
 bool layout_has_lang(layout_t*, int32_t, int32_t);
 typedef struct {
 	double _0;
@@ -199,6 +201,7 @@ typedef struct {
 } double4;
 double4 layout_bbox(layout_t*);
 void layout_set_span_features(layout_t*, int32_t, int8_t*);
+double layout_get_clip_w(layout_t*);
 void layout_set_y(layout_t*, double);
 void layout_set_span_nowrap(layout_t*, int32_t, bool);
 int32_t layout_get_span_font_id(layout_t*, int32_t);
@@ -206,9 +209,8 @@ void layout_set_text_utf8(layout_t*, int8_t*, int32_t);
 void layout_set_font_face_index(layout_t*, int32_t, int32_t, int32_t);
 bool layout_get_offsets_valid(layout_t*);
 void layout_clip(layout_t*);
-int32_t layout_get_span_paragraph_dir(layout_t*, int32_t);
+int32_t layout_get_maxlen(layout_t*);
 void layout_set_nowrap(layout_t*, int32_t, int32_t, bool);
-bool layout_get_span_nowrap(layout_t*, int32_t);
 bool layout_has_font_id(layout_t*, int32_t, int32_t);
 void layout_set_span_font_id(layout_t*, int32_t, int32_t);
 void layout_set_span_offset(layout_t*, int32_t, int32_t);
@@ -283,6 +285,7 @@ local getters = {
 	cursor_xs = C.layout_get_cursor_xs,
 	cursor_xs_len = C.layout_get_cursor_xs_len,
 	dir = C.layout_get_dir,
+	embed_count = C.layout_get_embed_count,
 	hardline_spacing = C.layout_get_hardline_spacing,
 	line_spacing = C.layout_get_line_spacing,
 	max_w = C.layout_get_max_w,
@@ -314,6 +317,7 @@ local setters = {
 	clip_y = C.layout_set_clip_y,
 	cursor_count = C.layout_set_cursor_count,
 	dir = C.layout_set_dir,
+	embed_count = C.layout_set_embed_count,
 	hardline_spacing = C.layout_set_hardline_spacing,
 	line_spacing = C.layout_set_line_spacing,
 	maxlen = C.layout_set_maxlen,

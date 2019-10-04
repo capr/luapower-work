@@ -345,7 +345,6 @@ struct Layout (gettersandsetters) {
 	last_visible_line: int;  --clip/out
 	_min_w: num;             --get_min_w/cache
 	_max_w: num;             --get_max_w/cache
-	userdata: &opaque;
 }
 
 terra arr_Span:free_element(span: &Span)
@@ -666,7 +665,7 @@ GlyphRunCache = lrucache {size_t = int, key_t = GlyphRun, context_t = &Renderer,
 GlyphCache    = lrucache {size_t = int, key_t = Glyph, context_t = &Renderer, own_keys = true}
 FontCache     = lrucache {size_t = int, key_t = int, val_t = &Font, own_values = true}
 
-EmbedDrawFunc    = {&Layout, &context, int, &Embed, &Span} -> {}
+EmbedDrawFunc = {&context, double, double, &Layout, int, &Embed, &Span, bool} -> {}
 
 struct Renderer (gettersandsetters) {
 

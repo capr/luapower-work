@@ -103,8 +103,7 @@ end
 terra Renderer:get_error_function(): ErrorFunc return self.error_function end
 terra Renderer:set_error_function(v: ErrorFunc) self.error_function = v end
 
-EmbedDrawFunc = {&context, &Layout, int, &Embed, &Span} -> {}
-
+EmbedDrawFunc = {&context, double, double, &Layout, int, &Embed, &Span, bool} -> {}
 EmbedDrawFunc.type.cname = 'embed_draw_func_t'
 
 terra Renderer:get_embed_draw_function(): EmbedDrawFunc
@@ -425,16 +424,16 @@ terra Layout:layout()
 	self:clip()
 end
 
-terra Layout:paint(cr: &context)
+terra Layout:paint(cr: &context, for_shadow: bool)
 	assert(self.state >= STATE_PAINTED - 1)
 	self.state = STATE_PAINTED
 	if self._valid then --paint() must paint from STATE_PAINTED too.
 		for i,c in self.cursors do
-			c:draw_selection(cr, true)
+			c:draw_selection(cr, true, for_shadow)
 		end
-		self.l:paint_text(cr)
+		self.l:paint_text(cr, for_shadow)
 		for i,c in self.cursors do
-			c:draw_caret(cr)
+			c:draw_caret(cr, for_shadow)
 		end
 	end
 end
@@ -1030,15 +1029,28 @@ end
 
 --embed editing --------------------------------------------------------------
 
+terra Layout:get_embed_count(): int
+	return self.l.embeds.len
+end
+
+terra Layout:set_embed_count(n: int)
+	if self:checkcount('embed_count', n, MAX_EMBED_COUNT) then
+		if self.l.embeds.len ~= n then
+			self.l.embeds:setlen(n, [Embed.empty_const])
+			self:invalidate'wrap'
+		end
+	end
+end
+
 local get_metrics = macro(function(self, i, FIELD)
 	return quote
 		self:checkindex('embed_index', i, MAX_EMBED_COUNT)
 		in self.l.embeds:at(i, &[Embed.empty_const]).metrics.[FIELD:asvalue()]
 	end
 end)
-terra Layout:get_embed_advance_x(i: int) return get_metrics(self, i, 'advance_x') end
-terra Layout:get_embed_ascent   (i: int) return get_metrics(self, i, 'ascent'   ) end
-terra Layout:get_embed_descent  (i: int) return get_metrics(self, i, 'descent'  ) end
+terra Layout:get_embed_advance_x(i: int): num return get_metrics(self, i, 'advance_x') end
+terra Layout:get_embed_ascent   (i: int): num return get_metrics(self, i, 'ascent'   ) end
+terra Layout:get_embed_descent  (i: int): num return get_metrics(self, i, 'descent'  ) end
 
 local set_metrics = macro(function(self, i, FIELD, v, INVALID)
 	return quote
@@ -1048,7 +1060,10 @@ local set_metrics = macro(function(self, i, FIELD, v, INVALID)
 		end
 	end
 end)
-terra Layout:set_embed_advance_x(i: int, v: num) set_metrics(self, i, 'advance_x', v, 'wrap') end
+terra Layout:set_embed_advance_x(i: int, v: num)
+	set_metrics(self, i, 'advance_x', v, 'wrap')
+	set_metrics(self, i, 'wrap_advance_x', v, 'wrap')
+end
 terra Layout:set_embed_ascent   (i: int, v: num) set_metrics(self, i, 'ascent'   , v, 'wrap') end
 terra Layout:set_embed_descent  (i: int, v: num) set_metrics(self, i, 'descent'  , v, 'wrap') end
 

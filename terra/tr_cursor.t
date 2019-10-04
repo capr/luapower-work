@@ -510,7 +510,7 @@ end
 
 --cursor drawing -------------------------------------------------------------
 
-terra Cursor:draw_caret(cr: &context)
+terra Cursor:draw_caret(cr: &context, for_shadow: bool)
 	if not self.caret_visible then return end
 	var x, y, w, h = self:rect()
 	x = snap(x, 1)
@@ -585,7 +585,7 @@ terra Cursor:get_is_selection_empty()
 	return self.state.sel_offset == self.state.offset
 end
 
-terra Cursor:draw_selection(cr: &context, spaced: bool)
+terra Cursor:draw_selection(cr: &context, spaced: bool, for_shadow: bool)
 	if not self.selection_visible then return end
 	if self.is_selection_empty then return end
 	var p1: Pos, p2: Pos

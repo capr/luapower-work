@@ -179,7 +179,10 @@ do end --layer new/release
 terra Layer:init(lib: &Lib, parent: &Layer)
 	self.l:init(&lib.l, &parent.l)
 end
-terra Layer:free() self.l:free() end
+
+terra Layer:free()
+	self.l:free()
+end
 
 terra Layer:release()
 	if self.l.parent ~= nil then
