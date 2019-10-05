@@ -126,6 +126,7 @@ terra Layout:free()
 	self.segs:free()
 	self.text:free()
 	self.spans:free()
+	self.embeds:free()
 end
 
 return _M

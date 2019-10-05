@@ -1061,11 +1061,11 @@ local set_metrics = macro(function(self, i, FIELD, v, INVALID)
 	end
 end)
 terra Layout:set_embed_advance_x(i: int, v: num)
-	set_metrics(self, i, 'advance_x', v, 'wrap')
+	set_metrics(self, i, 'advance_x'     , v, 'wrap')
 	set_metrics(self, i, 'wrap_advance_x', v, 'wrap')
 end
-terra Layout:set_embed_ascent   (i: int, v: num) set_metrics(self, i, 'ascent'   , v, 'wrap') end
-terra Layout:set_embed_descent  (i: int, v: num) set_metrics(self, i, 'descent'  , v, 'wrap') end
+terra Layout:set_embed_ascent (i: int, v: num) set_metrics(self, i, 'ascent' , v, 'wrap') end
+terra Layout:set_embed_descent(i: int, v: num) set_metrics(self, i, 'descent', v, 'wrap') end
 
 --layouting helper APIs ------------------------------------------------------
 

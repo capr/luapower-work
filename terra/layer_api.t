@@ -186,8 +186,8 @@ end
 
 terra Layer:release()
 	if self.l.parent ~= nil then
+		self.l:invalidate'parent_layout'
 		self.l.parent.children:remove(self.l.index)
-		self.l.parent:invalidate'layout'
 	else
 		self.l:free()
 	end
@@ -233,7 +233,7 @@ local new_child = macro(function(self, e)
 end)
 terra Layer:set_child_count(n: int)
 	self:changelen(self.l.children, 'child_count', n, MAX_CHILD_COUNT, new_child,
-		'layout pixels content_shadows parent_content_shadows')
+		'layout embeds pixels content_shadows parent_content_shadows')
 end
 
 do end --geometry
@@ -941,7 +941,7 @@ do end --layouts
 terra Layer:get_visible(): bool return self.l.visible end
 terra Layer:set_visible(v: bool)
 	if self:change(self.l, 'visible', v) then
-		self.l:invalidate'visibility'
+		self.l:invalidate'parent_layout_ignore_visible parent_embeds_ignore_visible pixels_ignore_visible'
 	end
 end
 
@@ -951,7 +951,7 @@ terra Layer:set_layout_type(v: enum)
 		var show_text = self.l.show_text
 		self:change(self.l, 'layout_type', v, 'layout')
 		if self.l.show_text ~= show_text then
-			self.l:invalidate'pixels'
+			self.l:invalidate'embeds pixels'
 		end
 	end
 end

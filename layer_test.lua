@@ -487,7 +487,7 @@ local function enum_map(prop, prefix, options)
 		elseif prefix then --user-specified mapping
 			glue.update(t, prefix)
 			glue.update(t, glue.index(prefix))
-		else
+		else --null mapping
 			for i,v in ipairs(options) do
 				t[v] = v
 			end
@@ -549,6 +549,22 @@ local function toggle(prop, ...)
 	if testui:button(id, nil, v) then
 		set(e, prop, not v, ...)
 	end
+end
+
+local function parent_map(e)
+	void = ffi.cast('layer_t*', nil)
+	local m = {[void] = 'nil', ['nil'] = void}
+	local n = {'nil'}
+	local i = 2
+	while e ~= nil do
+		local s = 'parent '..i
+		m[e.parent] = s
+		m[s] = e.parent
+		n[i] = s
+		i = i + 1
+		e = e.parent
+	end
+	return m, n
 end
 
 --test UI window -------------------------------------------------------------
@@ -685,6 +701,9 @@ function testui:repaint()
 		slidex('w')
 		slidey('h')
 		self:popgroup()
+
+		local parent_map, parent_names = parent_map(e)
+		choose('pos_parent', parent_map, parent_names)
 
 		self:heading'Drawing'
 
