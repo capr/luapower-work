@@ -519,7 +519,7 @@ terra Cursor:draw_caret(cr: &context, for_shadow: bool)
 	var seg = self.pos.seg
 	var color = iif(seg ~= nil, seg.span.color, self.layout.spans:at(0).color)
 	cr:operator(OPERATOR_XOR)
-	self.layout.r:paint_rect(cr, x, y, w, h, color, self.caret_opacity)
+	self.layout.r:draw_rect(cr, x, y, w, h, color, self.caret_opacity)
 end
 
 --selection drawing ----------------------------------------------------------
@@ -573,8 +573,8 @@ terra Layout:line_visible(line_i: int)
 	return line_i >= self.first_visible_line and line_i <= self.last_visible_line
 end
 
-terra Cursor:paint_selection_rect(cr: &context, x: num, y: num, w: num, h: num)
-	self.layout.r:paint_rect(cr, x, y, w, h, self.selection_color, self.selection_opacity)
+terra Cursor:draw_selection_rect(cr: &context, x: num, y: num, w: num, h: num)
+	self.layout.r:draw_rect(cr, x, y, w, h, self.selection_color, self.selection_opacity)
 end
 
 terra Cursor:get_sel_pos()
@@ -612,12 +612,12 @@ terra Cursor:draw_selection(cr: &context, spaced: bool, for_shadow: bool)
 				var failed: bool
 				x1, w1, failed = merge_xw(x, w, x1, w1)
 				if failed then
-					self:paint_selection_rect(cr, line_x + x, line_y, w, line_h)
+					self:draw_selection_rect(cr, line_x + x, line_y, w, line_h)
 				end
 				x, w = x1, w1
 				seg = self.layout.segs:next(seg, nil)
 			end
-			self:paint_selection_rect(cr, line_x + x, line_y, w, line_h)
+			self:draw_selection_rect(cr, line_x + x, line_y, w, line_h)
 		else
 			var next_line = self.layout.lines:at(line_index + 1, nil)
 			seg = iif(next_line ~= nil, next_line.first, nil)

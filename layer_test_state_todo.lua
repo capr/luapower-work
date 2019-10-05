@@ -14,15 +14,15 @@ return {
 		padding_left=26.5,
 		padding_right=26.5,
 		padding_top=26.5,
-		span_count=4,
+		span_count=14,
 		text_align_x=1,
 		text_align_y=2,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=312,
-				text_cursor_sel_offset=312,
-				text_cursor_x=247.5
+				text_cursor_offset=212,
+				text_cursor_sel_offset=212,
+				text_cursor_x=134.828125
 			}
 		},
 		text_spans={
@@ -31,7 +31,9 @@ return {
 				span_font_face_index=38,
 				span_font_size=37,
 				span_lang='en-us',
-				span_text_color=255
+				span_text_color=255,
+				span_underline=true,
+				span_underline_color=255
 			},
 			{
 				span_font='SourceHanSans.ttc',
@@ -39,6 +41,24 @@ return {
 				span_font_size=15,
 				span_lang='en-us',
 				span_offset=5,
+				span_text_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=14,
+				span_text_color=255,
+				span_underline=true,
+				span_underline_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=20,
 				span_text_color=255
 			},
 			{
@@ -56,9 +76,81 @@ return {
 				span_lang='en-us',
 				span_offset=35,
 				span_text_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=50,
+				span_text_color=255,
+				span_underline=true,
+				span_underline_color=1258346239
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=84,
+				span_text_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=119,
+				span_text_color=255,
+				span_underline=true,
+				span_underline_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=127,
+				span_text_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=175,
+				span_text_color=989915903,
+				span_underline=true,
+				span_underline_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=184,
+				span_text_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=205,
+				span_text_color=255,
+				span_underline=true,
+				span_underline_color=255
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=219,
+				span_text_color=255
 			}
 		},
-		text_utf8='TODO:\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement embeds.\r- implement tab-stops.\r- implement underline and strike-through (simple version).\r- test color fonts and emoji scaling.\r- \r\n',
+		text_utf8='TODO:\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops.\r- implement underline and strike-through (simple version).\r- test color fonts and emoji scaling.\r- \r\n',
 		w=794.5,
 		x=61,
 		y=39

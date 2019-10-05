@@ -104,7 +104,7 @@ terra test()
 				for frame_i = 0, paint_times do
 					--cr:rgb(0, 0, 0)
 					--cr:paint()
-					layout:paint(cr)
+					layout:paint(cr, false)
 					if glyphs_per_frame == -1 then
 						glyphs_per_frame = r.paint_glyph_num
 					end

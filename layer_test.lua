@@ -244,6 +244,9 @@ local function serialize_layer(e)
 		span_text_color        =1,
 		span_text_opacity      =1,
 		span_text_operator     =1,
+		span_underline         =1,
+		span_underline_color   =1,
+		span_underline_opacity =1,
 	})
 	t.text_cursor_count = e.text_cursor_count
 	t.text_cursors      = list(e, e.text_cursor_count, {
@@ -945,6 +948,9 @@ function testui:repaint()
 				slideo('selected_text_opacity' , i, 'selected_text_has_opacity')
 				choose('selected_text_operator', 'operator_',
 					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i, 'selected_text_has_operator')
+				toggle('selected_text_underline', i, 'selected_text_has_underline')
+				pickcolor('selected_text_underline_color', i, 'selected_text_has_underline_color')
+				slideo('selected_text_underline_opacity' , i, 'selected_text_has_underline_opacity')
 			else
 				self:heading'SPANS ARE INVALID'
 			end
@@ -973,6 +979,9 @@ function testui:repaint()
 			pickcolor('span_text_color'   , i)
 			slideo('span_text_opacity'    , i)
 			choose('span_text_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'}, i)
+			toggle('span_underline'          , i)
+			pickcolor('span_underline_color' , i)
+			slideo('span_underline_opacity'  , i)
 		end
 
 	elseif tab == 'Layout' then

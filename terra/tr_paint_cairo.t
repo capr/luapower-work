@@ -92,12 +92,14 @@ terra Renderer:paint_surface_clipped(
 	cr:restore()
 end
 
-terra Renderer:paint_rect(cr: &context,
+terra Renderer:draw_rect(cr: &context,
 	x: num, y: num, w: num, h: num,
 	color: color, opacity: num
 )
 	cr:rgba(color:apply_alpha(opacity))
 	cr:new_path()
+	y = round(y)
+	h = round(y + h) - y
 	cr:rectangle(x, y, w, h)
 	cr:fill()
 end

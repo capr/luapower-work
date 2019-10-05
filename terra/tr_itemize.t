@@ -488,18 +488,19 @@ terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
 		o1 = run.cursors.offsets(o1)
 		o2 = run.cursors.offsets(o2)
 		--find the glyph range covering o1..(o2-1).
-		var i1, clip1 = run:glyph_index_at_offset(o1)
-		var i2, clip2 = run:glyph_index_at_offset(o2)
-		if clip2 then inc(i2) end --think about it
-		var clip_left  = iif(clip1, run.cursors.xs(o1), -1e6)
-		var clip_right = iif(clip2, run.cursors.xs(o2),  1e6)
+		var i1, clip_left  = run:glyph_index_at_offset(o1)
+		var i2, clip_right = run:glyph_index_at_offset(o2)
+		if clip_right then inc(i2) end --think about it
+		var x1 = run.cursors.xs(o1)
+		var x2 = run.cursors.xs(o2)
 		seg.subsegs:add(SubSeg {
 			span = span,
 			glyph_index1 = i1,
 			glyph_index2 = i2,
-			clip_left = clip_left,
+			x1 = x1,
+			x2 = x2,
+			clip_left  = clip_left,
 			clip_right = clip_right,
-			clip = clip1 or clip2,
 		})
 		if next_offset >= eof then
 			break

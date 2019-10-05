@@ -173,7 +173,10 @@ struct Span (gettersandsetters) {
 	color: color;
 	operator: enum; --blending operator.
 	paragraph_dir: enum; --bidi dir override for current paragraph.
-	nowrap: bool; --disable word wrapping for this span.
+	nowrap: bool; --disable word wrapping inside this span.
+	underline: bool;
+	underline_color: color;
+	underline_opacity: num;
 }
 fixpointfields(Span)
 
@@ -184,13 +187,16 @@ Span.empty_const = constant(`Span {
 	font_face_index = 0;
 	font_size_16_6 = 0;
 	features = [hb_feature_arr_t.empty];
-	script = 0;
 	lang = nil;
+	script = 0;
+	opacity = 1;
+	color = DEFAULT_TEXT_COLOR;
+	operator = DEFAULT_TEXT_OPERATOR;
 	paragraph_dir = 0;
 	nowrap = false;
-	color = DEFAULT_TEXT_COLOR;
-	opacity = 1;
-	operator = DEFAULT_TEXT_OPERATOR;
+	underline = false;
+	underline_color = DEFAULT_TEXT_COLOR;
+	underline_opacity = 1;
 })
 
 terra Span:init()
@@ -235,9 +241,10 @@ struct SubSeg {
 	span: &Span;
 	glyph_index1: int16;
 	glyph_index2: int16;
-	clip_left: num;
-	clip_right: num;
-	clip: bool;
+	x1: num;
+	x2: num;
+	clip_left: bool;
+	clip_right: bool;
 }
 
 struct Layout;

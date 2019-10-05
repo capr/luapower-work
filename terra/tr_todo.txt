@@ -21,12 +21,6 @@ High priority
 - underline & strikethrough
 	Possible enhancements: color, thickness, style (single, double, wavy, image), dashes.
 
-- embeds
-	Segments are all snippets of some linear text + accompanying metadata,
-	but why not render/navigate/hit test/edit arbitrary widgets too?
-	This would make it easy to add inline buttons and drop-downs for instance,
-	or maybe even implement rich-text stuff like bullet lists this way?
-
 - partial reshaping on text editing
 
 - tofu box with hex codepoint for missing glyphs.

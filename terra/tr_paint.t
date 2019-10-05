@@ -5,6 +5,7 @@ if not ... then require'terra/tr_test'; return end
 
 setfenv(1, require'terra/tr_types')
 require'terra/tr_rasterize'
+require'terra/tr_clip'
 
 terra Renderer:paint_glyph_run(cr: &context, run: &GlyphRun, face: &FontFace, ax: num, ay: num)
 	if run.glyphs.len > 1 and run.font_size < 50 then
@@ -20,9 +21,9 @@ end
 
 terra Renderer:paint_glyph_run_subseg(cr: &context, run: &GlyphRun, sub: &SubSeg, ax: num, ay: num)
 	var surfaces = self:glyph_surfaces(run, sub.glyph_index1, sub.glyph_index2, sub.span.face, ax, ay)
-	if sub.clip then
-		var clip1 = ax + sub.clip_left
-		var clip2 = ax + sub.clip_right
+	if sub.clip_left or sub.clip_right then
+		var clip1 = ax + sub.x1
+		var clip2 = ax + sub.x2
 		for sr, sx, sy in surfaces do
 			self:paint_surface_clipped(cr, sr, sx, sy, clip1, clip2)
 		end
@@ -45,8 +46,7 @@ terra Layout:paint_text(cr: &context, for_shadow: bool)
 	var segs = &self.segs
 	var lines = &self.lines
 
-	for line_i = self.first_visible_line, self.last_visible_line + 1 do
-		var line = lines:at(line_i)
+	for _,line in self:visible_lines() do
 
 		var ax = self.x + line.x
 		var ay = self.y + self.baseline + line.y
@@ -76,4 +76,3 @@ terra Layout:paint_text(cr: &context, for_shadow: bool)
 		end
 	end
 end
-

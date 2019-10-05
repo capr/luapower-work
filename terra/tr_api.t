@@ -50,6 +50,7 @@ require'terra/tr_paint_cairo'
 require'terra/utf8'
 require'terra/rawstringview'
 require'terra/tr_cursor'
+require'terra/tr_underline'
 local tr = require'terra/tr'
 setfenv(1, require'terra/low'.module(tr))
 
@@ -432,6 +433,7 @@ terra Layout:paint(cr: &context, for_shadow: bool)
 			c:draw_selection(cr, true, for_shadow)
 		end
 		self.l:paint_text(cr, for_shadow)
+		self.l:draw_underlines(cr, for_shadow)
 		for i,c in self.cursors do
 			c:draw_caret(cr, for_shadow)
 		end
@@ -609,6 +611,9 @@ SPAN_FIELDS = {
 	'color',
 	'opacity',
 	'operator',
+	'underline',
+	'underline_color',
+	'underline_opacity',
 }
 local SPAN_FIELD_INDICES = index(SPAN_FIELDS)
 
@@ -824,6 +829,14 @@ terra Span:load_font_size(layout: &tr.Layout, v: double)
 	return change(self, 'font_size', clamp(v, 0, MAX_FONT_SIZE))
 end
 
+terra Span:save_underline_color(layout: &tr.Layout)
+	return self.underline_color.uint
+end
+
+terra Span:load_underline_color(layout: &tr.Layout, v: uint32)
+	return change(self.underline_color, 'uint', v)
+end
+
 SPAN_FIELD_TYPES = {
 	font_id           = int       ,
 	font_face_index   = int       ,
@@ -836,6 +849,9 @@ SPAN_FIELD_TYPES = {
 	color             = uint32    ,
 	opacity           = double    ,
 	operator          = enum      ,
+	underline         = bool      ,
+	underline_color   = uint32    ,
+	underline_opacity = double    ,
 }
 
 local SPAN_FIELD_INVALIDATE = {
@@ -847,6 +863,9 @@ local SPAN_FIELD_INVALIDATE = {
 	color             = 'paint',
 	opacity           = 'paint',
 	operator          = 'paint',
+	underline         = 'paint',
+	underline_color   = 'paint',
+	underline_opacity = 'paint',
 }
 
 --Generate getters and setters for each text attr that can be set on an offset range.
