@@ -383,11 +383,13 @@ terra Layout:shape()
 
 		var last_cp = self.text(offset + len - 1)
 		var linebreak_code = r.linebreaks(offset + len - 1)
-		var linebreak = iif(linebreak_code == LINEBREAK_MUSTBREAK,
-			iif(last_cp == PS, BREAK_PARA, BREAK_LINE),
-			iif(linebreak_code == LINEBREAK_ALLOWBREAK
-					or between(last_cp, EMBED_MIN, EMBED_MAX),
-				BREAK_WRAP, BREAK_NONE))
+		var linebreak =
+			iif(linebreak_code == LINEBREAK_MUSTBREAK,
+				iif(last_cp == PS, BREAK_PARA, BREAK_LINE),
+				iif(linebreak_code == LINEBREAK_ALLOWBREAK
+						or between(last_cp, EMBED_MIN, EMBED_MAX),
+					BREAK_WRAP,
+					BREAK_NONE))
 
 		--find the seg length without trailing linebreak chars.
 		while len > 0 and isnewline(last_cp) do
