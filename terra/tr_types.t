@@ -93,6 +93,13 @@ EMBED_MIN       = 0x100000 --PUA-B
 EMBED_MAX       = 0x10FFFD
 MAX_EMBED_COUNT = EMBED_MAX - EMBED_MIN
 
+UNDERLINE_NONE   = 0 --must be zero.
+UNDERLINE_SOLID  = 1
+UNDERLINE_ZIGZAG = 2
+
+UNDERLINE_MIN = UNDERLINE_NONE
+UNDERLINE_MAX = UNDERLINE_ZIGZAG
+
 --base types -----------------------------------------------------------------
 
 num = float --using floats on the glyph runs saves 25% memory.
@@ -174,9 +181,10 @@ struct Span (gettersandsetters) {
 	operator: enum; --blending operator.
 	paragraph_dir: enum; --bidi dir override for current paragraph.
 	nowrap: bool; --disable word wrapping inside this span.
-	underline: bool;
+	underline: enum; --UNDERLINE_*
 	underline_color: color;
 	underline_opacity: num;
+	baseline: num; --0..1 corresponds to 0..ascent.
 }
 fixpointfields(Span)
 
@@ -194,9 +202,10 @@ Span.empty_const = constant(`Span {
 	operator = DEFAULT_TEXT_OPERATOR;
 	paragraph_dir = 0;
 	nowrap = false;
-	underline = false;
+	underline = 0;
 	underline_color = DEFAULT_TEXT_COLOR;
 	underline_opacity = 1;
+	baseline = 0;
 })
 
 terra Span:init()
@@ -352,6 +361,7 @@ struct Layout (gettersandsetters) {
 	last_visible_line: int;  --clip/out
 	_min_w: num;             --get_min_w/cache
 	_max_w: num;             --get_max_w/cache
+	tabstops: arr(num);
 }
 
 terra arr_Span:free_element(span: &Span)

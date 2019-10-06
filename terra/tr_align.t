@@ -9,21 +9,22 @@ require'terra/tr_wrap'
 
 terra Line:_update_vertical_metrics(
 	line_spacing: num,
+	baseline: num,
 	run_ascent: num,
 	run_descent: num,
 	ascent_factor: num,
 	descent_factor: num
 )
-	self.ascent = max(self.ascent, run_ascent)
-	self.descent = min(self.descent, run_descent)
+	self.ascent = max(self.ascent, baseline + run_ascent)
+	self.descent = min(self.descent, baseline + run_descent)
 	var run_h = run_ascent - run_descent
 	var half_line_gap = run_h * (line_spacing - 1) / 2
 	self.spaced_ascent
 		= max(self.spaced_ascent,
-			(run_ascent + half_line_gap) * ascent_factor)
+			(baseline + run_ascent + half_line_gap) * ascent_factor)
 	self.spaced_descent
 		= min(self.spaced_descent,
-			(run_descent - half_line_gap) * descent_factor)
+			(baseline + run_descent - half_line_gap) * descent_factor)
 end
 
 terra Layout:spaceout()
@@ -61,6 +62,7 @@ terra Layout:spaceout()
 			if face ~= nil then
 				line:_update_vertical_metrics(
 					self.line_spacing,
+					span.baseline * face.ascent,
 					face.ascent,
 					face.descent,
 					ascent_factor,
@@ -72,6 +74,7 @@ terra Layout:spaceout()
 				var m = self:seg_metrics(seg)
 				line:_update_vertical_metrics(
 					self.line_spacing,
+					seg.span.baseline * m.ascent,
 					m.ascent,
 					m.descent,
 					ascent_factor,

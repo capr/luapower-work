@@ -15,6 +15,8 @@ context = cairo_t
 
 OPERATOR_XOR  = CAIRO_OPERATOR_XOR
 OPERATOR_OVER = CAIRO_OPERATOR_OVER
+OPERATOR_MIN  = CAIRO_OPERATOR_CLEAR
+OPERATOR_MAX  = CAIRO_OPERATOR_HSL_LUMINOSITY
 
 DEFAULT_TEXT_COLOR        = DEFAULT_TEXT_COLOR        or `color {0xffffffff}
 DEFAULT_SELECTION_COLOR   = DEFAULT_SELECTION_COLOR   or `color {0x6666ffff}
@@ -102,4 +104,24 @@ terra Renderer:draw_rect(cr: &context,
 	h = round(y + h) - y
 	cr:rectangle(x, y, w, h)
 	cr:fill()
+end
+
+terra Renderer:draw_zigzag(cr: &context,
+	x: num, y: num, w: num, h: num,
+	color: color, opacity: num
+)
+	cr:rgba(color:apply_alpha(opacity))
+	y = round(y)
+	h = round(y + h) - y
+	cr:line_width(h)
+	var h = h * 2
+	var n = int(round((w / h) / 2))
+	var w = w / n / 2
+	cr:new_path()
+	cr:move_to(x, y + h)
+	for i = 0, n do
+		cr:rel_line_to(w, -h)
+		cr:rel_line_to(w,  h)
+	end
+	cr:stroke()
 end

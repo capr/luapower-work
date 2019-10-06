@@ -259,6 +259,7 @@ function testui:slide(id, label, v, min, max, step, default)
 	if active then
 		local v1 = v
 		if self.active_button == 'right' then
+			print(id, default)
 			--pressing the right button resets the value to the default, if any.
 			if default ~= nil then
 				v1 = default

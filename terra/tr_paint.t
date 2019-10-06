@@ -22,8 +22,8 @@ end
 terra Renderer:paint_glyph_run_subseg(cr: &context, run: &GlyphRun, sub: &SubSeg, ax: num, ay: num)
 	var surfaces = self:glyph_surfaces(run, sub.glyph_index1, sub.glyph_index2, sub.span.face, ax, ay)
 	if sub.clip_left or sub.clip_right then
-		var clip1 = ax + sub.x1
-		var clip2 = ax + sub.x2
+		var clip1 = iif(sub.clip_left , ax + sub.x1, -1e6)
+		var clip2 = iif(sub.clip_right, ax + sub.x2,  1e6)
 		for sr, sx, sy in surfaces do
 			self:paint_surface_clipped(cr, sr, sx, sy, clip1, clip2)
 		end
@@ -62,6 +62,7 @@ terra Layout:paint_text(cr: &context, for_shadow: bool)
 					end
 				else
 					var run = self:seg_glyph_run(seg)
+					var y = y - seg.span.baseline * run.metrics.ascent
 					if seg.subsegs.len > 0 then --has sub-segments, paint those instead.
 						for i, sub in seg.subsegs do
 							self.r:setcontext(cr, sub.span)

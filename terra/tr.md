@@ -138,10 +138,12 @@ metrics are mesured from, for horizontally flowing text.
 ## Ascent
 
 The general distance above the baseline for letters like "M", "t", etc.
+The ascent is a positive value.
 
 ## Descent
 
 The general distance below the baseline for letters like "g", "j", etc.
+The descent is a negative value.
 
 ## Leading
 
@@ -220,16 +222,17 @@ line-wrapping and rasterization.
 
 Segments are formed at the boundaries of property combinations that require
 separate shaping calls. The idea is to break down the text into the largest
-pieces that have enough relevant properties in common to be shaped as a unit,
-but are also the smallest pieces that are allowed to be wrapped. To that
+pieces that have enough relevant properties in common to be shaped as a unit
+and are also the smallest pieces that are allowed to be wrapped. To that
 effect, a new segment is cut whenever:
 
-  * script and/or language changes from the previous span.
+  * script and/or language changes.
   * there's a soft-wrapping opportunity.
   * a hard line break is encountered.
   * the BiDi embedding level changes (more on that later).
   * the font and/or font size changes.
   * the list of specified OpenType features changes.
+  * baseline changes (for synthetic subscripts and superscripts).
 
 _Sub-segments_ inside a single segment are also created whenever the text
 color or opacity changes, but other properties don't. Sub-segments are needed

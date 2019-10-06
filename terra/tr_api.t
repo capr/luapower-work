@@ -614,6 +614,7 @@ SPAN_FIELDS = {
 	'underline',
 	'underline_color',
 	'underline_opacity',
+	'baseline',
 }
 local SPAN_FIELD_INDICES = index(SPAN_FIELDS)
 
@@ -740,8 +741,8 @@ terra tr.Layout:get_span_same_mask(o1: int, o2: int)
 	return mask, i
 end
 
-terra Span:save_features(layout: &tr.Layout)
-	var sbuf = &layout.r.sbuf
+terra Span:save_features(layout: &Layout)
+	var sbuf = &layout.l.r.sbuf
 	sbuf.len = 0
 	for i,feat in self.features do
 		var eof = sbuf.len
@@ -759,7 +760,7 @@ end
 
 --feature format: '[+|-]feat[=val] ...', eg. '+kern -liga smcp'.
 --see: https://harfbuzz.github.io/harfbuzz-hb-common.html#hb-feature-from-string
-terra Span:load_features(layout: &tr.Layout, s: rawstring)
+terra Span:load_features(layout: &Layout, s: rawstring)
 	var s0 = self:save_features(layout)
 	if s0 == s then --both nil
 		return false
@@ -781,23 +782,23 @@ terra Span:load_features(layout: &tr.Layout, s: rawstring)
 end
 
 --accepts BCP-47 language-country codes.
-terra Span:load_lang(layout: &tr.Layout, s: rawstring)
+terra Span:load_lang(layout: &Layout, s: rawstring)
 	var lang = hb_language_from_string(s, -1)
 	return change(self, 'lang', lang)
 end
 
-terra Span:save_lang(layout: &tr.Layout)
+terra Span:save_lang(layout: &Layout)
 	return hb_language_to_string(self.lang)
 end
 
 --accepts ISO-15924 script tags.
-terra Span:load_script(layout: &tr.Layout, s: rawstring)
+terra Span:load_script(layout: &Layout, s: rawstring)
 	var script = hb_script_from_string(s, -1)
 	return change(self, 'script', script)
 end
 
-terra Span:save_script(layout: &tr.Layout)
-	var sbuf = &layout.r.sbuf
+terra Span:save_script(layout: &Layout)
+	var sbuf = &layout.l.r.sbuf
 	sbuf.len = 5
 	var tag = hb_script_to_iso15924_tag(self.script)
 	hb_tag_to_string(tag, sbuf.elements)
@@ -805,19 +806,19 @@ terra Span:save_script(layout: &tr.Layout)
 	return iif(sbuf(0) ~= 0, sbuf.elements, nil)
 end
 
-terra Span:save_color(layout: &tr.Layout)
+terra Span:save_color(layout: &Layout)
 	return self.color.uint
 end
 
-terra Span:load_color(layout: &tr.Layout, v: uint32)
+terra Span:load_color(layout: &Layout, v: uint32)
 	return change(self.color, 'uint', v)
 end
 
-terra Span:load_font_id(layout: &tr.Layout, font_id: int)
+terra Span:load_font_id(layout: &Layout, font_id: int)
 	if self.font_id ~= font_id then
-		forget_font(layout.r, self.font_id)
+		forget_font(layout.l.r, self.font_id)
 		var font_before = self.font
-		self.font = layout.r:font(font_id)
+		self.font = layout.l.r:font(font_id)
 		self.font_id = iif(self.font ~= nil, font_id, -1)
 		return not (font_before == nil and self.font == nil)
 	else
@@ -825,16 +826,32 @@ terra Span:load_font_id(layout: &tr.Layout, font_id: int)
 	end
 end
 
-terra Span:load_font_size(layout: &tr.Layout, v: double)
+terra Span:load_font_size(layout: &Layout, v: double)
 	return change(self, 'font_size', clamp(v, 0, MAX_FONT_SIZE))
 end
 
-terra Span:save_underline_color(layout: &tr.Layout)
+terra Span:save_underline_color(layout: &Layout)
 	return self.underline_color.uint
 end
 
-terra Span:load_underline_color(layout: &tr.Layout, v: uint32)
+terra Span:load_underline_color(layout: &Layout, v: uint32)
 	return change(self.underline_color, 'uint', v)
+end
+
+terra Span:load_operator(layout: &Layout, v: enum)
+	if layout:checkrange('span_operator', v, OPERATOR_MIN, OPERATOR_MAX) then
+		return change(self, 'operator', v)
+	else
+		return false
+	end
+end
+
+terra Span:load_underline(layout: &Layout, v: enum)
+	if layout:checkrange('span_underline', v, UNDERLINE_MIN, UNDERLINE_MAX) then
+		return change(self, 'underline', v)
+	else
+		return false
+	end
 end
 
 SPAN_FIELD_TYPES = {
@@ -849,9 +866,10 @@ SPAN_FIELD_TYPES = {
 	color             = uint32    ,
 	opacity           = double    ,
 	operator          = enum      ,
-	underline         = bool      ,
+	underline         = enum      ,
 	underline_color   = uint32    ,
 	underline_opacity = double    ,
+	baseline          = double    ,
 }
 
 local SPAN_FIELD_INVALIDATE = {
@@ -866,6 +884,7 @@ local SPAN_FIELD_INVALIDATE = {
 	underline         = 'paint',
 	underline_color   = 'paint',
 	underline_opacity = 'paint',
+	baseline          = 'wrap',
 }
 
 --Generate getters and setters for each text attr that can be set on an offset range.
@@ -908,7 +927,7 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 			end
 			for i = i1, i2 do
 				var span = self.l.spans:at(i)
-				if LOAD(span, &self.l, val) then
+				if LOAD(span, self, val) then
 					self:invalidate(INVALIDATE)
 				end
 			end
@@ -926,13 +945,13 @@ for _,FIELD in ipairs(SPAN_FIELDS) do
 
 	Layout.methods['get_span_'..FIELD] = terra(self: &Layout, span_i: int): T
 		var span = self.l.spans:at(span_i, &[Span.empty_const])
-		return SAVE(span, &self.l)
+		return SAVE(span, self)
 	end
 
 	Layout.methods['set_span_'..FIELD] = terra(self: &Layout, span_i: int, val: T)
 		if self:checkindex('span_index', span_i, MAX_SPAN_COUNT) then
 			var span = self.l.spans:getat(span_i, [Span.empty_const])
-			if LOAD(span, &self.l, val) then
+			if LOAD(span, self, val) then
 				self:invalidate(INVALIDATE)
 			end
 		end

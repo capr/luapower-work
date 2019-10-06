@@ -247,6 +247,7 @@ local function serialize_layer(e)
 		span_underline         =1,
 		span_underline_color   =1,
 		span_underline_opacity =1,
+		span_baseline          =1,
 	})
 	t.text_cursor_count = e.text_cursor_count
 	t.text_cursors      = list(e, e.text_cursor_count, {
@@ -439,7 +440,9 @@ end
 local function slide(prop, min, max, step, ...)
 	local id, get, set = getset(prop, ...)
 	local v = get(e, prop, ...)
-	local v = testui:slide(id, nil, v, min, max, step, get(default_e, prop, 0, select(2, ...)))
+	local _, get_default = getset(prop, (...))
+	local default_v = get_default(default_e, prop, 0)
+	local v = testui:slide(id, nil, v, min, max, step, default_v)
 	if v then
 		set(e, prop, v, ...)
 		return v
@@ -948,9 +951,11 @@ function testui:repaint()
 				slideo('selected_text_opacity' , i, 'selected_text_has_opacity')
 				choose('selected_text_operator', 'operator_',
 					{'clear', 'source', 'over', 'in', 'out', 'xor'}, i, 'selected_text_has_operator')
-				toggle('selected_text_underline', i, 'selected_text_has_underline')
+				choose('selected_text_underline', 'underline_',
+					{'none', 'solid', 'zigzag'}, i, 'selected_text_has_underline')
 				pickcolor('selected_text_underline_color', i, 'selected_text_has_underline_color')
 				slideo('selected_text_underline_opacity' , i, 'selected_text_has_underline_opacity')
+				slideo('selected_text_baseline' , i, 'selected_text_has_baseline')
 			else
 				self:heading'SPANS ARE INVALID'
 			end
@@ -979,9 +984,10 @@ function testui:repaint()
 			pickcolor('span_text_color'   , i)
 			slideo('span_text_opacity'    , i)
 			choose('span_text_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'}, i)
-			toggle('span_underline'          , i)
+			choose('span_underline'    , 'underline_', {'none', 'solid', 'zigzag'}, i)
 			pickcolor('span_underline_color' , i)
 			slideo('span_underline_opacity'  , i)
+			slideo('span_baseline'           , i)
 		end
 
 	elseif tab == 'Layout' then

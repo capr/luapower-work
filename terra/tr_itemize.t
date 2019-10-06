@@ -136,6 +136,7 @@ do --iterate text segments having the same shaping-relevant properties.
 					or span1.font_id         ~= span0.font_id
 					or span1.font_size_16_6  ~= span0.font_size_16_6
 					or span1.features        ~= span0.features
+					or span1.baseline        ~= span0.baseline
 			else
 				span_diff = false
 			end

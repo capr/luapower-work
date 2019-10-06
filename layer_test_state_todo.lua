@@ -14,15 +14,15 @@ return {
 		padding_left=26.5,
 		padding_right=26.5,
 		padding_top=26.5,
-		span_count=14,
+		span_count=15,
 		text_align_x=1,
 		text_align_y=2,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=212,
-				text_cursor_sel_offset=212,
-				text_cursor_x=134.828125
+				text_cursor_offset=23,
+				text_cursor_sel_offset=23,
+				text_cursor_x=95
 			}
 		},
 		text_spans={
@@ -32,7 +32,7 @@ return {
 				span_font_size=37,
 				span_lang='en-us',
 				span_text_color=255,
-				span_underline=true,
+				span_underline=2,
 				span_underline_color=255
 			},
 			{
@@ -40,7 +40,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=5,
+				span_offset=6,
 				span_text_color=255
 			},
 			{
@@ -50,7 +50,7 @@ return {
 				span_lang='en-us',
 				span_offset=14,
 				span_text_color=255,
-				span_underline=true,
+				span_underline=1,
 				span_underline_color=255
 			},
 			{
@@ -84,7 +84,7 @@ return {
 				span_lang='en-us',
 				span_offset=50,
 				span_text_color=255,
-				span_underline=true,
+				span_underline=1,
 				span_underline_color=1258346239
 			},
 			{
@@ -102,7 +102,7 @@ return {
 				span_lang='en-us',
 				span_offset=119,
 				span_text_color=255,
-				span_underline=true,
+				span_underline=1,
 				span_underline_color=255
 			},
 			{
@@ -120,7 +120,7 @@ return {
 				span_lang='en-us',
 				span_offset=175,
 				span_text_color=989915903,
-				span_underline=true,
+				span_underline=2,
 				span_underline_color=255
 			},
 			{
@@ -132,25 +132,33 @@ return {
 				span_text_color=255
 			},
 			{
+				span_baseline=1.0169999599456787,
 				span_font='SourceHanSans.ttc',
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=205,
-				span_text_color=255,
-				span_underline=true,
-				span_underline_color=255
+				span_offset=261,
+				span_text_color=255
+			},
+			{
+				span_baseline=-0.58300000429153442,
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=33,
+				span_lang='en-us',
+				span_offset=263,
+				span_text_color=255
 			},
 			{
 				span_font='SourceHanSans.ttc',
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=219,
+				span_offset=266,
 				span_text_color=255
 			}
 		},
-		text_utf8='TODO:\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops.\r- implement underline and strike-through (simple version).\r- test color fonts and emoji scaling.\r- \r\n',
+		text_utf8='TODO:\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- test color fonts and emoji scaling.\r- \r\n',
 		w=794.5,
 		x=61,
 		y=39

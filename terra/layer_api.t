@@ -1179,7 +1179,8 @@ end
 if not ... then
 	print'Building non-optimized...'
 	build(false)
-	print('sizeof Layer', sizeof(Layer))
+	print('sizeof Layer ', sizeof(Layer))
+	print('sizeof Text  ', sizeof(Text))
 end
 
 return _M
