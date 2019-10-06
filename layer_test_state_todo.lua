@@ -14,15 +14,15 @@ return {
 		padding_left=26.5,
 		padding_right=26.5,
 		padding_top=26.5,
-		span_count=16,
+		span_count=15,
 		text_align_x=1,
 		text_align_y=2,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=319,
-				text_cursor_sel_offset=319,
-				text_cursor_x=42.5
+				text_cursor_offset=377,
+				text_cursor_sel_offset=377,
+				text_cursor_x=421.5
 			}
 		},
 		text_spans={
@@ -144,34 +144,26 @@ return {
 				span_underline_color=1258346239
 			},
 			{
-				span_font='SourceHanSans.ttc',
-				span_font_face_index=6,
-				span_font_size=15,
+				span_font='NotoColorEmoji.ttf',
+				span_font_size=42,
 				span_lang='en-us',
 				span_offset=415,
 				span_text_color=255
 			},
 			{
-				span_font='NotoColorEmoji.ttf',
-				span_font_size=48,
+				span_font='OpenSans-Regular.ttf',
+				span_font_size=19,
 				span_lang='en-us',
 				span_offset=417,
 				span_text_color=255
-			},
-			{
-				span_font='OpenSans-Regular.ttf',
-				span_font_size=48,
-				span_lang='en-us',
-				span_offset=419,
-				span_text_color=255
 			}
 		},
-		text_utf8='TODO:\239\139\156\239\158\135 \239\145\186\239\133\139\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- test color fonts and emoji scaling.\r\n\240\159\144\146\240\159\152\129\rasdasd\r',
+		text_utf8='TODO:\239\139\156\239\158\135 \239\145\186\239\133\139\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- test color fonts and emoji scaling.\240\159\144\146\240\159\152\129OMG color emoji!!!\r',
 		w=794.5,
 		x=61,
 		y=39
 	},
 	selected_layer_path={
 	},
-	tab='Background'
+	tab='Text'
 }
