@@ -1,0 +1,23 @@
+return {
+	root={
+		border_width_bottom=1,
+		border_width_left=1,
+		border_width_right=1,
+		border_width_top=1,
+		h=300,
+		span_count=1,
+		text_spans={
+			{
+				span_font='NotoColorEmoji.ttf',
+				span_font_size=32
+			}
+		},
+		text_utf8='\240\159\152\129',
+		w=500,
+		x=100,
+		y=100
+	},
+	selected_layer_path={
+	},
+	tab='Text'
+}

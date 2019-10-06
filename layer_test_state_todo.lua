@@ -14,23 +14,41 @@ return {
 		padding_left=26.5,
 		padding_right=26.5,
 		padding_top=26.5,
-		span_count=15,
+		span_count=16,
 		text_align_x=1,
 		text_align_y=2,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=23,
-				text_cursor_sel_offset=23,
-				text_cursor_x=95
+				text_cursor_offset=319,
+				text_cursor_sel_offset=319,
+				text_cursor_x=42.5
 			}
 		},
 		text_spans={
 			{
 				span_font='SourceHanSans.ttc',
-				span_font_face_index=38,
-				span_font_size=37,
+				span_font_face_index=37,
+				span_font_size=52,
 				span_lang='en-us',
+				span_text_color=4211081983,
+				span_underline=2,
+				span_underline_color=255
+			},
+			{
+				span_font='Font Awesome 5 Free-Solid-900.otf',
+				span_font_size=56,
+				span_lang='en-us',
+				span_offset=5,
+				span_text_color=255,
+				span_underline=2,
+				span_underline_color=255
+			},
+			{
+				span_font='ionicons.ttf',
+				span_font_size=56,
+				span_lang='en-us',
+				span_offset=7,
 				span_text_color=255,
 				span_underline=2,
 				span_underline_color=255
@@ -40,7 +58,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=6,
+				span_offset=11,
 				span_text_color=255
 			},
 			{
@@ -48,7 +66,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=14,
+				span_offset=19,
 				span_text_color=255,
 				span_underline=1,
 				span_underline_color=255
@@ -58,7 +76,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=20,
+				span_offset=25,
 				span_text_color=255
 			},
 			{
@@ -66,7 +84,7 @@ return {
 				span_font_face_index=15,
 				span_font_size=19,
 				span_lang='en-us',
-				span_offset=28,
+				span_offset=33,
 				span_text_color=4279835135
 			},
 			{
@@ -74,7 +92,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=35,
+				span_offset=40,
 				span_text_color=255
 			},
 			{
@@ -82,7 +100,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=50,
+				span_offset=55,
 				span_text_color=255,
 				span_underline=1,
 				span_underline_color=1258346239
@@ -92,78 +110,68 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=84,
-				span_text_color=255
-			},
-			{
-				span_font='SourceHanSans.ttc',
-				span_font_face_index=6,
-				span_font_size=15,
-				span_lang='en-us',
-				span_offset=119,
+				span_offset=89,
 				span_text_color=255,
-				span_underline=1,
-				span_underline_color=255
+				span_underline_color=1258346239
+			},
+			{
+				span_baseline=0.30000001192092896,
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=265,
+				span_text_color=255,
+				span_underline_color=1258346239
+			},
+			{
+				span_baseline=-0.31700000166893005,
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=23,
+				span_lang='en-us',
+				span_offset=267,
+				span_text_color=255,
+				span_underline_color=1258346239
 			},
 			{
 				span_font='SourceHanSans.ttc',
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=127,
+				span_offset=270,
+				span_text_color=255,
+				span_underline_color=1258346239
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=415,
 				span_text_color=255
 			},
 			{
-				span_font='SourceHanSans.ttc',
-				span_font_face_index=6,
-				span_font_size=15,
+				span_font='NotoColorEmoji.ttf',
+				span_font_size=48,
 				span_lang='en-us',
-				span_offset=175,
-				span_text_color=989915903,
-				span_underline=2,
-				span_underline_color=255
-			},
-			{
-				span_font='SourceHanSans.ttc',
-				span_font_face_index=6,
-				span_font_size=15,
-				span_lang='en-us',
-				span_offset=184,
+				span_offset=417,
 				span_text_color=255
 			},
 			{
-				span_baseline=1.0169999599456787,
-				span_font='SourceHanSans.ttc',
-				span_font_face_index=6,
-				span_font_size=15,
+				span_font='OpenSans-Regular.ttf',
+				span_font_size=48,
 				span_lang='en-us',
-				span_offset=261,
-				span_text_color=255
-			},
-			{
-				span_baseline=-0.58300000429153442,
-				span_font='SourceHanSans.ttc',
-				span_font_face_index=6,
-				span_font_size=33,
-				span_lang='en-us',
-				span_offset=263,
-				span_text_color=255
-			},
-			{
-				span_font='SourceHanSans.ttc',
-				span_font_face_index=6,
-				span_font_size=15,
-				span_lang='en-us',
-				span_offset=266,
+				span_offset=419,
 				span_text_color=255
 			}
 		},
-		text_utf8='TODO:\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- test color fonts and emoji scaling.\r- \r\n',
+		text_utf8='TODO:\239\139\156\239\158\135 \239\145\186\239\133\139\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- test color fonts and emoji scaling.\r\n\240\159\144\146\240\159\152\129\rasdasd\r',
 		w=794.5,
 		x=61,
 		y=39
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Background'
 }

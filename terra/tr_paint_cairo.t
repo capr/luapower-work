@@ -23,8 +23,8 @@ DEFAULT_SELECTION_COLOR   = DEFAULT_SELECTION_COLOR   or `color {0x6666ffff}
 DEFAULT_TEXT_OPERATOR     = DEFAULT_TEXT_OPERATOR     or OPERATOR_OVER
 DEFAULT_SELECTION_OPACITY = DEFAULT_SELECTION_OPACITY or .7
 
-terra create_surface(w: int, h: int)
-	return cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h)
+terra create_surface(w: int, h: int, format: enum)
+	return cairo_image_surface_create(format, w, h)
 end
 
 setfenv(1, require'terra/tr_types')
@@ -44,7 +44,7 @@ terra Renderer:create_glyph_surface(glyph: &Glyph, bmp: &FT_Bitmap, scale: num, 
 		--scale raster glyphs which freetype cannot scale by itself.
 		var bw = font_size
 		var w1, h1 = rect.fit(w, h, bw, bw)
-		var sr = create_surface(ceil(w1), ceil(h1))
+		var sr = create_surface(ceil(w1), ceil(h1), format)
 		var cr = sr:context()
 		cr:translate(glyph.subpixel_offset_x, 0)
 		cr:scale(w1 / w, h1 / h)
@@ -54,7 +54,7 @@ terra Renderer:create_glyph_surface(glyph: &Glyph, bmp: &FT_Bitmap, scale: num, 
 		cr:free()
 		glyph.image.surface = sr
 	else
-		var sr = create_surface(w, h)
+		var sr = create_surface(w, h, format)
 		var cr = sr:context()
 		if bmp.pixel_mode == FT_PIXEL_MODE_GRAY then
 			cr:rgb(1, 1, 1)
@@ -79,7 +79,11 @@ terra Renderer:setcontext(cr: &context, span: &Span)
 end
 
 terra Renderer:paint_surface(cr: &context, sr: &surface, x: num, y: num)
-	cr:mask(sr, x, y)
+	if sr:format() == CAIRO_FORMAT_ARGB32 then
+		cr:source(sr, x, y); cr:paint(); cr:rgb(0, 0, 0) --release source
+	else
+		cr:mask(sr, x, y)
+	end
 end
 
 terra Renderer:paint_surface_clipped(
@@ -90,7 +94,11 @@ terra Renderer:paint_surface_clipped(
 	cr:new_path()
 	cr:rectangle(clip_left, y, clip_right, sr:height())
 	cr:clip()
-	cr:mask(sr, x, y)
+	if sr:format() == CAIRO_FORMAT_ARGB32 then
+		cr:source(sr, x, y); cr:paint(); cr:rgb(0, 0, 0) --release source
+	else
+		cr:mask(sr, x, y)
+	end
 	cr:restore()
 end
 

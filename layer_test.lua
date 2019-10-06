@@ -34,6 +34,8 @@ for _,s in ipairs{
 	'SourceHanSans.ttc',
 	'SourceHanSerif.ttc',
 	'ionicons.ttf',
+	'Font Awesome 5 Free-Solid-900.otf',
+	'NotoColorEmoji.ttf',
 } do if glue.canopen(font_dir..'/'..s) then
 	table.insert(fonts, s)
 end end
@@ -42,7 +44,7 @@ local font_ids = glue.index(fonts)
 
 local font_names = {}
 for i,s in ipairs(fonts) do
-	s = s:match'([^/]+)%.tt.$'
+	s = s:match'([^/]+)%....$'
 	font_names[i] = s:sub(1, 5)..s:sub(-1)
 end
 local font_map = glue.update({}, font_names, glue.index(font_names))
@@ -81,6 +83,7 @@ local test_texts = {
 	ch = '这是一些中文文本',
 	par = u'Hey\nYou&ps;New Paragraph',
 	embed = u'a\u{100000}\u{100001}b',
+	ico = '\xF0\x9F\x98\x81'
 }
 local test_text_names = glue.index(test_texts)
 
@@ -321,6 +324,7 @@ local function deserialize_layer(e, t)
 		elseif k == 'text_utf8' then
 			e:set_text_utf8(v, #v)
 		elseif type(v) == 'table' then
+			local kk = k
 			for i,t in ipairs(v) do
 				for k,v in glue.sortedpairs(t) do
 					if k == 'span_font' then
@@ -941,6 +945,8 @@ function testui:repaint()
 				self:heading('Selected Text '..i..' ('..e:get_selected_text_len(i)..' codepoints)')
 				choose('selected_text_font_id', font_map, font_names, i, 'selected_text_has_font_id')
 				slide ('selected_text_font_size', -10, 100, 1, i, 'selected_text_has_font_size')
+				slide ('selected_text_font_face_index', -1,
+					lib:font_face_num(e:get_span_font_id(i)), 1, i, 'selected_text_has_font_face_index')
 				----TODO: slide ('features',
 				----TODO: choose('script', i)
 				----TODO: choose('lang'             , i)
@@ -1161,6 +1167,11 @@ function testui:repaint()
 				e:remove_selected_text(0)
 			elseif key == 'insert' then
 				e:set_text_insert_mode(0, not e:get_text_insert_mode(0))
+			elseif ctrl and key == 'V' then
+				local s = self.app:getclipboard'text'
+				if s then
+					e:insert_text_utf8_at_cursor(0, s, #s)
+				end
 			end
 			self:parent():invalidate()
 		end

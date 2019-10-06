@@ -8,7 +8,7 @@ return {
 		border_color_right=4294967078,
 		border_color_top=4294967078,
 		clip_content=true,
-		h=919,
+		h=936,
 		layout_type=1,
 		min_cw=619.5,
 		padding_bottom=16.5,

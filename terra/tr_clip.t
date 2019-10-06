@@ -71,5 +71,5 @@ terra Layout:clip()
 end
 
 terra Layout:visible_lines()
-	return self.lines:sub(self.first_visible_line, self.last_visible_line)
+	return self.lines:sub(self.first_visible_line, self.last_visible_line + 1)
 end
