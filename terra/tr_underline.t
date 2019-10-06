@@ -27,7 +27,7 @@ terra Layout:draw_underline(cr: &context, line: &Line,
 			span1.underline_color,
 			span1.underline_opacity)
 	elseif underline == UNDERLINE_ZIGZAG then
-		self.r:draw_zigzag(cr, x, y, w, h,
+		self.r:draw_zigzag(cr, x, y, w, h * 2,
 			span1.underline_color,
 			span1.underline_opacity)
 	end

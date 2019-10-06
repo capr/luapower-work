@@ -250,9 +250,10 @@ terra Layout:cursor_rect(p: Pos, w: num, forward: bool, underline: bool)
 	var face = iif(p.seg ~= nil, p.seg.span.face, nil)
 	var line = self:seg_line(p.seg)
 	var x = self:cursor_rel_x(p)
-	var w = iif(forward, 1, -1) * w * iif(face ~= nil, face.underline_thickness, 1)
+	var thickness = max(face.underline_thickness, 1)
+	var w = iif(forward, 1, -1) * w * iif(face ~= nil, thickness, 1)
 	var y = iif(underline and face ~= nil, -face.underline_position, -line.spaced_ascent)
-	var h = iif(underline and face ~= nil,  face.underline_thickness, line.spaced_ascent - line.spaced_descent)
+	var h = iif(underline and face ~= nil,  thickness, line.spaced_ascent - line.spaced_descent)
 	if w < 0 then
 		x, w = x + w, -w
 	end

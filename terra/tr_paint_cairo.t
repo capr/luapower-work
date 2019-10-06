@@ -121,8 +121,7 @@ terra Renderer:draw_zigzag(cr: &context,
 	cr:rgba(color:apply_alpha(opacity))
 	y = round(y)
 	h = round(y + h) - y
-	cr:line_width(h)
-	var h = h * 2
+	cr:line_width(h / 2)
 	var n = int(round((w / h) / 2))
 	var w = w / n / 2
 	cr:new_path()

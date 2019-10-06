@@ -14,15 +14,15 @@ return {
 		padding_left=26.5,
 		padding_right=26.5,
 		padding_top=26.5,
-		span_count=15,
+		span_count=17,
 		text_align_x=1,
 		text_align_y=2,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=377,
-				text_cursor_sel_offset=377,
-				text_cursor_x=421.5
+				text_cursor_offset=416,
+				text_cursor_sel_offset=416,
+				text_cursor_x=281.65625
 			}
 		},
 		text_spans={
@@ -115,6 +115,25 @@ return {
 				span_underline_color=1258346239
 			},
 			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=248,
+				span_text_color=255,
+				span_underline=2,
+				span_underline_color=4278520319
+			},
+			{
+				span_font='SourceHanSans.ttc',
+				span_font_face_index=6,
+				span_font_size=15,
+				span_lang='en-us',
+				span_offset=252,
+				span_text_color=255,
+				span_underline_color=1258346239
+			},
+			{
 				span_baseline=0.30000001192092896,
 				span_font='SourceHanSans.ttc',
 				span_font_face_index=6,
@@ -145,7 +164,7 @@ return {
 			},
 			{
 				span_font='NotoColorEmoji.ttf',
-				span_font_size=42,
+				span_font_size=48,
 				span_lang='en-us',
 				span_offset=415,
 				span_text_color=255
