@@ -1,5 +1,7 @@
 return {
 	root={
+		background_color=255,
+		background_type=1,
 		border_width_bottom=1,
 		border_width_left=1,
 		border_width_right=1,
@@ -54,9 +56,9 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=4,
-				text_cursor_sel_offset=4,
-				text_cursor_x=219
+				text_cursor_offset=2,
+				text_cursor_sel_offset=2,
+				text_cursor_x=101
 			}
 		},
 		text_spans={
@@ -72,7 +74,6 @@ return {
 		y=100
 	},
 	selected_layer_path={
-		0
 	},
-	tab='Text'
+	tab='Background'
 }

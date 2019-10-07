@@ -163,7 +163,7 @@ terra Renderer:rasterize_glyph_run(run: &GlyphRun, face: &FontFace, ax: num, ay:
 		var by1 = floor(by)
 		var bx2 = ceil(bx + bw)
 		var by2 = ceil(by + bh)
-		var sr = create_surface(bx2-bx1, by2-by1, CAIRO_FORMAT_ARGB32)
+		var sr = create_surface(bx2-bx1, by2-by1, CAIRO_FORMAT_A8)
 		var cr = sr:context()
 		cr:translate(-bx1, -by1)
 		var surfaces = self:glyph_surfaces(run, 0, run.glyphs.len, face, ax, ay)

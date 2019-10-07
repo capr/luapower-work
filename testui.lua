@@ -286,70 +286,70 @@ end
 
 function testui:repaint() end --stub
 
+local d = testui.app:active_display()
+
+local win = testui.app:window{
+	x = 'center-active',
+	y = 'center-active',
+	w = d.w - 200,
+	h = d.h - 200,
+	maximized = true,
+}
+
+testui.window = win
+win.testui = testui
+
+function win:keyup(key)
+	if key == 'esc' then
+		self:close()
+	end
+end
+
+function win:mousedown(button)
+	self.testui.mouse[button] = true
+	self:invalidate()
+end
+
+testui.mouse = {}
+
+function win:mouseup(button)
+	self.testui.mouse[button] = false
+	if button == self.testui.active_button then
+		self.testui.active_id = false
+	end
+	self:invalidate()
+end
+
+function win:mousemove(x, y)
+	self.testui.mx = x
+	self.testui.my = y
+	self:invalidate()
+end
+
+function win:repaint()
+	local cr = self:bitmap():cairo()
+	cr:new_path()
+	cr:reset_clip()
+	cr:identity_matrix()
+	cr:operator'over'
+	cr:save()
+	self.testui.cr = cr
+	self.testui:setcolor'#00'
+	cr:paint()
+	self.testui.win_w, self.testui.win_h = self:client_size()
+	self.testui:reset()
+	self.testui:repaint()
+	cr:restore()
+	if cr:status() ~= 0 then
+		print(cr:status_message())
+	end
+	if self.testui._continuous_repaint then
+		self:title(string.format('%d fps', self.testui.app:fps()))
+		self:invalidate()
+	end
+end
+
 function testui:run()
-
-	local d = self.app:active_display()
-
-	self.window = self.app:window{
-		x = 'center-active',
-		y = 'center-active',
-		w = d.w - 200,
-		h = d.h - 200,
-		maximized = true,
-	}
-
-	self.window.testui = self
-
-	function self.window:keyup(key)
-		if key == 'esc' then
-			self:close()
-		end
-	end
-
-	function self.window:mousedown(button)
-		self.testui.mouse[button] = true
-		self:invalidate()
-	end
-
-	self.mouse = {}
-
-	function self.window:mouseup(button)
-		self.testui.mouse[button] = false
-		if button == self.testui.active_button then
-			self.testui.active_id = false
-		end
-		self:invalidate()
-	end
-
-	function self.window:mousemove(x, y)
-		self.testui.mx = x
-		self.testui.my = y
-		self:invalidate()
-	end
-
-	function self.window:repaint()
-		local cr = self:bitmap():cairo()
-		cr:new_path()
-		cr:reset_clip()
-		cr:identity_matrix()
-		cr:operator'over'
-		cr:save()
-		self.testui.cr = cr
-		self.testui:setcolor'#00'
-		cr:paint()
-		self.testui.win_w, self.testui.win_h = self:client_size()
-		self.testui:reset()
-		self.testui:repaint()
-		cr:restore()
-		if cr:status() ~= 0 then
-			print(cr:status_message())
-		end
-		if self.testui._continuous_repaint then
-			self:title(string.format('%d fps', self.testui.app:fps()))
-			self:invalidate()
-		end
-	end
-
 	self.app:run()
 end
 

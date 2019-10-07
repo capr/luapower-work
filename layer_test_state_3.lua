@@ -24,9 +24,9 @@ return {
 		text_cursor_count=2,
 		text_cursors={
 			{
-				text_cursor_offset=8,
-				text_cursor_sel_offset=11,
-				text_cursor_x=370,
+				text_cursor_offset=10,
+				text_cursor_sel_offset=10,
+				text_cursor_x=406,
 				text_insert_mode=false,
 				text_selection_color=4279177215
 			},

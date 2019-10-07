@@ -247,7 +247,7 @@ end
 
 --caret rectangle. its position is relative to line_pos().
 terra Layout:cursor_rect(p: Pos, w: num, forward: bool, underline: bool)
-	var face = iif(p.seg ~= nil, p.seg.span.face, nil)
+	var face = iif(p.seg ~= nil, p.seg.span.face, self.spans:at(0).face)
 	var line = self:seg_line(p.seg)
 	var x = self:cursor_rel_x(p)
 	var thickness = max(face.underline_thickness, 1)
@@ -517,9 +517,8 @@ terra Cursor:draw_caret(cr: &context, for_shadow: bool)
 	x = snap(x, 1)
 	y = snap(y, 1)
 	h = snap(h, 1)
-	var seg = self.pos.seg
-	var color = iif(seg ~= nil, seg.span.color, self.layout.spans:at(0).color)
-	cr:operator(OPERATOR_XOR)
+	var color = color{uint = 0xffffffff}
+	cr:operator(OPERATOR_DIFF)
 	self.layout.r:draw_rect(cr, x, y, w, h, color, self.caret_opacity)
 end
 

@@ -14,6 +14,7 @@ surface = cairo_surface_t
 context = cairo_t
 
 OPERATOR_XOR  = CAIRO_OPERATOR_XOR
+OPERATOR_DIFF = CAIRO_OPERATOR_DIFFERENCE
 OPERATOR_OVER = CAIRO_OPERATOR_OVER
 OPERATOR_MIN  = CAIRO_OPERATOR_CLEAR
 OPERATOR_MAX  = CAIRO_OPERATOR_HSL_LUMINOSITY
@@ -80,7 +81,9 @@ end
 
 terra Renderer:paint_surface(cr: &context, sr: &surface, x: num, y: num)
 	if sr:format() == CAIRO_FORMAT_ARGB32 then
-		cr:source(sr, x, y); cr:paint(); cr:rgb(0, 0, 0) --release source
+		cr:source(sr, x, y)
+		cr:paint()
+		cr:rgb(0, 0, 0) --release source
 	else
 		cr:mask(sr, x, y)
 	end
@@ -95,7 +98,9 @@ terra Renderer:paint_surface_clipped(
 	cr:rectangle(clip_left, y, clip_right, sr:height())
 	cr:clip()
 	if sr:format() == CAIRO_FORMAT_ARGB32 then
-		cr:source(sr, x, y); cr:paint(); cr:rgb(0, 0, 0) --release source
+		cr:source(sr, x, y)
+		cr:paint()
+		cr:rgb(0, 0, 0) --release source
 	else
 		cr:mask(sr, x, y)
 	end

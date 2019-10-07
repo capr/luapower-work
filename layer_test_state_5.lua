@@ -104,7 +104,7 @@ return {
 		y=100
 	},
 	selected_layer_path={
-		5
+		2
 	},
 	tab='Background'
 }

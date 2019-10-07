@@ -455,25 +455,14 @@ terra Layout:shape()
 end
 
 terra GlyphRun:glyph_index_at_offset(offset: int)
-	if self.rtl then
-		for i,g in self.glyphs:backwards() do
-			if g.cluster == offset then
-				return i, false
-			elseif g.cluster > offset then
-				return i - 1, true
-			end
+	for i,g in self.glyphs:ipairs(not self.rtl) do
+		if g.cluster == offset then
+			return i, false
+		elseif g.cluster > offset then
+			return i - 1, true
 		end
-		return -1, false
-	else
-		for i,g in self.glyphs do
-			if g.cluster == offset then
-				return i, false
-			elseif g.cluster > offset then
-				return i - 1, true
-			end
-		end
-		return self.glyphs.len, false
 	end
+	return iif(self.rtl, -1, self.glyphs.len), false
 end
 
 terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
@@ -496,6 +485,7 @@ terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
 		if clip_right then inc(i2) end --think about it
 		var x1 = run.cursors.xs(o1)
 		var x2 = run.cursors.xs(o2)
+		print(o1, o2, i1, i2, clip_left, clip_right, x1, x2)
 		seg.subsegs:add(SubSeg {
 			span = span,
 			glyph_index1 = i1,

@@ -25,8 +25,8 @@ terra GlyphRun:shape(r: &Renderer, face: &FontFace)
 
 	--see https://harfbuzz.github.io/clusters.html
 	hb_buffer_set_cluster_level(hb_buf,
-		--HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES) --old Harfbuzz behavior
-		HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS)
+		HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES) --old Harfbuzz behavior
+		--HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS)
 
 	hb_buffer_set_direction(hb_buf, hb_dir)
 	hb_buffer_set_script(hb_buf, self.script)

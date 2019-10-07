@@ -1,25 +1,25 @@
 Bugs
 ==============================================================================
 
-- test script, lang, features.
+- test script modifier.
 
 - test RTL: subsegs.
-
-- test BIDI: reorder, cursors, justify.
+- test BIDI: subsegs, reorder, cursors, justify.
 
 - cursor back-one-word from last position steps back 2 steps.
 
+- span-at-cursor.
+
+- fixed line height: per-layout or per-paragraph font_id/font_size.
+
+- mixed argb/alpha segments: alpha part pre-rendered into argb bitmap.
 
 High priority
 ==============================================================================
 
 - follow tabstops
 
-- subscript/superscript
-	i.e. font baseline modifiers: raise, subscript, superscript, sub, sup.
-
-- underline & strikethrough
-	Possible enhancements: color, thickness, style (single, double, wavy, image), dashes.
+- strikethrough
 
 - partial reshaping on text editing
 
@@ -29,6 +29,9 @@ High priority
 
 Low priority
 ==============================================================================
+
+- more underline/strikethrough types:
+	double, dotted, dashed, double_dotted, double_dashed.
 
 - better line wrapping
 	implement SMAWK or binary search from here: https://xxyxyz.org/line-breaking/

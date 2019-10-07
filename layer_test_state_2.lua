@@ -88,9 +88,9 @@ return {
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=2,
-						text_cursor_sel_offset=2,
-						text_cursor_x=46
+						text_cursor_offset=11,
+						text_cursor_sel_offset=11,
+						text_cursor_x=92
 					}
 				},
 				text_spans={

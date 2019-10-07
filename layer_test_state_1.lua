@@ -353,7 +353,8 @@ return {
 		y=13
 	},
 	selected_layer_path={
-		6
+		3,
+		2
 	},
 	tab='Position'
 }

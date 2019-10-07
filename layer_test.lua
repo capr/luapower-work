@@ -36,6 +36,8 @@ for _,s in ipairs{
 	'ionicons.ttf',
 	'Font Awesome 5 Free-Solid-900.otf',
 	'NotoColorEmoji.ttf',
+	'Sacramento-Regular.ttf',
+	'Tangerine-Regular.ttf',
 } do if glue.canopen(font_dir..'/'..s) then
 	table.insert(fonts, s)
 end end
@@ -48,8 +50,6 @@ for i,s in ipairs(fonts) do
 	font_names[i] = s:sub(1, 5)..s:sub(-1)
 end
 local font_map = glue.update({}, font_names, glue.index(font_names))
-
-local lib
 
 local function load_font(font_id, file_data_buf, file_size_buf, mmapped_buf)
 	local font_name = assert(fonts[font_id])
@@ -68,7 +68,7 @@ end
 
 assert(layer.memtotal() == 0)
 
-lib = layer.layerlib(load_font, unload_font)
+local lib = layer.layerlib(load_font, unload_font)
 lib.mem_font_cache_max_size = 1/0
 
 local default_e = lib:layer()
@@ -984,7 +984,7 @@ function testui:repaint()
 			slide ('span_font_size', -10, 100, 1, i)
 			--TODO: slide ('features',
 			--TODO: choose('span_script', nil, {'Zyyy', 'Latn', 'Arab'}, i)
-			choose('span_lang', nil, {'en-us', '', 'ar-sa'}, i)
+			choose('span_lang', nil, {'', 'en-us', 'ar-sa', 'trk'}, i)
 			choose('span_paragraph_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i)
 			toggle('span_nowrap'          , i)
 			pickcolor('span_text_color'   , i)
@@ -1091,150 +1091,6 @@ function testui:repaint()
 
 	end
 
-	--sync'ing, drawing and hit-testing ---------------------------------------
-
-	local repaint
-
-	if not self.ewindow then
-
-		local d = self.app:active_display()
-		self.ewindow = self.app:window{
-			x = d.cw - 1000,
-			y = 100,
-			w = 1000,
-			h = d.ch - 100,
-			parent = self.window,
-		}
-
-		function self.ewindow:repaint()
-			local cr = self:bitmap():cairo()
-			local repaint_t0 = time.clock()
-			cr:identity_matrix()
-			cr:operator'source'
-			cr:rgba(0, 0, 0, 0)
-			cr:paint()
-			cr:operator'over'
-			local draw_t0 = time.clock()
-			top_e:draw(cr)
-			local draw_t = time.clock()
-			if sel_e then
-				sel_e:draw(cr)
-			end
-			local repaint_t = draw_t
-			local draw_dt    = draw_t    - draw_t0
-			local repaint_dt = repaint_t - repaint_t0
-
-			if layer_changed then
-				draw_changed_dt = draw_dt
-				draw_changed = false
-			end
-
-			if draw_t - (draw_fps_t or 0) > 0.5 then
-				draw_fps_t  = t
-				draw_fps_dt = draw_dt
-			end
-			if draw_t - (repaint_fps_t or 0) > 0.5 then
-				repaint_fps_t = t
-				repaint_fps_dt = repaint_dt
-			end
-		end
-
-		function self.ewindow:keypress(key)
-			local shift = self.app:key'shift'
-			local ctrl = self.app:key'ctrl'
-			if key == 'right' or key == 'left' then
-				assert(e ~= nil)
-				e:text_cursor_move_near(0,
-					key == 'right' and layer.CURSOR_DIR_NEXT or layer.CURSOR_DIR_PREV,
-					ctrl and layer.CURSOR_MODE_WORD or layer.CURSOR_MODE_CHAR, 0, shift)
-			elseif key == 'up' or key == 'down' then
-				assert(e ~= nil)
-				e:text_cursor_move_near_line(0, key == 'up' and -1 or 1, 0/0, shift)
-			elseif key == 'pageup' or key == 'pagedown' then
-				assert(e ~= nil)
-				e:text_cursor_move_near_page(0, key == 'pageup' and -1 or 1, 0/0, shift)
-			elseif key == 'home' or key == 'end' then
-				assert(e ~= nil)
-				e:text_cursor_move_near_page(0, key == 'home' and -1/0 or 1/0, 0/0, shift)
-			elseif key == 'backspace' or key == 'delete' then
-				if e:get_selected_text_len(0) == 0 then
-					e:text_cursor_move_near(0,
-						key == 'backspace'
-							and layer.CURSOR_DIR_PREV
-							 or layer.CURSOR_DIR_NEXT,
-						layer.CURSOR_MODE_CHAR, 0, true)
-				end
-				e:remove_selected_text(0)
-			elseif key == 'insert' then
-				e:set_text_insert_mode(0, not e:get_text_insert_mode(0))
-			elseif ctrl and key == 'V' then
-				local s = self.app:getclipboard'text'
-				if s then
-					e:insert_text_utf8_at_cursor(0, s, #s)
-				end
-			end
-			self:parent():invalidate()
-		end
-
-		function self.ewindow:keychar(c)
-			if c:byte(1, 1) > 31 or c:find'[\n\r\t]' then
-				e:insert_text_utf8_at_cursor(0, c, #c)
-			end
-		end
-
-		function self.ewindow:keyup(key)
-			if key == 'esc' then
-				self:parent():close()
-			end
-		end
-
-		--hit-testing
-
-		local active_e, active_area
-
-		function self.ewindow:mousemove(mx, my)
-			local cr = self:bitmap():cairo()
-			if active_e then
-				if active_area == layer.HIT_TEXT and hit_e.text_cursor_count > 0 then
-					local x, y = active_e:from_window(mx, my)
-					active_e:text_cursor_move_to_point(0, x, y, true)
-				end
-			elseif top_e:hit_test(cr, mx, my, 0) then
-				hit_e = top_e.hit_test_layer
-				hit_area = top_e.hit_test_area
-			else
-				hit_e, hit_area = nil
-			end
-			self:parent():invalidate()
-		end
-
-		function self.ewindow:mousedown(button)
-			if hit_e and button == 'left' then
-				selected_layer_path = {}
-				local e = hit_e
-				while e ~= top_e do
-					table.insert(selected_layer_path, 1, e.index)
-					e = e.parent
-				end
-				if hit_area == layer.HIT_TEXT and hit_e.text_cursor_count > 0 then
-					hit_e:text_cursor_move_to_point(0, top_e.hit_test_x, top_e.hit_test_y, false)
-				end
-				active_e, active_area = hit_e, hit_area
-			end
-			self:parent():invalidate()
-		end
-
-		function self.ewindow:mouseup(button)
-			if hit_e and button == 'left' then
-				active_e, active_area = nil
-			end
-		end
-
-	end
-
-	if not top_e.pixels_valid then self.ewindow:invalidate() end
-	if sel_e and not sel_e.pixels_valid then self.ewindow:invalidate() end
-
 	self.x = self.win_w - 1200
 	self.y = 10
 	self:heading(string.format(
@@ -1247,6 +1103,8 @@ function testui:repaint()
 		'Repaint:                                      %.1f fps, %.1f ms',
 		1 / repaint_fps_dt, repaint_fps_dt * 1000))
 
+	ewindow:checkvalid()
+
 end
 
 function testui:keypress(key)
@@ -1254,6 +1112,160 @@ function testui:keypress(key)
 		--TODO: change demo
 	end
 end
+
+--layer window ---------------------------------------------------------------
+
+local app = testui.app
+local testui_win = testui.window
+local d = app:active_display()
+
+ewindow = app:window{
+	x = d.cw - 1000,
+	y = 100,
+	w = 1000,
+	h = d.ch - 100,
+	parent = testui_win,
+}
+
+function ewindow:checkvalid(update_testui)
+	if not top_e.pixels_valid then self:invalidate() end
+	if sel_e and not sel_e.pixels_valid then self:invalidate() end
+	if update_testui then
+		testui_win:invalidate()
+	end
+end
+
+function ewindow:repaint()
+	local cr = self:bitmap():cairo()
+	local repaint_t0 = time.clock()
+	cr:identity_matrix()
+	cr:operator'source'
+	cr:rgba(0, 0, 0, 0)
+	cr:paint()
+	cr:operator'over'
+	local draw_t0 = time.clock()
+	top_e:draw(cr)
+	assert(top_e.pixels_valid)
+	local draw_t = time.clock()
+	if sel_e then
+		sel_e:draw(cr)
+		assert(sel_e.pixels_valid)
+	end
+	local repaint_t = draw_t
+	local draw_dt    = draw_t    - draw_t0
+	local repaint_dt = repaint_t - repaint_t0
+
+	if layer_changed then
+		draw_changed_dt = draw_dt
+		draw_changed = false
+	end
+
+	if draw_t - (draw_fps_t or 0) > 0.5 then
+		draw_fps_t  = t
+		draw_fps_dt = draw_dt
+	end
+	if draw_t - (repaint_fps_t or 0) > 0.5 then
+		repaint_fps_t = t
+		repaint_fps_dt = repaint_dt
+	end
+end
+
+function ewindow:keypress(key)
+	local shift = self.app:key'shift'
+	local ctrl = self.app:key'ctrl'
+	if key == 'right' or key == 'left' then
+		assert(e ~= nil)
+		e:text_cursor_move_near(0,
+			key == 'right' and layer.CURSOR_DIR_NEXT or layer.CURSOR_DIR_PREV,
+			ctrl and layer.CURSOR_MODE_WORD or layer.CURSOR_MODE_CHAR,
+			0,
+			shift)
+	elseif key == 'up' or key == 'down' then
+		assert(e ~= nil)
+		e:text_cursor_move_near_line(0, key == 'up' and -1 or 1, 0/0, shift)
+	elseif key == 'pageup' or key == 'pagedown' then
+		assert(e ~= nil)
+		e:text_cursor_move_near_page(0, key == 'pageup' and -1 or 1, 0/0, shift)
+	elseif key == 'home' or key == 'end' then
+		assert(e ~= nil)
+		e:text_cursor_move_near_page(0, key == 'home' and -1/0 or 1/0, 0/0, shift)
+	elseif key == 'backspace' or key == 'delete' then
+		if e:get_selected_text_len(0) == 0 then
+			e:text_cursor_move_near(0,
+				key == 'backspace'
+					and layer.CURSOR_DIR_PREV
+					 or layer.CURSOR_DIR_NEXT,
+				layer.CURSOR_MODE_CHAR, 0, true)
+		end
+		e:remove_selected_text(0)
+	elseif key == 'insert' then
+		e:set_text_insert_mode(0, not e:get_text_insert_mode(0))
+	elseif ctrl and key == 'V' then
+		local s = self.app:getclipboard'text'
+		if s then
+			e:insert_text_utf8_at_cursor(0, s, #s)
+		end
+	end
+	self:checkvalid(true)
+end
+
+function ewindow:keychar(c)
+	if c:byte(1, 1) > 31 or c:find'[\n\r\t]' then
+		e:insert_text_utf8_at_cursor(0, c, #c)
+		self:checkvalid(true)
+	end
+end
+
+function ewindow:keyup(key)
+	if key == 'esc' then
+		self:parent():close()
+	end
+end
+
+--hit-testing
+
+local active_e, active_area
+
+function ewindow:mousemove(mx, my)
+	local cr = self:bitmap():cairo()
+	if active_e then
+		if active_area == layer.HIT_TEXT and hit_e.text_cursor_count > 0 then
+			local x, y = active_e:from_window(mx, my)
+			active_e:text_cursor_move_to_point(0, x, y, true)
+		end
+	elseif top_e:hit_test(cr, mx, my, 0) then
+		hit_e = top_e.hit_test_layer
+		hit_area = top_e.hit_test_area
+	else
+		hit_e, hit_area = nil
+	end
+	self:checkvalid()
+end
+
+function ewindow:mousedown(button)
+	if hit_e and button == 'left' then
+		selected_layer_path = {}
+		local e = hit_e
+		while e ~= top_e do
+			table.insert(selected_layer_path, 1, e.index)
+			e = e.parent
+		end
+		if hit_area == layer.HIT_TEXT and hit_e.text_cursor_count > 0 then
+			hit_e:text_cursor_move_to_point(0, top_e.hit_test_x, top_e.hit_test_y, false)
+		end
+		active_e, active_area = hit_e, hit_area
+	end
+	self:checkvalid(true)
+end
+
+function ewindow:mouseup(button)
+	if hit_e and button == 'left' then
+		active_e, active_area = nil
+		self:checkvalid(true)
+	end
+end
+
+--main -----------------------------------------------------------------------
 
 load_sessions()
 load_state()

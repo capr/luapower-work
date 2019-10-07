@@ -5,14 +5,39 @@ return {
 		border_width_right=1,
 		border_width_top=1,
 		h=300,
-		span_count=1,
-		text_spans={
+		span_count=4,
+		text_cursor_count=1,
+		text_cursors={
 			{
-				span_font='NotoColorEmoji.ttf',
-				span_font_size=32
+				text_cursor_offset=7,
+				text_cursor_sel_offset=7,
+				text_cursor_x=344.5
 			}
 		},
-		text_utf8='\240\159\152\129',
+		text_spans={
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=56
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=56,
+				span_offset=5,
+				span_text_color=3099113727
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=56,
+				span_offset=7
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=56,
+				span_offset=15,
+				span_text_color=2576980479
+			}
+		},
+		text_utf8='\216\167\217\132\216\179\217\142\217\145\217\132\217\142\216\167\217\133\217\143 abc \216\185\217\142\217\132\217\142\217\138\217\146\217\131\217\143\217\133\217\146',
 		w=500,
 		x=100,
 		y=100
