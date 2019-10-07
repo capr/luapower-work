@@ -91,11 +91,11 @@ end
 
 terra Renderer:paint_surface_clipped(
 	cr: &context, sr: &surface, x: num, y: num,
-	clip_left: num, clip_right: num
+	clip_x1: num, clip_x2: num
 )
 	cr:save()
 	cr:new_path()
-	cr:rectangle(clip_left, y, clip_right, sr:height())
+	cr:rectangle(clip_x1, y, clip_x2 - clip_x1, sr:height())
 	cr:clip()
 	if sr:format() == CAIRO_FORMAT_ARGB32 then
 		cr:source(sr, x, y)

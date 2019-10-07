@@ -31,6 +31,7 @@ local fonts = {}
 for _,s in ipairs{
 	'OpenSans-Regular.ttf',
 	'Amiri-Regular.ttf',
+	'NotoNaskhArabic-Regular.ttf',
 	'SourceHanSans.ttc',
 	'SourceHanSerif.ttc',
 	'ionicons.ttf',

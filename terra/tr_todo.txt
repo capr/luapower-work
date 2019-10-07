@@ -3,8 +3,12 @@ Bugs
 
 - test script modifier.
 
-- test RTL: subsegs.
-- test BIDI: subsegs, reorder, cursors, justify.
+- test BIDI:
+	* RTL subsegs
+	- RTL subsegs clipped
+	* reorder
+	* navigation
+	x justify
 
 - cursor back-one-word from last position steps back 2 steps.
 

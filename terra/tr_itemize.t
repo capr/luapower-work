@@ -455,14 +455,20 @@ terra Layout:shape()
 end
 
 terra GlyphRun:glyph_index_at_offset(offset: int)
+	var last_i = iif(self.rtl, 0, self.glyphs.len-1)
 	for i,g in self.glyphs:ipairs(not self.rtl) do
 		if g.cluster == offset then
 			return i, false
 		elseif g.cluster > offset then
 			return i - 1, true
+		elseif i == last_i then
+			if offset < self.text.len then
+				return i, true
+			else
+				return i + 1, false
+			end
 		end
 	end
-	return iif(self.rtl, -1, self.glyphs.len), false
 end
 
 terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
@@ -482,6 +488,12 @@ terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
 		--find the glyph range covering o1..(o2-1).
 		var i1, clip_left  = run:glyph_index_at_offset(o1)
 		var i2, clip_right = run:glyph_index_at_offset(o2)
+		if i1 > i2 then
+			inc(i1)
+			inc(i2)
+			swap(i1, i2)
+			swap(clip_left, clip_right)
+		end
 		if clip_right then inc(i2) end --think about it
 		var x1 = run.cursors.xs(o1)
 		var x2 = run.cursors.xs(o2)
