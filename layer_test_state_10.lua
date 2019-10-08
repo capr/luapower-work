@@ -6,6 +6,7 @@ return {
 		border_width_top=1,
 		h=300,
 		span_count=3,
+		text='ffi',
 		text_cursor_count=1,
 		text_cursors={
 			{
@@ -33,7 +34,6 @@ return {
 				span_text_color=1499027967
 			}
 		},
-		text_utf8='ffi',
 		w=500,
 		x=100,
 		y=100

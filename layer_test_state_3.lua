@@ -21,6 +21,7 @@ return {
 		rotation_cx=251,
 		rotation_cy=213.5,
 		span_count=1,
+		text='Hello World!',
 		text_cursor_count=2,
 		text_cursors={
 			{
@@ -43,7 +44,6 @@ return {
 				span_font_size=68
 			}
 		},
-		text_utf8='Hello World!',
 		w=547,
 		x=255,
 		y=196

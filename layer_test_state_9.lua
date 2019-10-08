@@ -5,19 +5,24 @@ return {
 		border_width_right=1,
 		border_width_top=1,
 		h=300,
-		span_count=4,
+		span_count=5,
+		text='\217\132\216\167\217\132\216\167\217\132\216\167 ffi',
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=3,
-				text_cursor_sel_offset=3,
-				text_cursor_x=289
+				text_cursor_x=394
 			}
 		},
 		text_spans={
 			{
 				span_font='NotoNaskhArabic-Regular.ttf',
-				span_font_size=100
+				span_font_size=100,
+				span_text_color=4280888831
+			},
+			{
+				span_font='NotoNaskhArabic-Regular.ttf',
+				span_font_size=100,
+				span_offset=1
 			},
 			{
 				span_font='Amiri-Regular.ttf',
@@ -35,10 +40,9 @@ return {
 				span_font='Amiri-Regular.ttf',
 				span_font_size=100,
 				span_offset=9,
-				span_text_color=4160688127
+				span_text_color=2914189567
 			}
 		},
-		text_utf8='\217\132\216\167\217\132\216\167\217\132\216\167 ffi',
 		w=500,
 		x=100,
 		y=100

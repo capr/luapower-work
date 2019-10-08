@@ -16,13 +16,13 @@ return {
 				border_width_top=1,
 				h=39,
 				span_count=1,
+				text='abc',
 				text_spans={
 					{
 						span_font='OpenSans-Regular.ttf',
 						span_font_size=22
 					}
 				},
-				text_utf8='abc',
 				w=85
 			},
 			{
@@ -39,13 +39,13 @@ return {
 				padding_right=17.5,
 				padding_top=17.5,
 				span_count=1,
+				text='xyz',
 				text_spans={
 					{
 						span_font='Amiri-Regular.ttf',
 						span_font_size=35
 					}
 				},
-				text_utf8='xyz',
 				w=82
 			}
 		},
@@ -53,6 +53,7 @@ return {
 		layout_type=1,
 		min_cw=352.5,
 		span_count=1,
+		text='abcd \244\128\128\128 xyz\244\128\128\129123',
 		text_cursor_count=1,
 		text_cursors={
 			{
@@ -68,7 +69,6 @@ return {
 				span_font_size=100
 			}
 		},
-		text_utf8='abcd \244\128\128\128 xyz\244\128\128\129123',
 		w=352.5,
 		x=100,
 		y=100

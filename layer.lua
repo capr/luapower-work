@@ -2,6 +2,7 @@
 --Layer ffi binding.
 
 local ffi = require'ffi'
+local glue = require'glue'
 local M = require'layer_h'
 
 local function cstring(inherited)
@@ -41,5 +42,20 @@ M.wrap('layerlib_t', 'setters', 'mem_font_cache_max_size', nojit)
 M.wrap('layerlib_t', 'setters', 'mmapped_font_cache_max_count', nojit)
 
 M.wrap('layer_t', 'methods', 'from_window', unpack_tuple2)
+
+local outbuf = glue.growbuffer()
+local get_text_utf8 = M.types.layer_t.methods.get_text_utf8
+local text_utf8_len = M.types.layer_t.getters.text_utf8_len
+function M.types.layer_t.getters.text(self)
+	local n = text_utf8_len(self)
+	local out = outbuf(n)
+	local n = get_text_utf8(self, out, n)
+	return n > 0 and ffi.string(out, n) or nil
+end
+
+local set_text_utf8 = M.types.layer_t.methods.set_text_utf8
+function M.types.layer_t.setters.text(self, s)
+	set_text_utf8(self, s, #s)
+end
 
 return M.done()

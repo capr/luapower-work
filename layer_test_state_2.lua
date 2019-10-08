@@ -61,6 +61,7 @@ return {
 				min_ch=183,
 				min_cw=61,
 				span_count=1,
+				text='Hello World!',
 				text_cursor_count=1,
 				text_spans={
 					{
@@ -70,7 +71,6 @@ return {
 						span_text_operator=1
 					}
 				},
-				text_utf8='Hello World!',
 				w=93,
 				x=348.5,
 				y=66.833333333333329
@@ -85,6 +85,7 @@ return {
 				min_ch=11,
 				min_cw=93,
 				span_count=1,
+				text='Hello World',
 				text_cursor_count=1,
 				text_cursors={
 					{
@@ -99,7 +100,6 @@ return {
 						span_font_size=39
 					}
 				},
-				text_utf8='Hello World',
 				w=93,
 				x=348.5,
 				y=316.66666666666663

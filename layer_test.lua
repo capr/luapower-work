@@ -88,13 +88,6 @@ local test_texts = {
 }
 local test_text_names = glue.index(test_texts)
 
-local outlen = 65535
-local out = ffi.new('char[?]', outlen)
-local function utf8_text(e)
-	local n = e:get_text_utf8(out, outlen)
-	return n > 0 and ffi.string(out, n) or nil
-end
-
 --global state ---------------------------------------------------------------
 
 local top_e, sel_e
@@ -224,7 +217,7 @@ local function serialize_layer(e)
 		shadow_inset   =1,
 		shadow_content =1,
 	})
-	t.text_utf8 = utf8_text(e)
+	t.text = e.text
 	t.text_maxlen = e.text_maxlen
 	t.text_dir = e.text_dir
 	t.text_align_x = e.text_align_x
@@ -323,7 +316,7 @@ local function deserialize_layer(e, t)
 				deserialize_layer(e:child(i-1), t)
 			end
 		elseif k == 'text_utf8' then
-			e:set_text_utf8(v, #v)
+			e.text = v
 		elseif type(v) == 'table' then
 			local kk = k
 			for i,t in ipairs(v) do
@@ -908,12 +901,12 @@ function testui:repaint()
 
 		self:pushgroup'right'
 		self.min_w = 0
-		local text = utf8_text(e)
+		local text = e.text_utf8
 		local text_name = test_text_names[text]
 		local sel_text_name = self:choose('text_utf8', glue.keys(test_texts, true), text_name)
 		if sel_text_name then
 			local sel_text = test_texts[sel_text_name]
-			e:set_text_utf8(sel_text, #sel_text)
+			e.text_utf8 = sel_text
 			layer_changed = true
 		end
 		self:popgroup()
@@ -1206,6 +1199,8 @@ function ewindow:keypress(key)
 		if s then
 			e:insert_text_utf8_at_cursor(0, s, #s)
 		end
+	elseif ctrl and key == 'C' then
+		self.app:setclipboard('text', e.utf8_text)
 	end
 	self:checkvalid(true)
 end

@@ -6,9 +6,10 @@ Bugs
 - test BIDI:
 	* RTL subsegs
 	- RTL subsegs clipped
-	* reorder
-	* navigation
-	x justify
+	- justify
+	* BIDI reorder
+	* BIDI keyboard navigation
+	* BIDI mouse drag-selection
 
 - cursor back-one-word from last position steps back 2 steps.
 
@@ -30,6 +31,15 @@ High priority
 - tofu box with hex codepoint for missing glyphs.
 	see: https://lists.freedesktop.org/archives/harfbuzz/2015-May/004859.html
 
+- visual markers:
+	- bidi marker
+	- wrapped space marker
+	- zwsp + skip it when navigating (press delete to remove it (no backspace))
+	- nbsp
+	- soft hyphen
+	- confusables
+	- invalid utf8 bytes
+	- control characters
 
 Low priority
 ==============================================================================

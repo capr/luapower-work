@@ -211,10 +211,10 @@ return {
 			{
 				background_color=79,
 				background_type=1,
-				border_color_bottom=4294967188,
-				border_color_left=4294967188,
-				border_color_right=4294967188,
-				border_color_top=4294967188,
+				border_color_bottom=4114826173,
+				border_color_left=4114826173,
+				border_color_right=4114826173,
+				border_color_top=4114826173,
 				border_offset=2,
 				border_width_bottom=16.5,
 				border_width_left=16.5,
@@ -262,6 +262,7 @@ return {
 				min_cw=12,
 				shadow_count=1,
 				span_count=1,
+				text='Hello my friends!\rWhat\'s up doc?\rHeeey...',
 				text_align_x=2,
 				text_align_y=1,
 				text_cursor_count=1,
@@ -278,7 +279,6 @@ return {
 						span_font_size=20
 					}
 				},
-				text_utf8='Hello my friends!\rWhat\'s up doc?\rHeeey...',
 				w=145.5,
 				x=360.79999999999995,
 				y=545.83333333333326
@@ -327,7 +327,6 @@ return {
 		layout_type=3,
 		min_ch=837,
 		min_cw=887,
-		opacity=0.70000000000000007,
 		padding_bottom=13.5,
 		padding_left=13.5,
 		padding_right=13.5,
@@ -353,8 +352,7 @@ return {
 		y=13
 	},
 	selected_layer_path={
-		3,
-		2
+		4
 	},
-	tab='Position'
+	tab='Border & Padding'
 }
