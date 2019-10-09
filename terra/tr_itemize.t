@@ -454,18 +454,22 @@ terra Layout:shape()
 
 end
 
+--find the glyph index that totally or partially represents the grapheme at
+--an offset; also say whether the glyph contains anything before the grapheme
+--in logical text direction, so that the glyph must be clipped (on the left
+--side for LTR text and on the right side for RTL text).
 terra GlyphRun:glyph_index_at_offset(offset: int)
 	var last_i = iif(self.rtl, 0, self.glyphs.len-1)
 	for i,g in self.glyphs:ipairs(not self.rtl) do
 		if g.cluster == offset then
 			return i, false
 		elseif g.cluster > offset then
-			return i - iif(self.rtl, -1, 1), true
+			return i - iif(self.rtl, -1, 1), true --previous glyph
 		elseif i == last_i then
 			if offset < self.text.len then
 				return i, true
 			else
-				return i + iif(self.rtl, -1, 1), false
+				return i + iif(self.rtl, -1, 1), false --non-existent next glyph
 			end
 		end
 	end
@@ -485,29 +489,33 @@ terra Layout:create_subsegs(seg: &Seg, run: &GlyphRun, span: &Span)
 		--adjust the offsets to grapheme positions.
 		o1 = run.cursors.offsets(o1)
 		o2 = run.cursors.offsets(o2)
-		--find the glyph range covering o1..(o2-1).
-		var i1, clip_left  = run:glyph_index_at_offset(o1)
-		var i2, clip_right = run:glyph_index_at_offset(o2)
+		--find the relative clip x-coords at those offsets.
 		var x1 = run.cursors.xs(o1)
 		var x2 = run.cursors.xs(o2)
-		if i1 > i2 then
-			if clip_right then dec(i2) end --think about it
+		x1, x2 = minmax(x1, x2)
+		--find the glyph range covering o1..o2 and which sides need clipping.
+		var i1, clip1 = run:glyph_index_at_offset(o1)
+		var i2, clip2 = run:glyph_index_at_offset(o2)
+		if clip2 then
+			--if the glyph at o2 must be clipped, include it in the iteration
+			--so that the part of the glyph up-until o2 can be displayed.
+			inc(i2, iif(run.rtl, -1, 1))
+		end
+		if run.rtl then
+			--reverse decreasing iteration range i1..i2 to an increasing range.
 			inc(i1)
 			inc(i2)
 			swap(i1, i2)
-			swap(clip_left, clip_right)
-		else
-			if clip_right then inc(i2) end --think about it
+			swap(clip1, clip2)
 		end
-		--print(o1, o2, i1, i2, clip_left, clip_right, x1, x2)
 		seg.subsegs:add(SubSeg {
 			span = span,
 			glyph_index1 = i1,
 			glyph_index2 = i2,
 			x1 = x1,
 			x2 = x2,
-			clip_left  = clip_left,
-			clip_right = clip_right,
+			clip_left  = clip1,
+			clip_right = clip2,
 		})
 		if next_offset >= eof then
 			break

@@ -15,14 +15,15 @@ return {
 		padding_right=26.5,
 		padding_top=26.5,
 		span_count=17,
+		text='TODO:\239\139\156\239\158\135 \239\145\186\239\133\139\r- [done] test bidi text with subsegs.\r- test script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- implement span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- [done] test emoji scaling.\240\159\144\146\240\159\152\129OMG color emoji!!!\r',
 		text_align_x=1,
 		text_align_y=2,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=256,
-				text_cursor_sel_offset=256,
-				text_cursor_x=75.5
+				text_cursor_offset=20,
+				text_cursor_sel_offset=20,
+				text_cursor_x=8
 			}
 		},
 		text_spans={
@@ -66,7 +67,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=19,
+				span_offset=26,
 				span_text_color=255,
 				span_underline=1,
 				span_underline_color=255
@@ -76,7 +77,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=25,
+				span_offset=32,
 				span_text_color=255
 			},
 			{
@@ -84,7 +85,7 @@ return {
 				span_font_face_index=15,
 				span_font_size=19,
 				span_lang='en-us',
-				span_offset=33,
+				span_offset=40,
 				span_text_color=4279835135
 			},
 			{
@@ -92,7 +93,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=40,
+				span_offset=47,
 				span_text_color=255
 			},
 			{
@@ -100,7 +101,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=55,
+				span_offset=56,
 				span_text_color=255,
 				span_underline=1,
 				span_underline_color=1258346239
@@ -110,7 +111,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=89,
+				span_offset=87,
 				span_text_color=255,
 				span_underline_color=1258346239
 			},
@@ -119,7 +120,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=248,
+				span_offset=256,
 				span_text_color=255,
 				span_underline=2,
 				span_underline_color=4278520319
@@ -129,7 +130,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=252,
+				span_offset=260,
 				span_text_color=255,
 				span_underline_color=1258346239
 			},
@@ -139,7 +140,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=265,
+				span_offset=273,
 				span_text_color=255,
 				span_underline_color=1258346239
 			},
@@ -149,7 +150,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=23,
 				span_lang='en-us',
-				span_offset=267,
+				span_offset=275,
 				span_text_color=255,
 				span_underline_color=1258346239
 			},
@@ -158,7 +159,7 @@ return {
 				span_font_face_index=6,
 				span_font_size=15,
 				span_lang='en-us',
-				span_offset=270,
+				span_offset=278,
 				span_text_color=255,
 				span_underline_color=1258346239
 			},
@@ -166,18 +167,17 @@ return {
 				span_font='NotoColorEmoji.ttf',
 				span_font_size=48,
 				span_lang='en-us',
-				span_offset=406,
+				span_offset=414,
 				span_text_color=255
 			},
 			{
 				span_font='OpenSans-Regular.ttf',
 				span_font_size=19,
 				span_lang='en-us',
-				span_offset=408,
+				span_offset=416,
 				span_text_color=255
 			}
 		},
-		text='TODO:\239\139\156\239\158\135 \239\145\186\239\133\139\r- test bidi text with subsegs.\r- test lang and script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- [done] test emoji scaling.\240\159\144\146\240\159\152\129OMG color emoji!!!\r',
 		w=794.5,
 		x=61,
 		y=39
