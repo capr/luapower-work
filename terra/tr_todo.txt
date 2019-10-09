@@ -5,8 +5,8 @@ Bugs
 
 - test BIDI:
 	* RTL subsegs
-	- RTL subsegs clipped
-	- justify
+	* RTL subsegs clipped
+	- BIDI justify (last line also)
 	* BIDI reorder
 	* BIDI keyboard navigation
 	* BIDI mouse drag-selection
