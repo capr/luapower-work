@@ -315,8 +315,6 @@ local function deserialize_layer(e, t)
 			for i,t in ipairs(v) do
 				deserialize_layer(e:child(i-1), t)
 			end
-		elseif k == 'text_utf8' then
-			e.text = v
 		elseif type(v) == 'table' then
 			local kk = k
 			for i,t in ipairs(v) do
@@ -901,12 +899,12 @@ function testui:repaint()
 
 		self:pushgroup'right'
 		self.min_w = 0
-		local text = e.text_utf8
+		local text = e.text
 		local text_name = test_text_names[text]
-		local sel_text_name = self:choose('text_utf8', glue.keys(test_texts, true), text_name)
+		local sel_text_name = self:choose('text', glue.keys(test_texts, true), text_name)
 		if sel_text_name then
 			local sel_text = test_texts[sel_text_name]
-			e.text_utf8 = sel_text
+			e.text = sel_text
 			layer_changed = true
 		end
 		self:popgroup()
@@ -924,9 +922,9 @@ function testui:repaint()
 		for i = 0, e.text_cursor_count-1 do
 			self:heading('Cursor '..i)
 
-			slide('text_cursor_offset', -1, e.text_len + 1, 1, i)
+			slide('text_cursor_offset', -1, e.text_utf32_len + 1, 1, i)
 			slide('text_cursor_which', -1, 2, 1, i)
-			slide('text_cursor_sel_offset', -1, e.text_len + 1, 1, i)
+			slide('text_cursor_sel_offset', -1, e.text_utf32_len + 1, 1, i)
 			slide('text_cursor_sel_which', -1, 2, 1, i)
 
 			toggle('text_insert_mode', i)
@@ -936,7 +934,7 @@ function testui:repaint()
 			slideo('text_selection_opacity', i)
 
 			if e.text_valid then
-				self:heading('Selected Text '..i..' ('..e:get_selected_text_len(i)..' codepoints)')
+				self:heading('Selected Text '..i..' ('..e:get_selected_text_utf32_len(i)..' codepoints)')
 				choose('selected_text_font_id', font_map, font_names, i, 'selected_text_has_font_id')
 				slide ('selected_text_font_size', -10, 100, 1, i, 'selected_text_has_font_size')
 				slide ('selected_text_font_face_index', -1,
@@ -1184,7 +1182,7 @@ function ewindow:keypress(key)
 		assert(e ~= nil)
 		e:text_cursor_move_near_page(0, key == 'home' and -1/0 or 1/0, 0/0, shift)
 	elseif key == 'backspace' or key == 'delete' then
-		if e:get_selected_text_len(0) == 0 then
+		if e:get_selected_text_utf32_len(0) == 0 then
 			e:text_cursor_move_near(0,
 				key == 'backspace'
 					and layer.CURSOR_DIR_PREV
@@ -1197,17 +1195,17 @@ function ewindow:keypress(key)
 	elseif ctrl and key == 'V' then
 		local s = self.app:getclipboard'text'
 		if s then
-			e:insert_text_utf8_at_cursor(0, s, #s)
+			e:insert_text_at_cursor(0, s, #s)
 		end
 	elseif ctrl and key == 'C' then
-		self.app:setclipboard('text', e.utf8_text)
+		self.app:setclipboard(e.text)
 	end
 	self:checkvalid(true)
 end
 
 function ewindow:keychar(c)
 	if c:byte(1, 1) > 31 or c:find'[\n\r\t]' then
-		e:insert_text_utf8_at_cursor(0, c, #c)
+		e:insert_text_at_cursor(0, c, #c)
 		self:checkvalid(true)
 	end
 end

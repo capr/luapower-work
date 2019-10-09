@@ -43,19 +43,68 @@ M.wrap('layerlib_t', 'setters', 'mmapped_font_cache_max_count', nojit)
 
 M.wrap('layer_t', 'methods', 'from_window', unpack_tuple2)
 
+--conversion to/from utf8 Lua strings ----------------------------------------
+
+--Make utf8 the default encoding in Lua-land: remove `_utf8` from method
+--names and add `_utf32` to methods that work in codepoints.
+
 local outbuf = glue.growbuffer()
-local get_text_utf8 = M.types.layer_t.methods.get_text_utf8
-local text_utf8_len = M.types.layer_t.getters.text_utf8_len
-function M.types.layer_t.getters.text(self)
-	local n = text_utf8_len(self)
-	local out = outbuf(n)
-	local n = get_text_utf8(self, out, n)
-	return n > 0 and ffi.string(out, n) or nil
+local function text_utf8_getset(
+	get_text_utf8_len,
+	get_text_utf8,
+	set_text_utf8
+)
+	return
+		get_text_utf8_len,
+		function(self, out, outlen)
+			local outlen = outlen or get_text_utf8_len(self)
+			local out = out or outbuf(outlen)
+			local n = get_text_utf8(self, out, outlen)
+			return n > 0 and ffi.string(out, n) or nil
+		end,
+		function(self, s, len)
+			set_text_utf8(self, s, len or #s)
+		end
 end
 
-local set_text_utf8 = M.types.layer_t.methods.set_text_utf8
-function M.types.layer_t.setters.text(self, s)
-	set_text_utf8(self, s, #s)
-end
+local t = M.types.layer_t
+
+t.getters.text_utf32_len = t.getters.text_len
+t.methods.get_text_utf32 = t.methods.get_text
+t.methods.set_text_utf32 = t.methods.set_text
+
+t.getters.text_len,
+t.getters.text,
+t.setters.text
+	= text_utf8_getset(
+		t.getters.text_utf8_len,
+		t.methods.get_text_utf8,
+		t.methods.set_text_utf8
+	)
+
+t.getters.text_utf8_len = nil
+t.methods.get_text_utf8 = nil
+t.methods.set_text_utf8 = nil
+
+t.methods.get_selected_text_utf32_len = t.methods.get_selected_text_len
+t.methods.get_selected_text_utf32     = t.methods.get_selected_text
+t.methods.set_selected_text_utf32     = t.methods.set_selected_text
+
+t.methods.get_selected_text_len,
+t.methods.get_selected_text,
+t.methods.set_selected_text
+	= text_utf8_getset(
+		t.methods.get_selected_text_utf8_len,
+		t.methods.get_selected_text_utf8,
+		t.methods.set_selected_text_utf8
+	)
+
+t.methods.get_selected_text_utf8_len = nil
+t.methods.get_selected_text_utf8 = nil
+t.methods.set_selected_text_utf8 = nil
+
+t.methods.insert_text_utf32_at_cursor = t.methods.insert_text_at_cursor
+t.methods.insert_text_at_cursor = t.methods.insert_text_utf8_at_cursor
+t.methods.insert_text_utf8_at_cursor = nil
 
 return M.done()

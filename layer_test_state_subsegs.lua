@@ -4,15 +4,15 @@ return {
 		border_width_left=1,
 		border_width_right=1,
 		border_width_top=1,
-		h=300,
-		span_count=8,
-		text='\217\132\216\167\217\132\216\167\217\132\216\167 ffi',
+		h=627.5,
+		span_count=18,
+		text='\217\132\216\167\217\132\216\167\217\132\216\167 ffi\r\216\167\217\132\216\179\217\142\217\145\217\132\217\142\216\167\217\133\217\143 abffic \216\185\217\142\217\132\217\142\217\138\217\146\217\131\217\143\217\133\217\146\r',
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=6,
-				text_cursor_sel_offset=6,
-				text_cursor_x=215
+				text_cursor_offset=25,
+				text_cursor_sel_offset=25,
+				text_cursor_x=432
 			}
 		},
 		text_spans={
@@ -60,9 +60,68 @@ return {
 				span_font_size=100,
 				span_offset=9,
 				span_text_color=2914189567
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=13,
+				span_text_color=4177485055
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=16,
+				span_text_color=4145741823
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=18,
+				span_text_color=4280887807
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=19,
+				span_text_color=4280282367
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=23,
+				span_text_color=4281875455
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=25
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=27,
+				span_text_color=2914189567
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=29,
+				span_text_color=2477776127
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=33,
+				span_text_color=4294967236
+			},
+			{
+				span_font='Amiri-Regular.ttf',
+				span_font_size=100,
+				span_offset=37,
+				span_text_color=2914189567
 			}
 		},
-		w=500,
+		w=619.5,
 		x=100,
 		y=100
 	},
