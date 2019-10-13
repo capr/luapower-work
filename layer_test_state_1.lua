@@ -57,8 +57,8 @@ return {
 				min_ch=47,
 				min_cw=61,
 				w=61,
-				x=83.099999999999994,
-				y=147.16666666666666
+				x=81.009375000000006,
+				y=135.16666666666666
 			},
 			{
 				background_color_stop_count=2,
@@ -82,8 +82,8 @@ return {
 				min_ch=18,
 				min_cw=50.5,
 				w=50.5,
-				x=227.19999999999999,
-				y=147.16666666666666
+				x=223.01875000000001,
+				y=135.16666666666666
 			},
 			{
 				border_width_bottom=1,
@@ -99,7 +99,7 @@ return {
 						border_width_right=8.5,
 						border_width_top=8.5,
 						h=251.49999999999997,
-						w=72.75
+						w=77.9765625
 					},
 					{
 						background_color=150601983,
@@ -115,8 +115,8 @@ return {
 						padding_top=11.5,
 						rotation_cx=36.5,
 						rotation_cy=78.5,
-						w=72.75,
-						x=72.75
+						w=77.9765625,
+						x=77.9765625
 					}
 				},
 				clip_content=true,
@@ -135,9 +135,9 @@ return {
 						span_text_color=2952731391
 					}
 				},
-				w=145.5,
-				x=360.79999999999995,
-				y=147.16666666666666
+				w=155.953125,
+				x=354.52812500000005,
+				y=135.16666666666666
 			},
 			{
 				align_items_y=8,
@@ -205,8 +205,8 @@ return {
 				padding_top=16,
 				rotation=-27,
 				w=214.5,
-				x=589.39999999999998,
-				y=147.16666666666666
+				x=591.49062500000002,
+				y=135.16666666666666
 			},
 			{
 				background_color=79,
@@ -221,10 +221,10 @@ return {
 				border_width_right=16.5,
 				border_width_top=16.5,
 				clip_content=true,
-				h=144,
+				h=180,
 				w=61,
-				x=83.099999999999994,
-				y=545.83333333333326
+				x=81.009375000000006,
+				y=521.83333333333326
 			},
 			{
 				background_color=104183667,
@@ -234,7 +234,7 @@ return {
 				border_width_right=1,
 				border_width_top=1,
 				clip_content=true,
-				h=144,
+				h=180,
 				shadow_count=1,
 				shadows={
 					{
@@ -244,8 +244,8 @@ return {
 					}
 				},
 				w=50.5,
-				x=227.19999999999999,
-				y=545.83333333333326
+				x=223.01875000000001,
+				y=521.83333333333326
 			},
 			{
 				background_color=110,
@@ -255,22 +255,22 @@ return {
 				border_width_right=1,
 				border_width_top=1,
 				clip_content=true,
-				h=144,
+				h=180,
 				hit_test_mask=1,
 				layout_type=1,
 				min_ch=144,
 				min_cw=12,
 				shadow_count=1,
 				span_count=1,
-				text='Hello my friends!\rWhat\'s up doc?\rHeeey...',
+				text='Hello my friends!\rWhat\'s uiftguh[dfokjo[\\oi]\\\\o doc?\rHeeey...',
 				text_align_x=2,
 				text_align_y=1,
 				text_cursor_count=1,
 				text_cursors={
 					{
-						text_cursor_offset=36,
-						text_cursor_sel_offset=36,
-						text_cursor_x=114.69999694824219
+						text_cursor_offset=47,
+						text_cursor_sel_offset=47,
+						text_cursor_x=109.953125
 					}
 				},
 				text_spans={
@@ -279,9 +279,9 @@ return {
 						span_font_size=20
 					}
 				},
-				w=145.5,
-				x=360.79999999999995,
-				y=545.83333333333326
+				w=155.953125,
+				x=354.52812500000005,
+				y=521.83333333333326
 			},
 			{
 				background_color_stop_count=2,
@@ -301,7 +301,7 @@ return {
 				border_width_left=1,
 				border_width_right=1,
 				border_width_top=1,
-				h=144,
+				h=180,
 				layout_type=1,
 				span_count=1,
 				text_align_y=2,
@@ -313,8 +313,8 @@ return {
 					}
 				},
 				w=214.5,
-				x=589.39999999999998,
-				y=545.83333333333326
+				x=591.49062500000002,
+				y=521.83333333333326
 			}
 		},
 		clip_content=true,
@@ -352,7 +352,7 @@ return {
 		y=13
 	},
 	selected_layer_path={
-		4
+		6
 	},
 	tab='Border & Padding'
 }

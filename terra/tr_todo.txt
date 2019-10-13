@@ -4,8 +4,6 @@ Bugs
 - test script modifier.
 
 - test BIDI:
-	* RTL subsegs
-	* RTL subsegs clipped
 	- BIDI justify (last line also)
 	* BIDI reorder
 	* BIDI keyboard navigation
@@ -17,7 +15,7 @@ Bugs
 
 - fixed line height: per-layout or per-paragraph font_id/font_size.
 
-- mixed argb/alpha segments: alpha part pre-rendered into argb bitmap.
+- mixed argb/alpha segments: argb part pre-rendered into alpha bitmap.
 
 High priority
 ==============================================================================
@@ -30,16 +28,6 @@ High priority
 
 - tofu box with hex codepoint for missing glyphs.
 	see: https://lists.freedesktop.org/archives/harfbuzz/2015-May/004859.html
-
-- visual markers:
-	- bidi marker
-	- wrapped space marker
-	- zwsp + skip it when navigating (press delete to remove it (no backspace))
-	- nbsp
-	- soft hyphen
-	- confusables
-	- invalid utf8 bytes
-	- control characters
 
 Low priority
 ==============================================================================
@@ -70,17 +58,7 @@ Low priority
 	- disable letter-spacing for cursive scripts
 	- disable ligatures (-liga) for letter-spaced scripts
 
-
-Very-low priority
-==============================================================================
-
-Allow varying the formatting attributes within a single grapheme
-	IOW allow coloring the diacritical marks differently than the base glyph.
-
-Unicode debugging / visual editing aids
-	show special hex boxes for:
-		invalid bytes
-		control characters
+- Unicode debugging / visual editing aids
 	mark invisible characters positions:
 		ZW-NBSP: prevents ligatures
 		NBSP: prevents word-wrapping
@@ -97,6 +75,12 @@ Unicode debugging / visual editing aids
 		show direction
 		show all codepoints individually between cursor and next cursor
 		shape/show all graphemes individually between cursor and next cursor
+
+Very-low priority
+==============================================================================
+
+Allow varying the formatting attributes within a single grapheme
+	IOW allow coloring the diacritical marks differently than the base glyph.
 
 Flag to apply opacity to an entire span:
 	Currently the opacity attribute is applied to individual glyphs, not

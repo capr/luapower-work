@@ -49,62 +49,39 @@ M.wrap('layer_t', 'methods', 'from_window', unpack_tuple2)
 --names and add `_utf32` to methods that work in codepoints.
 
 local outbuf = glue.growbuffer()
-local function text_utf8_getset(
-	get_text_utf8_len,
-	get_text_utf8,
-	set_text_utf8
-)
-	return
-		get_text_utf8_len,
-		function(self, out, outlen)
-			local outlen = outlen or get_text_utf8_len(self)
-			local out = out or outbuf(outlen)
-			local n = get_text_utf8(self, out, outlen)
-			return n > 0 and ffi.string(out, n) or nil
-		end,
-		function(self, s, len)
-			set_text_utf8(self, s, len or #s)
-		end
-end
-
 local t = M.types.layer_t
 
 t.getters.text_utf32_len = t.getters.text_len
-t.methods.get_text_utf32 = t.methods.get_text
+t.getters.text_len       = t.getters.text_utf8_len
+t.getters.text_utf32     = t.getters.get_text
+local get_text_utf8      = t.methods.get_text_utf8
+function t.getters.text(self)
+	local outlen = self.text_len
+	local out = outbuf(outlen)
+	local n = get_text_utf8(self, out, outlen)
+	return n > 0 and ffi.string(out, n) or nil
+end
 t.methods.set_text_utf32 = t.methods.set_text
-
-t.getters.text_len,
-t.getters.text,
-t.setters.text
-	= text_utf8_getset(
-		t.getters.text_utf8_len,
-		t.methods.get_text_utf8,
-		t.methods.set_text_utf8
-	)
-
-t.getters.text_utf8_len = nil
-t.methods.get_text_utf8 = nil
-t.methods.set_text_utf8 = nil
+function t.setters.text(self, s)
+	t.methods.set_text_utf8(self, s, #s)
+end
 
 t.methods.get_selected_text_utf32_len = t.methods.get_selected_text_len
+t.methods.get_selected_text_len       = t.methods.get_selected_text_utf8_len
 t.methods.get_selected_text_utf32     = t.methods.get_selected_text
-t.methods.set_selected_text_utf32     = t.methods.set_selected_text
-
-t.methods.get_selected_text_len,
-t.methods.get_selected_text,
-t.methods.set_selected_text
-	= text_utf8_getset(
-		t.methods.get_selected_text_utf8_len,
-		t.methods.get_selected_text_utf8,
-		t.methods.set_selected_text_utf8
-	)
-
-t.methods.get_selected_text_utf8_len = nil
-t.methods.get_selected_text_utf8 = nil
-t.methods.set_selected_text_utf8 = nil
+local get_selected_text_utf8          = t.methods.get_selected_text_utf8
+function t.methods.get_selected_text(self, sel_i)
+	local outlen = self:get_selected_text_len(sel_i)
+	local out = outbuf(outlen)
+	local n = get_selected_text_utf8(self, sel_i, out, outlen)
+	return n > 0 and ffi.string(out, n) or nil
+end
+t.methods.set_selected_text_utf32 = t.methods.set_selected_text
+function t.methods.set_selected_text(self, sel_i, s)
+	t.methods.set_selected_text_utf8(self, sel_i, s, #s)
+end
 
 t.methods.insert_text_utf32_at_cursor = t.methods.insert_text_at_cursor
 t.methods.insert_text_at_cursor = t.methods.insert_text_utf8_at_cursor
-t.methods.insert_text_utf8_at_cursor = nil
 
 return M.done()

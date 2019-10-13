@@ -15,15 +15,15 @@ return {
 		padding_right=26.5,
 		padding_top=26.5,
 		span_count=17,
-		text='TODO:\239\139\156\239\158\135 \239\145\186\239\133\139\r- [done] test bidi text with subsegs.\r- test script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- implement span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- implement fixed line height based on global font_id/font_size.\r- [done] test emoji scaling.\240\159\144\146\240\159\152\129OMG color emoji!!!\r',
+		text='TODO:\239\139\156\239\158\135 \239\145\186\239\133\139\r- [done] test bidi text with subsegs.\r- test script tagging.\r- implement layer margins.\r- jit.off layer:draw() because of custom-draw callbacks\r- implement span-at-cursor.\r- implement tab-stops. tab1\ttab2\ttab3\ttab4\r- implement strikethrough.\r- [done] implement baseline adjustment for subscript & superscript.\r- [done] test emoji scaling.\240\159\144\146\240\159\152\129OMG color emoji!!!\r',
 		text_align_x=1,
 		text_align_y=2,
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=20,
-				text_cursor_sel_offset=20,
-				text_cursor_x=8
+				text_cursor_offset=115,
+				text_cursor_sel_offset=115,
+				text_cursor_x=83
 			}
 		},
 		text_spans={
@@ -148,7 +148,7 @@ return {
 				span_baseline=-0.31700000166893005,
 				span_font='SourceHanSans.ttc',
 				span_font_face_index=6,
-				span_font_size=23,
+				span_font_size=21,
 				span_lang='en-us',
 				span_offset=275,
 				span_text_color=255,
@@ -167,14 +167,14 @@ return {
 				span_font='NotoColorEmoji.ttf',
 				span_font_size=48,
 				span_lang='en-us',
-				span_offset=414,
+				span_offset=349,
 				span_text_color=255
 			},
 			{
 				span_font='OpenSans-Regular.ttf',
 				span_font_size=19,
 				span_lang='en-us',
-				span_offset=416,
+				span_offset=351,
 				span_text_color=255
 			}
 		},
@@ -184,5 +184,5 @@ return {
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Background'
 }

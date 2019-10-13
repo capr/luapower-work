@@ -1197,8 +1197,11 @@ function ewindow:keypress(key)
 		if s then
 			e:insert_text_at_cursor(0, s, #s)
 		end
-	elseif ctrl and key == 'C' then
-		self.app:setclipboard(e.text)
+	elseif ctrl and (key == 'C' or key == 'X') then
+		self.app:setclipboard(e:get_selected_text(0))
+		if key == 'X' then
+			e:remove_selected_text(0)
+		end
 	end
 	self:checkvalid(true)
 end

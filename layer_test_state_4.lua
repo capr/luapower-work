@@ -31,9 +31,9 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=510,
-				text_cursor_sel_offset=510,
-				text_cursor_x=321.5
+				text_cursor_offset=74,
+				text_cursor_sel_offset=74,
+				text_cursor_x=421.5
 			}
 		},
 		text_spans={
@@ -67,5 +67,5 @@ return {
 	},
 	selected_layer_path={
 	},
-	tab='Text'
+	tab='Position'
 }

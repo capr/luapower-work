@@ -12,7 +12,7 @@ return {
 			{
 				text_cursor_offset=3,
 				text_cursor_sel_offset=3,
-				text_cursor_x=315
+				text_cursor_x=277
 			}
 		},
 		text_spans={
