@@ -2082,8 +2082,8 @@ local terra text_sync(self: &Layer)
 end
 
 terra Layer:get_nowrap()
-	return self.text.layout:get_span_nowrap(0)
-		and self.text.layout:has_nowrap(0, -1)
+	return self.text.layout:get_span_wrap(0) == tr.WRAP_NONE
+		and self.text.layout:has_wrap(0, -1)
 end
 
 local terra text_sync_min_w(self: &Layer, other_axis_synced: bool)

@@ -167,6 +167,10 @@ hb_feature_arr_t = arr(hb_feature_t)
 -- Spans are kept in an array and cover the whole text without holes by virtue
 -- of their `offset` field alone: a span ends where the next one begins.
 
+WRAP_WORD = 0
+WRAP_CHAR = 1
+WRAP_NONE = 2
+
 struct Span (gettersandsetters) {
 	offset: int; --offset in the text, in codepoints.
 	font_id: int;
@@ -180,7 +184,7 @@ struct Span (gettersandsetters) {
 	color: color;
 	operator: enum; --blending operator.
 	paragraph_dir: enum; --bidi dir override for current paragraph.
-	nowrap: bool; --disable word wrapping inside this span.
+	wrap: enum; --WRAP_*
 	underline: enum; --UNDERLINE_*
 	underline_color: color;
 	underline_opacity: num;
@@ -201,7 +205,7 @@ Span.empty_const = constant(`Span {
 	color = DEFAULT_TEXT_COLOR;
 	operator = DEFAULT_TEXT_OPERATOR;
 	paragraph_dir = 0;
-	nowrap = false;
+	wrap = WRAP_WORD;
 	underline = 0;
 	underline_color = DEFAULT_TEXT_COLOR;
 	underline_opacity = 1;

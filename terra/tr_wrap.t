@@ -23,7 +23,7 @@ terra Layout:nowrap_segments(seg_i: int)
 			return ax1, ax1, i+1
 		elseif
 			seg.linebreak ~= BREAK_NONE
-			and not (seg.span.nowrap and self.segs:at(i+1).span.nowrap)
+			and not (seg.span.wrap == WRAP_NONE and self.segs:at(i+1).span.wrap == WRAP_NONE)
 		then
 			var wx = ax + m.wrap_advance_x
 			return wx, ax1, i+1

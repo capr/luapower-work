@@ -445,7 +445,7 @@ function lib(modulename)
 		cancall(T, '') --force getmethod() to add all the methods.
 		local st = {obj = T, cname = struct_cname, methods = {}, getters = {}, setters = {}}
 		add(objects, st)
-		for name, func in pairs(T.methods) do
+		for name, func in sortedpairs(T.methods) do
 			local valid = type(func) == 'terrafunction'
 			local public = pub and pub[name]
 			if public then
