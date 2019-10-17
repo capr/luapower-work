@@ -99,6 +99,7 @@ map_enum(C, 'CAIRO_OPERATOR_', 'OPERATOR_')
 map_enum(tr.__index, 'DIR_')
 map_enum(tr.__index, 'CURSOR_')
 map_enum(tr.__index, 'UNDERLINE_')
+map_enum(tr.__index, 'WRAP_')
 map_enum(bitmap, 'FORMAT_', 'BITMAP_FORMAT_')
 map_enum(C, 'CAIRO_EXTEND_', 'BACKGROUND_EXTEND_')
 

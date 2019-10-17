@@ -392,8 +392,13 @@ terra Layout:shape()
 					BREAK_NONE))
 
 		--find the seg length without trailing linebreak chars.
-		while len > 0 and isnewline(last_cp) do
+		--this can result in a zero-length segment which is fine.
+		while isnewline(last_cp) do
 			dec(len)
+			if len == 0 then
+				last_cp = 0
+				break
+			end
 			last_cp = self.text(offset + len - 1)
 		end
 

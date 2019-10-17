@@ -237,7 +237,7 @@ local function serialize_layer(e)
 		span_script            =1,
 		span_lang              =1,
 		span_paragraph_dir     =1,
-		span_nowrap            =1,
+		span_wrap              =1,
 		span_text_color        =1,
 		span_text_opacity      =1,
 		span_text_operator     =1,
@@ -944,7 +944,7 @@ function testui:repaint()
 				----TODO: choose('lang'             , i)
 				choose('selected_text_paragraph_dir', 'dir_',
 					{'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i, 'selected_text_has_paragraph_dir')
-				toggle('selected_text_nowrap'  , i, 'selected_text_has_nowrap')
+				choose('selected_text_wrap'    , 'wrap_', {'word', 'char', 'none'}, i, 'selected_text_has_wrap')
 				pickcolor('selected_text_color', i, 'selected_text_has_color')
 				slideo('selected_text_opacity' , i, 'selected_text_has_opacity')
 				choose('selected_text_operator', 'operator_',
@@ -978,7 +978,7 @@ function testui:repaint()
 			--TODO: choose('span_script', nil, {'Zyyy', 'Latn', 'Arab'}, i)
 			choose('span_lang', nil, {'', 'en-us', 'ar-sa', 'trk'}, i)
 			choose('span_paragraph_dir', 'dir_', {'auto', 'ltr', 'rtl', 'wltr', 'wrtl'}, i)
-			toggle('span_nowrap'          , i)
+			choose('span_wrap'            , 'wrap_', {'word', 'char', 'none'}, i)
 			pickcolor('span_text_color'   , i)
 			slideo('span_text_opacity'    , i)
 			choose('span_text_operator', 'operator_', {'clear', 'source', 'over', 'in', 'out', 'xor'}, i)
@@ -1195,7 +1195,7 @@ function ewindow:keypress(key)
 	elseif ctrl and key == 'V' then
 		local s = self.app:getclipboard'text'
 		if s then
-			e:insert_text_at_cursor(0, s, #s)
+			e:insert_text_at_cursor(0, s)
 		end
 	elseif ctrl and (key == 'C' or key == 'X') then
 		self.app:setclipboard(e:get_selected_text(0))
@@ -1208,7 +1208,7 @@ end
 
 function ewindow:keychar(c)
 	if c:byte(1, 1) > 31 or c:find'[\n\r\t]' then
-		e:insert_text_at_cursor(0, c, #c)
+		e:insert_text_at_cursor(0, c)
 		self:checkvalid(true)
 	end
 end

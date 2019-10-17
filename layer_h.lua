@@ -119,6 +119,9 @@ enum {
 	UNDERLINE_NONE = 0,
 	UNDERLINE_SOLID = 1,
 	UNDERLINE_ZIGZAG = 2,
+	WRAP_CHAR = 1,
+	WRAP_NONE = 2,
+	WRAP_WORD = 0,
 };
 typedef struct layerlib_t layerlib_t;
 typedef void (*tr_font_load_func_t) (int32_t, void**, uint64_t*, bool*);

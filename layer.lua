@@ -82,6 +82,9 @@ function t.methods.set_selected_text(self, sel_i, s)
 end
 
 t.methods.insert_text_utf32_at_cursor = t.methods.insert_text_at_cursor
-t.methods.insert_text_at_cursor = t.methods.insert_text_utf8_at_cursor
+local insert_text_utf8_at_cursor = t.methods.insert_text_utf8_at_cursor
+function t.methods.insert_text_at_cursor(self, cur_i, s, len)
+	insert_text_utf8_at_cursor(self, cur_i, s, len or #s)
+end
 
 return M.done()
