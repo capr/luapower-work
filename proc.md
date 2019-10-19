@@ -10,7 +10,7 @@ Works on Windows, Linux and OSX.
 ## API
 
 ---------------------------------------------- -------------------------------
-`proc.spawn(cmd,[args],[env],[cur_dir]) -> p`  spawn a child process
+`proc.exec(cmd,[args],[env],[cur_dir]) -> p`   spawn a child process
 `p:kill()`                                     kill process
 `p:exit_code() -> n`                           get process exit code
 `p:forget()`                                   close process handle
@@ -22,7 +22,7 @@ Works on Windows, Linux and OSX.
 
 __NOTE:__ Env. vars are case-sensitive on Linux and OSX, not so on Windows.
 
-### `proc.spawn(cmd,[args],[env],[cur_dir]) -> p`
+### `proc.exec(cmd,[args],[env],[cur_dir]) -> p`
 
 Spawn a child process and return a process object to query and control the
 process.

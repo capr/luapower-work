@@ -137,7 +137,7 @@ local function encode_env(env)
 	table.sort(t) --Windows says they must be sorted in Unicode order, pff...
 	local dt = {}
 	for i,k in ipairs(t) do
-		dt[i] = k:gsub('[%z=]', '_') .. '=' .. env[k]
+		dt[i] = k:gsub('[%z=]', '_') .. '=' .. tostring(env[k])
 	end
 	table.insert(dt, '')
 	return table.concat(dt, '\0')
@@ -168,10 +168,12 @@ end
 
 STILL_ACTIVE = 259
 
-function GetExitCodeProcess(hproc, exitcode)
-	exitcode = exitcode or ffi.new'DWORD[1]'
+function GetExitCodeProcess(hproc)
+	local exitcode = ffi.new'DWORD[1]'
 	checknz(C.GetExitCodeProcess(hproc, exitcode))
-	return exitcode[0]
+	local exitcode = exitcode[0]
+	if exitcode == STILL_ACTIVE then return nil end
+	return exitcode
 end
 
 function TerminateProcess(hproc, exitcode)
