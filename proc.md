@@ -9,16 +9,17 @@ Works on Windows, Linux and OSX.
 
 ## API
 
----------------------------------------------- -------------------------------
-`proc.exec(cmd,[args],[env],[cur_dir]) -> p`   spawn a child process
-`p:kill()`                                     kill process
-`p:exit_code() -> n`                           get process exit code
-`p:forget()`                                   close process handles
-`proc.env(k) -> v`                             get env. var
-`proc.setenv(k, v) -> v`                       set env. var
-`proc.setenv(k) -> v`                          delete env. var
-`proc.env() -> env`                            get all env. vars
----------------------------------------------- -------------------------------
+------------------------------------------------ -----------------------------
+`proc.exec(cmd,[args],[env],[cur_dir]) -> p`     spawn a child process
+`proc.exec_luafile(file,[args],...) -> p`        spawn a process running a Lua script
+`p:kill()`                                       kill process
+`p:exit_code() -> code | nil,'active'|'killed'`  get process status or exit code
+`p:forget()`                                     close process handles
+`proc.env(k) -> v`                               get env. var
+`proc.setenv(k, v) -> v`                         set env. var
+`proc.setenv(k) -> v`                            delete env. var
+`proc.env() -> env`                              get all env. vars
+------------------------------------------------ -----------------------------
 
 ## Portability notes:
 

@@ -6,13 +6,12 @@ local ffi = require'ffi'
 local bit = require'bit'
 local glue = require'glue'
 local M = {}
+local proc = {}
 
 if ffi.os == 'Windows' then --------------------------------------------------
 
 local winapi = require'winapi'
 require'winapi.process'
-
-local proc = {}
 
 function M.env(k)
 	if k then
@@ -156,8 +155,6 @@ function M.setenv(k, v)
 		assert(C.unsetenv(k) == 0)
 	end
 end
-
-local proc = {}
 
 local F_GETFD = 1
 local F_SETFD = 2
@@ -340,12 +337,21 @@ else
 	error('unsupported OS '..ffi.os)
 end
 
+function M.exec_luafile(script, args, env, cur_dir)
+	assert(script)
+	local fs = require'fs'
+	local exe = assert(fs.exepath())
+	local args = glue.extend({script}, args)
+	return M.exec(exe, args, env, cur_dir)
+end
+
 --self-test ------------------------------------------------------------------
 
 if not ... then
 
 local proc = M
 local time = require'time'
+local fs = require'fs'
 local pp = require'pp'
 io.stdout:setvbuf'no'
 io.stderr:setvbuf'no'
@@ -368,10 +374,7 @@ local t = proc.env()
 pp(t)
 assert(t.Zz == '321')
 
-local luajit =
-	   ffi.os == 'Windows' and 'bin/mingw64/luajit.exe'
-	or ffi.os == 'Linux'   and 'bin/linux64/luajit-bin'
-	or ffi.os == 'OSX'     and 'bin/osx64/luajit-bin'
+local luajit = fs.exepath()
 
 local p, err, errno = proc.exec(
 	luajit,
@@ -393,5 +396,7 @@ print('exit code', p:exit_code())
 print('exit code', p:exit_code())
 --assert(p:exit_code() == 123)
 p:forget()
+
+local p = proc.exec_luafile('test.lua')
 
 end
