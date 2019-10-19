@@ -309,7 +309,7 @@ function getcwd()
 				buf, sz = cbuf(sz * 2)
 			end
 		end
-		return ffi.string(buf, sz)
+		return ffi.string(buf)
 	end
 end
 

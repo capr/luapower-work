@@ -21,14 +21,14 @@ function M.env(k)
 	local t = {}
 	for i,s in ipairs(winapi.GetEnvironmentStrings()) do
 		local k,v = s:match'^([^=]*)=(.*)'
-		if k ~= '' then
-			t[k:upper()] = v
+		if k and k ~= '' then --the first two ones are internal and invalid.
+			t[k] = v
 		end
 	end
 	return t
 end
 
---NOTE: os.getenv() doesn't reflect the changes made with setenv() !!!
+--NOTE: don't use os.getenv() after proc.setenv(), use only proc.env().
 function M.setenv(k, v)
 	winapi.SetEnvironmentVariable(k, v)
 end
@@ -68,11 +68,7 @@ function proc:kill()
 	if not self.h then
 		return nil, 'invalid handle'
 	end
-	local ok, err, errcode = winapi.TerminateProcess(self.h, EXIT_CODE_KILLED)
-	if not ok then
-		return nil, err, errcode
-	end
-	return true
+	return winapi.TerminateProcess(self.h, EXIT_CODE_KILLED)
 end
 
 function proc:exit_code()
@@ -88,6 +84,7 @@ function proc:exit_code()
 	if not exitcode then
 		return nil, 'active'
 	end
+	--save the exit status so we can forget the process.
 	if exitcode == EXIT_CODE_KILLED then
 		self._killed = true
 	else
@@ -116,13 +113,28 @@ int fcntl(int fd, int cmd, ...);
 int close(int fd);
 ssize_t write(int fd, const void *buf, size_t count);
 ssize_t read(int fd, void *buf, size_t count);
+int chdir(const char *path);
+char *getcwd(char *buf, size_t size);
 ]]
+
+local C = ffi.C
+
+local char     = ffi.typeof'char[?]'
+local char_ptr = ffi.typeof'char*[?]'
+local int      = ffi.typeof'int[?]'
+
+local function err(func)
+	local errno = ffi.errno()
+	local s = C.strerror(errno)
+	local s = s ~= nil and ffi.string(s) or 'Error '..errno
+	return nil, func .. '() failed: ' .. s, errno
+end
 
 function M.env(k)
 	if k then
 		return os.getenv(k)
 	end
-	local e = ffi.C.environ
+	local e = C.environ
 	local t = {}
 	local i = 0
 	while e[i] ~= nil do
@@ -139,9 +151,9 @@ end
 function M.setenv(k, v)
 	assert(k)
 	if v then
-		assert(ffi.C.setenv(k, v, 1) == 0)
+		assert(C.setenv(k, v, 1) == 0)
 	else
-		assert(ffi.C.unsetenv(k) == 0)
+		assert(C.unsetenv(k) == 0)
 	end
 end
 
@@ -150,14 +162,32 @@ local proc = {}
 local F_GETFD = 1
 local F_SETFD = 2
 local FD_CLOEXEC = 1
+
 local EAGAIN = 11
 local EINTR  = 4
+local ERANGE = 34
 
-local char     = ffi.typeof'char[?]'
-local char_ptr = ffi.typeof'char*[?]'
-local int      = ffi.typeof'int[?]'
+function getcwd()
+	local sz = 256
+	local buf = char(sz)
+	while true do
+		if C.getcwd(buf, sz) == nil then
+			if ffi.errno() ~= ERANGE then
+				return err'getcwd'
+			else
+				sz = sz * 2
+				buf = char(sz)
+			end
+		end
+		return ffi.string(buf)
+	end
+end
 
 function M.exec(cmd, args, env, cur_dir)
+
+	if cur_dir and cmd:sub(1, 1) ~= '/' then
+		cmd = getcwd() .. '/' .. cmd
+	end
 
 	--copy the args list to a char*[] buffer.
 	local arg_buf, arg_ptrs
@@ -210,41 +240,49 @@ function M.exec(cmd, args, env, cur_dir)
 
 	--see https://stackoverflow.com/questions/1584956/how-to-handle-execvp-errors-after-fork
 	local pipefds = int(2)
-	if ffi.C.pipe(pipefds) ~= 0 then
-		return nil, 'pipe() failed', ffi.errno()
+	if C.pipe(pipefds) ~= 0 then
+		return err'pipe'
 	end
-	local flags = ffi.C.fcntl(pipefds[1], F_GETFD)
+	local flags = C.fcntl(pipefds[1], F_GETFD)
 	local flags = bit.bor(flags, FD_CLOEXEC)
-	if ffi.C.fcntl(pipefds[1], F_SETFD, ffi.cast('int', flags)) ~= 0 then
-		return nil, 'fcntl() failed', ffi.errno()
+	if C.fcntl(pipefds[1], F_SETFD, ffi.cast('int', flags)) ~= 0 then
+		return err'fcnt'
  	end
 
-	local pid = ffi.C.fork()
+	local pid = C.fork()
 
 	if pid == -1 then --in parent process
 
-		return nil, 'fork() failed', ffi.errno()
+		return err'fork'
 
 	elseif pid == 0 then --in child process
 
-		ffi.C.close(pipefds[0])
-		ffi.C.execve(cmd, arg_ptr, env_ptr)
+		C.close(pipefds[0])
+
+		if cur_dir and C.chdir(cur_dir) ~= 0 then
+			--chdir failed: put the errno on the pipe.
+			local err = int(1, ffi.errno())
+			C.write(pipefds[1], err, ffi.sizeof(err))
+			C._exit(0)
+		end
+
+		C.execve(cmd, arg_ptr, env_ptr)
 
 		--exec failed: put the errno on the pipe.
 		local err = int(1, ffi.errno())
-		ffi.C.write(pipefds[1], err, ffi.sizeof(err))
-		ffi.C._exit(0)
+		C.write(pipefds[1], err, ffi.sizeof(err))
+		C._exit(0)
 
 	else --in parent process
 
 		--check if exec failed by reading from the errno pipe.
-		ffi.C.close(pipefds[1])
+		C.close(pipefds[1])
 		local err = int(1)
 		local n
 		repeat
-			n = ffi.C.read(pipefds[0], err, ffi.sizeof(err))
+			n = C.read(pipefds[0], err, ffi.sizeof(err))
 		until not (n == -1 and (ffi.errno() == EAGAIN or ffi.errno() == EINTR))
-		ffi.C.close(pipefds[0])
+		C.close(pipefds[0])
 		if n > 0 then
 			return nil, 'exec() failed', err[0]
 		end
@@ -265,8 +303,8 @@ function proc:kill()
 	if not self.id then
 		return nil, 'invalid pid'
 	end
-	if ffi.C.kill(self.id, SIGKILL) ~= 0 then
-		return nil, 'kill() failed', ffi.errno()
+	if C.kill(self.id, SIGKILL) ~= 0 then
+		return err'kill'
 	end
 	return true
 end
@@ -281,13 +319,14 @@ function proc:exit_code()
 		return nil, 'invalid pid'
 	end
 	local status = int(1)
-	local pid = ffi.C.waitpid(self.id, status, WNOHANG)
+	local pid = C.waitpid(self.id, status, WNOHANG)
 	if pid < 0 then
-		return nil, 'waitpid() failed', ffi.errno()
+		return err'waitpid'
 	end
 	if pid == 0 then
 		return nil, 'active'
 	end
+	--save the exit status so we can forget the process.
 	if bit.band(status[0], 0x7f) == 0 then --exited with exit code
 		self._exit_code = bit.rshift(bit.band(status[0], 0xff00), 8)
 	else
@@ -326,17 +365,13 @@ assert(not proc.env'zz')
 assert(not proc.env'zZ')
 proc.setenv('Zz', '321')
 local t = proc.env()
---pp(t)
-if ffi.abi'win' then
-	assert(t.ZZ == '321')
-else
-	assert(t.Zz == '321')
-end
+pp(t)
+assert(t.Zz == '321')
 
 local luajit =
 	   ffi.os == 'Windows' and 'bin/mingw64/luajit.exe'
-	or ffi.os == 'Linux'   and 'bin/linux64/luajit'
-	or ffi.os == 'OSX'     and 'bin/osx64/luajit'
+	or ffi.os == 'Linux'   and 'bin/linux64/luajit-bin'
+	or ffi.os == 'OSX'     and 'bin/osx64/luajit-bin'
 
 local p, err, errno = proc.exec(
 	luajit,
