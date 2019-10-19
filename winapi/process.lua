@@ -108,10 +108,28 @@ BOOL TerminateProcess(
 );
 ]]
 
+PROCESS_INFORMATION = types.PROCESS_INFORMATION
+
+ffi.cdef[[
+BOOL FreeEnvironmentStringsW(LPWCH penv);
+LPWCH GetEnvironmentStringsW();
+DWORD GetEnvironmentVariableW(
+	LPCWSTR lpName,
+	LPWSTR  lpBuffer,
+	DWORD   nSize
+);
+BOOL SetEnvironmentVariableW(
+	LPCWSTR lpName,
+	LPCWSTR lpValue
+);
+]]
+
 --{var = val, ...} -> 'var1=val1\0...'
 local function encode_env(env)
 	if not env then return nil end
-	if type(env) == 'string' or type(env) == 'cdata' then return env end
+	if type(env) == 'string' or type(env) == 'cdata' then
+		return env
+	end
 	local t = {}
 	for k in pairs(env) do
 		t[#t+1] = k
@@ -119,15 +137,33 @@ local function encode_env(env)
 	table.sort(t) --Windows says they must be sorted in Unicode order, pff...
 	local dt = {}
 	for i,k in ipairs(t) do
-		dt[i] = k .. '=' .. env[k]
+		dt[i] = k:gsub('[%z=]', '_') .. '=' .. env[k]
 	end
 	table.insert(dt, '')
 	return table.concat(dt, '\0')
 end
 
-function CreateProcess(exe, cmdline, pattr, tattr, inherit_handles, flags, env, ...)
-	checknz(C.CreateProcessW(wcs(exe), wcs(cmdline), pattr, tattr,
-		inherit_handles, flags, encode_env(env), ...))
+function CreateProcess(
+	cmd, env, cur_dir,
+	proc_attr, thread_attr, inherit_handles, flags
+)
+	local start_info = STARTUPINFO()
+	local proc_info = PROCESS_INFORMATION()
+
+	local ret, err, code = retnz(C.CreateProcessW(
+		nil,
+		wcs(cmd),
+		proc_attr,
+		thread_attr,
+		inherit_handles or false,
+		flags or 0,
+		encode_env(env),
+		wcs(cur_dir),
+		start_info,
+		proc_info))
+
+	if not ret then return nil, err, code end
+	return proc_info, start_info
 end
 
 STILL_ACTIVE = 259
@@ -139,11 +175,52 @@ function GetExitCodeProcess(hproc, exitcode)
 end
 
 function TerminateProcess(hproc, exitcode)
-	return retnz(C.TerminateProcess(hproc, exitcode or 0))
+	return retnzb(C.TerminateProcess(hproc, exitcode or 0))
+end
+
+function GetEnvironmentStrings()
+	local ws = ptr(C.GetEnvironmentStringsW())
+	if not ws then return nil end
+	local i = 0
+	local j = 0
+	local t = {}
+	while true do
+		if ws[j] == 0 then
+			if i == j then break end
+			table.insert(t, mbs(ws + i))
+			i = j + 1
+		end
+		j = j + 1
+	end
+	checknz(C.FreeEnvironmentStringsW(ws))
+	return t
+end
+
+local ERROR_ENVVAR_NOT_FOUND = 203
+
+function GetEnvironmentVariable(k) --note: os.getenv() can do the same.
+	local k = wcs(k)
+	local sz, err, code = retnz(C.GetEnvironmentVariableW(k, nil, 0))
+	if code == ERROR_ENVVAR_NOT_FOUND then return nil end --not found
+	assert(sz, err)
+	local buf, sz = WCS(sz)
+	checknz(C.GetEnvironmentVariableW(k, buf, sz))
+	return mbs(buf)
+end
+
+function SetEnvironmentVariable(k, v)
+	checknz(C.SetEnvironmentVariableW(wcs(k), wcs(v)))
 end
 
 if not ... then
 	local si = GetStartupInfo()
-	print(si.wShowWindow)
+	assert(si.wShowWindow == 0)
+
+	SetEnvironmentVariable('az', '333')
+	SetEnvironmentVariable('wa', '555')
+	assert(GetEnvironmentVariable'wa' == '555')
+	SetEnvironmentVariable'wa'
+	assert(not GetEnvironmentVariable'wa')
+	require'pp'(GetEnvironmentStrings())
 end
 

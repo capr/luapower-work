@@ -21,9 +21,9 @@ return {
 		text_cursor_count=1,
 		text_cursors={
 			{
-				text_cursor_offset=327,
-				text_cursor_sel_offset=327,
-				text_cursor_x=40
+				text_cursor_offset=314,
+				text_cursor_sel_offset=314,
+				text_cursor_x=425.5
 			}
 		},
 		text_spans={
@@ -184,5 +184,5 @@ return {
 	},
 	selected_layer_path={
 	},
-	tab='Background'
+	tab='Position'
 }
