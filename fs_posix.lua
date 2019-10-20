@@ -141,6 +141,23 @@ function fs.wrap_file(file)
 	return fs.wrap_fd(fd)
 end
 
+--pipes ----------------------------------------------------------------------
+
+cdef[[
+int pipe(int[2]);
+int fcntl(int fd, int cmd, ...);
+]]
+
+function fs.pipe()
+	local fds = ffi.new'int[2]'
+	if C.pipe(fds) ~= 0 then
+		return check()
+	end
+	return
+		ffi.gc(fs.wrap_fd(fds[0]), file.close),
+		ffi.gc(fs.wrap_fd(fds[1]), file.close)
+end
+
 --stdio streams --------------------------------------------------------------
 
 cdef'FILE *fdopen(int fd, const char *mode);'
@@ -373,7 +390,6 @@ end
 
 if osx then
 
-	--cdef'_NSGetExecutablePath(char* buf, uint32_t* bufsize);'
 	cdef[[
 	int32_t getpid(void);
 	int proc_pidpath(int pid, void* buffer, uint32_t buffersize);
@@ -392,7 +408,7 @@ if osx then
 else
 
 	function fs.exepath()
-		--
+		return readlink'/proc/self/exe'
 	end
 
 end

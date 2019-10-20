@@ -16,17 +16,10 @@ Works on Windows, Linux and OSX.
 `p:exit_code() -> code | nil,'active'|'killed'`  get process status or exit code
 `p:forget()`                                     close process handles
 `proc.env(k) -> v`                               get env. var
-`proc.setenv(k, v) -> v`                         set env. var
-`proc.setenv(k) -> v`                            delete env. var
+`proc.setenv(k, v)`                              set env. var
+`proc.setenv(k)`                                 delete env. var
 `proc.env() -> env`                              get all env. vars
 ------------------------------------------------ -----------------------------
-
-## Portability notes:
-
-* only use uppercase env. var names because like file names, env. vars
-  are case-sensitive on POSIX, but case-insensitive on Windows.
-* only use exit status codes in the 0..255 range because Windows exit
-  codes are int32 but POSIX codes are limited to a byte.
 
 ### `proc.exec(cmd,[args],[env],[cur_dir]) -> p`
 
@@ -39,3 +32,11 @@ process.
   environment is inherited).
   * `cur_dir` is the directory to start the process in.
 
+## Programming Notes
+
+* only use uppercase env. var names because like file names, env. vars
+  are case-sensitive on POSIX, but case-insensitive on Windows.
+* only use exit status codes in the 0..255 range because Windows exit
+  codes are int32 but POSIX codes are limited to a byte.
+* if using `proc.setenv()`, use `proc.env()` to read back variables instead
+of `os.getenv()` because the latter won't see the changes.

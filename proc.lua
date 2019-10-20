@@ -2,6 +2,8 @@
 --Process & IPC API for Windows & POSIX.
 --Written by Cosmin Apreutesei. Public Domain.
 
+if not ... then require'proc_test'; return end
+
 local ffi = require'ffi'
 local bit = require'bit'
 local glue = require'glue'
@@ -32,7 +34,7 @@ function M.setenv(k, v)
 	winapi.SetEnvironmentVariable(k, v)
 end
 
-function M.exec(cmd, args, env, cur_dir)
+function M.exec(cmd, args, env, cur_dir, stdin, stdout, stderr)
 	if args then
 		local t = {'"'..cmd..'"'}
 		for i,s in ipairs(args) do
@@ -40,8 +42,22 @@ function M.exec(cmd, args, env, cur_dir)
 		end
 		cmd = table.concat(t, ' ')
 	end
-	local proc_info, err, code = winapi.CreateProcess(cmd, env, cur_dir)
-	if not proc_info then return nil, err, code end
+	local si, inherit_handles
+	if stdin or stdout or stderr then
+		si = winapi.STARTUPINFO()
+		si.hStdInput  = stdin  and stdin.handle
+		si.hStdOutput = stdout and stdout.handle
+		si.hStdError  = stderr and stderr.handle
+		si.dwFlags = winapi.STARTF_USESTDHANDLES
+		inherit_handles = true
+	end
+	local proc_info, err, code = winapi.CreateProcess(
+		cmd, env, cur_dir,
+		si, inherit_handles
+	)
+	if not proc_info then
+		return nil, err, code
+	end
 	local proc = glue.inherit({}, proc)
 	proc.h = proc_info.hProcess
 	proc.main_thread_h = proc_info.hThread
@@ -337,66 +353,12 @@ else
 	error('unsupported OS '..ffi.os)
 end
 
-function M.exec_luafile(script, args, env, cur_dir)
+function M.exec_luafile(script, args, env, cur_dir, ...)
 	assert(script)
 	local fs = require'fs'
 	local exe = assert(fs.exepath())
 	local args = glue.extend({script}, args)
-	return M.exec(exe, args, env, cur_dir)
+	return M.exec(exe, args, env, cur_dir, ...)
 end
 
---self-test ------------------------------------------------------------------
-
-if not ... then
-
-local proc = M
-local time = require'time'
-local fs = require'fs'
-local pp = require'pp'
-io.stdout:setvbuf'no'
-io.stderr:setvbuf'no'
-
-proc.setenv('zz', '123')
-proc.setenv('zZ', '567')
-if ffi.abi'win' then
-	assert(proc.env('zz') == '567')
-	assert(proc.env('zZ') == '567')
-else
-	assert(proc.env('zz') == '123')
-	assert(proc.env('zZ') == '567')
-end
-proc.setenv('zz')
-proc.setenv('zZ')
-assert(not proc.env'zz')
-assert(not proc.env'zZ')
-proc.setenv('Zz', '321')
-local t = proc.env()
-pp(t)
-assert(t.Zz == '321')
-
-local luajit = fs.exepath()
-
-local p, err, errno = proc.exec(
-	luajit,
-	{'-e', 'local n=.12; for i=1,1000000000 do n=n*0.5321 end; print(n); os.exit(123)'},
-	--{'-e', 'print(os.getenv\'XX\', require\'fs\'.cd()); os.exit(123)'},
-	{XX = 55},
-	'bin'
-)
-if not p then print(err, errno) end
-assert(p)
-print('pid:', p.id)
-print'sleeping'
-time.sleep(.5)
-print'killing'
-assert(p:kill())
-assert(p:kill())
-time.sleep(.5)
-print('exit code', p:exit_code())
-print('exit code', p:exit_code())
---assert(p:exit_code() == 123)
-p:forget()
-
-local p = proc.exec_luafile('test.lua')
-
-end
+return M

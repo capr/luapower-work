@@ -145,25 +145,25 @@ end
 
 function CreateProcess(
 	cmd, env, cur_dir,
-	proc_attr, thread_attr, inherit_handles, flags
+	start_info, inherit_handles,
+	flags, proc_sec_attr, thread_sec_attr
 )
-	local start_info = STARTUPINFO()
 	local proc_info = PROCESS_INFORMATION()
-
+	start_info = start_info or STARTUPINFO() --can't be nil.
 	local ret, err, code = retnz(C.CreateProcessW(
 		nil,
 		wcs(cmd),
-		proc_attr,
-		thread_attr,
+		proc_sec_attr,
+		thread_sec_attr,
 		inherit_handles or false,
 		flags or 0,
 		encode_env(env),
 		wcs(cur_dir),
 		start_info,
-		proc_info))
-
+		proc_info
+	))
 	if not ret then return nil, err, code end
-	return proc_info, start_info
+	return proc_info
 end
 
 STILL_ACTIVE = 259

@@ -22,7 +22,7 @@ end
 
 cdef[[
 typedef void           VOID, *PVOID, *LPVOID;
-typedef VOID*          HANDLE;
+typedef VOID*          HANDLE, *PHANDLE;
 typedef unsigned short WORD;
 typedef unsigned long  DWORD, *PDWORD, *LPDWORD;
 typedef unsigned int   UINT;
@@ -398,6 +398,40 @@ function fs.wrap_file(file)
 	return fs.wrap_fd(fd)
 end
 
+--pipes ----------------------------------------------------------------------
+
+cdef[[
+BOOL CreatePipe(
+	PHANDLE               hReadPipe,
+	PHANDLE               hWritePipe,
+	LPSECURITY_ATTRIBUTES lpPipeAttributes,
+	DWORD                 nSize
+);
+BOOL SetHandleInformation(
+	HANDLE hObject,
+	DWORD  dwMask,
+	DWORD  dwFlags
+);
+]]
+
+local HANDLE_FLAG_INHERIT = 1
+
+function fs.pipe()
+	local sa = ffi.new'SECURITY_ATTRIBUTES'
+	sa.nLength = ffi.sizeof(sa)
+	sa.bInheritHandle = true
+	local hs = ffi.new'HANDLE[2]'
+	if C.CreatePipe(hs, hs+1, sa, 0) == 0 then
+		return check()
+	end
+	--if SetHandleInformation(rf.handle, HANDLE_FLAG_INHERIT, 0) == 0 then
+	--	return check()
+	--end
+	local rf = ffi.gc(fs.wrap_handle(hs[0]), file.close)
+	local wf = ffi.gc(fs.wrap_handle(hs[1]), file.close)
+	return rf, wf
+end
+
 --stdio streams --------------------------------------------------------------
 
 cdef[[
@@ -710,7 +744,7 @@ end
 
 function fs.appdir(appname)
 	local dir = os.getenv'LOCALAPPDATA'
-	return dir and string.format('%s\\%s', dir, appname)
+	return dir and dir..'\\'..appname
 end
 
 local ERROR_INSUFFICIENT_BUFFER = 122
