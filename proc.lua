@@ -59,20 +59,20 @@ function M.exec(cmd, args, env, cur_dir, stdin, stdout, stderr)
 		return nil, err, code
 	end
 	local proc = glue.inherit({}, proc)
-	proc.h = proc_info.hProcess
-	proc.main_thread_h = proc_info.hThread
+	proc.handle = proc_info.hProcess
+	proc.main_thread_handle = proc_info.hThread
 	proc.id = proc_info.dwProcessId
 	proc.main_thread_id = proc_info.dwThreadId
 	return proc
 end
 
 function proc:forget()
-	if not self.h then return end
-	assert(winapi.CloseHandle(self.h))
-	assert(winapi.CloseHandle(self.main_thread_h))
-	self.h = false
+	if not self.handle then return end
+	assert(winapi.CloseHandle(self.handle))
+	assert(winapi.CloseHandle(self.main_thread_handle))
+	self.handle = false
 	self.id = false
-	self.main_thread_h = false
+	self.main_thread_handle = false
 	self.main_thread_id = false
 end
 
@@ -80,10 +80,10 @@ end
 local EXIT_CODE_KILLED = winapi.STILL_ACTIVE + 1
 
 function proc:kill()
-	if not self.h then
+	if not self.handle then
 		return nil, 'invalid handle'
 	end
-	return winapi.TerminateProcess(self.h, EXIT_CODE_KILLED)
+	return winapi.TerminateProcess(self.handle, EXIT_CODE_KILLED)
 end
 
 function proc:exit_code()
@@ -92,10 +92,10 @@ function proc:exit_code()
 	elseif self._killed then
 		return nil, 'killed'
 	end
-	if not self.h then
+	if not self.handle then
 		return nil, 'invalid handle'
 	end
-	local exitcode = winapi.GetExitCodeProcess(self.h)
+	local exitcode = winapi.GetExitCodeProcess(self.handle)
 	if not exitcode then
 		return nil, 'active'
 	end
@@ -130,6 +130,7 @@ ssize_t write(int fd, const void *buf, size_t count);
 ssize_t read(int fd, void *buf, size_t count);
 int chdir(const char *path);
 char *getcwd(char *buf, size_t size);
+int dup2(int oldfd, int newfd);
 ]]
 
 local C = ffi.C
@@ -196,7 +197,7 @@ function getcwd()
 	end
 end
 
-function M.exec(cmd, args, env, cur_dir)
+function M.exec(cmd, args, env, cur_dir, stdin, stdout, stderr)
 
 	if cur_dir and cmd:sub(1, 1) ~= '/' then
 		cmd = getcwd() .. '/' .. cmd
@@ -278,6 +279,10 @@ function M.exec(cmd, args, env, cur_dir)
 			C.write(pipefds[1], err, ffi.sizeof(err))
 			C._exit(0)
 		end
+
+		if stdin  then C.dup2(stdin .fd, 0) end
+		if stdout then C.dup2(stdout.fd, 1) end
+		if stderr then C.dup2(stderr.fd, 2) end
 
 		C.execve(cmd, arg_ptr, env_ptr)
 
