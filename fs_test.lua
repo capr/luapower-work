@@ -104,9 +104,14 @@ end
 --pipes ----------------------------------------------------------------------
 
 function test.pipe()
-	local rf, wf = fs.pipe()
+	local rf, wf = assert(fs.pipe())
 	rf:close()
 	wf:close()
+end
+
+function test.named_pipe()
+	local p = assert(fs.pipe'fs_test_pipe')
+	p:close()
 end
 
 --i/o ------------------------------------------------------------------------
@@ -998,7 +1003,7 @@ end
 
 --test cmdline ---------------------------------------------------------------
 
-local name = ...
+local name = 'named_pipe' --...
 if not name or name == 'fs_test' then
 	--run all tests in the order in which they appear in the code.
 	for i,k in ipairs(test) do

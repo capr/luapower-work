@@ -412,21 +412,38 @@ BOOL SetHandleInformation(
 	DWORD  dwMask,
 	DWORD  dwFlags
 );
+HANDLE CreateNamedPipeW(
+  LPWSTR                lpName,
+  DWORD                 dwOpenMode,
+  DWORD                 dwPipeMode,
+  DWORD                 nMaxInstances,
+  DWORD                 nOutBufferSize,
+  DWORD                 nInBufferSize,
+  DWORD                 nDefaultTimeOut,
+  LPSECURITY_ATTRIBUTES lpSecurityAttributes
+);
 ]]
 
 local HANDLE_FLAG_INHERIT = 1
 
-function fs.pipe()
+function fs.pipe(name)
 	local sa = ffi.new'SECURITY_ATTRIBUTES'
 	sa.nLength = ffi.sizeof(sa)
 	sa.bInheritHandle = true
 	local hs = ffi.new'HANDLE[2]'
-	if C.CreatePipe(hs, hs+1, sa, 0) == 0 then
-		return check()
+	if name then
+		local h = C.CreateNamedPipeW(wcs([[\.\pipe\]]..name), 0, 0, 0, 0, 0, 0, sa)
+		if h == nil then
+			return check()
+		end
+		return ffi.gc(fs.wrap_handle(h), file.close)
+	else
+		if C.CreatePipe(hs, hs+1, sa, 0) == 0 then
+			return check()
+		end
 	end
-	--if SetHandleInformation(rf.handle, HANDLE_FLAG_INHERIT, 0) == 0 then
-	--	return check()
-	--end
+	C.SetHandleInformation(hs[0], HANDLE_FLAG_INHERIT, 0)
+	C.SetHandleInformation(hs[1], HANDLE_FLAG_INHERIT, 0)
 	local rf = ffi.gc(fs.wrap_handle(hs[0]), file.close)
 	local wf = ffi.gc(fs.wrap_handle(hs[1]), file.close)
 	return rf, wf
