@@ -426,27 +426,56 @@ HANDLE CreateNamedPipeW(
 
 local HANDLE_FLAG_INHERIT = 1
 
-function fs.pipe(name)
+local function pipename(name)
+	return [[\.\pipe\]]..name:gsub('\\', '_')
+end
+
+local access = {
+}
+
+--NOTE: FILE_FLAG_FIRST_PIPE_INSTANCE == WRITE_OWNER wtf?
+local pipe_flag_bits = update({
+	r               = 0x00000001, --PIPE_ACCESS_INBOUND
+	w               = 0x00000002, --PIPE_ACCESS_OUTBOUND
+	rw              = 0x00000003, --PIPE_ACCESS_DUPLEX
+	single_instance = 0x00080000, --FILE_FLAG_FIRST_PIPE_INSTANCE
+	write_through   = 0x80000000, --FILE_FLAG_WRITE_THROUGH
+	overlapped      = 0x40000000, --FILE_FLAG_OVERLAPPED
+	write_dac       = 0x00040000, --WRITE_DAC
+	write_owner     = 0x00080000, --WRITE_OWNER
+	system_security = 0x01000000, --ACCESS_SYSTEM_SECURITY
+}, flag_bits)
+
+function fs.pipe(opt)
 	local sa = ffi.new'SECURITY_ATTRIBUTES'
 	sa.nLength = ffi.sizeof(sa)
 	sa.bInheritHandle = true
 	local hs = ffi.new'HANDLE[2]'
-	if name then
-		local h = C.CreateNamedPipeW(wcs([[\.\pipe\]]..name), 0, 0, 0, 0, 0, 0, sa)
+	local opt = type(opt) == 'string' and {name = opt} or opt
+	if opt.name then --named pipe
+		local h = C.CreateNamedPipeW(
+			wcs(pipename(opt.name)),
+			flags(opt.flags, pipe_flag_bits),
+			0, --nothing interesting here
+			opt.max_instnaces or 255,
+			opt.write_buffer_size or 8192,
+			opt.read_buffer_size or 8192,
+			opt.timeout or 0,
+			sa)
 		if h == nil then
 			return check()
 		end
 		return ffi.gc(fs.wrap_handle(h), file.close)
-	else
+	else --unnamed pipe, return both ends
 		if C.CreatePipe(hs, hs+1, sa, 0) == 0 then
 			return check()
 		end
+		C.SetHandleInformation(hs[0], HANDLE_FLAG_INHERIT, 0)
+		C.SetHandleInformation(hs[1], HANDLE_FLAG_INHERIT, 0)
+		local rf = ffi.gc(fs.wrap_handle(hs[0]), file.close)
+		local wf = ffi.gc(fs.wrap_handle(hs[1]), file.close)
+		return rf, wf
 	end
-	C.SetHandleInformation(hs[0], HANDLE_FLAG_INHERIT, 0)
-	C.SetHandleInformation(hs[1], HANDLE_FLAG_INHERIT, 0)
-	local rf = ffi.gc(fs.wrap_handle(hs[0]), file.close)
-	local wf = ffi.gc(fs.wrap_handle(hs[1]), file.close)
-	return rf, wf
 end
 
 --stdio streams --------------------------------------------------------------

@@ -27,6 +27,10 @@ file = {} --file object methods
 stream = {} --FILE methods
 dir = {} --dir listing object methods
 
+function update(dt, t)
+	for k,v in pairs(t) do dt[k]=v end
+end
+
 --binding tools --------------------------------------------------------------
 
 local char_ptr_ct = ffi.typeof'char*'
