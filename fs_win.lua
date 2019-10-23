@@ -335,11 +335,12 @@ local str_opt = {
 }
 
 --expose this because the frontend will set its metatype at the end.
-file_ct = ffi.typeof[[
-	struct {
-		HANDLE handle;
-	}
+cdef[[
+struct file_t {
+	HANDLE handle;
+};
 ]]
+file_ct = ffi.typeof'struct file_t'
 
 function fs.open(path, opt)
 	opt = opt or 'r'
@@ -426,10 +427,6 @@ HANDLE CreateNamedPipeW(
 
 local HANDLE_FLAG_INHERIT = 1
 
-local function pipename(name)
-	return [[\.\pipe\]]..name:gsub('\\', '_')
-end
-
 local access = {
 }
 
@@ -446,23 +443,26 @@ local pipe_flag_bits = update({
 	system_security = 0x01000000, --ACCESS_SYSTEM_SECURITY
 }, flag_bits)
 
-function fs.pipe(opt)
+function fs.pipe(name, opt)
 	local sa = ffi.new'SECURITY_ATTRIBUTES'
 	sa.nLength = ffi.sizeof(sa)
 	sa.bInheritHandle = true
 	local hs = ffi.new'HANDLE[2]'
-	local opt = type(opt) == 'string' and {name = opt} or opt
-	if opt.name then --named pipe
+	if type(name) == 'table' then
+		name, opt = name.name, name
+	end
+	opt = opt or {}
+	if name then --named pipe
 		local h = C.CreateNamedPipeW(
-			wcs(pipename(opt.name)),
-			flags(opt.flags, pipe_flag_bits),
+			wcs(name),
+			flags(opt, pipe_flag_bits, 0, true),
 			0, --nothing interesting here
-			opt.max_instnaces or 255,
+			opt.max_instances or 255,
 			opt.write_buffer_size or 8192,
 			opt.read_buffer_size or 8192,
 			opt.timeout or 0,
 			sa)
-		if h == nil then
+		if h == INVALID_HANDLE_VALUE then
 			return check()
 		end
 		return ffi.gc(fs.wrap_handle(h), file.close)

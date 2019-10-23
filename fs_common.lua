@@ -29,6 +29,7 @@ dir = {} --dir listing object methods
 
 function update(dt, t)
 	for k,v in pairs(t) do dt[k]=v end
+	return dt
 end
 
 --binding tools --------------------------------------------------------------
@@ -136,7 +137,8 @@ local function table_flags(t, masks, strict)
 		local bitmask = masks[flag]
 		if strict then
 			assert(bitmask, 'invalid flag: "%s"', tostring(flag))
-		elseif bitmask then
+		end
+		if bitmask then
 			mask = bit.bor(mask, bitmask)
 			if flag then
 				bits = bit.bor(bits, bitmask)

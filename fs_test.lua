@@ -103,15 +103,21 @@ end
 
 --pipes ----------------------------------------------------------------------
 
-function test.pipe()
+function test.pipe() --I/O test in proc_test.lua
 	local rf, wf = assert(fs.pipe())
 	rf:close()
 	wf:close()
 end
 
-function test.named_pipe()
-	local p = assert(fs.pipe'fs_test_pipe')
-	p:close()
+function test.named_pipe() --I/O test in proc_test.lua
+	local opt = 'rw' --'rw single_instance'
+	local name = ffi.abi'win' and [[\\.\pipe\fs_test_pipe]] or 'fs_test_pipe'
+	local p1 = assert(fs.pipe(name, opt))
+	local p2 = assert(fs.pipe(name, opt))
+	print(p1.handle)
+	print(p2.handle)
+	p1:close()
+	p2:close()
 end
 
 --i/o ------------------------------------------------------------------------

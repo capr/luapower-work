@@ -92,16 +92,17 @@ local str_opt = {
 }
 
 --expose this because the frontend will set its metatype on it at the end.
-file_ct = ffi.typeof[[
-	struct {
-		int fd;
-	}
+cdef[[
+struct file_t {
+	int fd;
+};
 ]]
+file_ct = ffi.typeof'struct file_t'
 
 function fs.open(path, opt)
 	opt = opt or 'r'
 	if type(opt) == 'string' then
-		opt = assert(str_opt[opt], 'invalid option %s', opt)
+		opt = assert(str_opt[opt], 'invalid mode %s', opt)
 	end
 	local flags = flags(opt.flags or 'rdonly', o_bits)
 	local mode = parse_perms(opt.perms or '0666')
@@ -146,16 +147,25 @@ end
 cdef[[
 int pipe(int[2]);
 int fcntl(int fd, int cmd, ...);
+int mkfifo(const char *pathname, mode_t mode);
 ]]
 
-function fs.pipe()
-	local fds = ffi.new'int[2]'
-	if C.pipe(fds) ~= 0 then
-		return check()
+function fs.pipe(path, mode)
+	if type(path) == 'table' then
+		path, mode = path.path, path
 	end
-	return
-		ffi.gc(fs.wrap_fd(fds[0]), file.close),
-		ffi.gc(fs.wrap_fd(fds[1]), file.close)
+	mode = parse_perms(mode or 0666)
+	if path then
+		return check(C.mkfifo(path, mode) ~= 0)
+	else --unnamed pipe
+		local fds = ffi.new'int[2]'
+		if C.pipe(fds) ~= 0 then
+			return check()
+		end
+		return
+			ffi.gc(fs.wrap_fd(fds[0]), file.close),
+			ffi.gc(fs.wrap_fd(fds[1]), file.close)
+	end
 end
 
 --stdio streams --------------------------------------------------------------
