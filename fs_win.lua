@@ -785,7 +785,7 @@ function fs.tmpdir()
 		assert(sz <= bufsz)
 		if sz == 0 then return check() end
 	end
-	return ffi.string(buf, sz-1) --strip trailing '\'
+	return mbs(buf, sz-1) --strip trailing '\'
 end
 
 function fs.appdir(appname)

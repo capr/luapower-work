@@ -28,7 +28,7 @@ __file objects__
 __pipes__
 `fs.pipe() -> rf, wf`                             create an anonymous pipe
 `fs.pipe({path=,<opt>=} | path[,options]) -> pf`  create a named pipe (Windows)
-`fs.pipe({path=,mode=} | path[,mode]) -> pf`      create a named pipe (POSIX)
+`fs.pipe({path=,mode=} | path[,mode]) -> true`    create a named pipe (POSIX)
 __stdio streams__
 `f:stream(mode) -> fs`                            open a `FILE*` object from a file
 `fs:close()`                                      close the `FILE*` object
@@ -232,7 +232,7 @@ destroyed automatically when the process that created them exits.
 
 ### `fs.waitpipe(path)`
 
-### `fs.pipe({path=,mode=} | path[,mode]) -> pf`
+### `fs.pipe({path=,mode=} | path[,mode]) -> true`
 
 Create a named pipe (POSIX). Named pipes on POSIX are persistent and can be
 created in any directory as they are just a type of file.

@@ -400,19 +400,17 @@ end
 
 if osx then
 
-	cdef[[
-	int32_t getpid(void);
-	int proc_pidpath(int pid, void* buffer, uint32_t buffersize);
-	]]
+	cdef'int _NSGetExecutablePath(char* buf, uint32_t* bufsize);'
 
 	function fs.exepath()
-		local pid = C.getpid()
-		if pid == -1 then return check() end
-		local proc = ffi.load'proc'
 		local buf, sz = cbuf()
-		local sz = proc.proc_pidpath(pid, buf, sz)
-		if sz <= 0 then return check() end
-		return ffi.string(buf, sz)
+		local out_sz = ffi.new('uint32_t[1]', sz)
+		::again::
+		if C._NSGetExecutablePath(buf, out_sz) ~= 0 then
+			buf, sz = cbuf(out_sz)
+			goto again
+		end
+		return (ffi.string(buf, sz):gsub('//', '/'))
 	end
 
 else

@@ -404,7 +404,9 @@ local function readlink_recursive(link, maxdepth)
 		return nil, 'not_found'
 	end
 	local target, err, errcode = readlink(link)
-	if not target then return nil, err, errcode end
+	if not target then
+		return nil, err, errcode
+	end
 	if path.isabs(target) then
 		link = target
 	else --relative symlinks are relative to their own dir

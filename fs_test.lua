@@ -111,13 +111,15 @@ end
 
 function test.named_pipe() --I/O test in proc_test.lua
 	local opt = 'rw' --'rw single_instance'
-	local name = ffi.abi'win' and [[\\.\pipe\fs_test_pipe]] or 'fs_test_pipe'
+	local name = win and [[\\.\pipe\fs_test_pipe]] or 'fs_test_pipe'
 	local p1 = assert(fs.pipe(name, opt))
 	local p2 = assert(fs.pipe(name, opt))
-	print(p1.handle)
-	print(p2.handle)
-	p1:close()
-	p2:close()
+	if win then
+		print(p1.handle)
+		print(p2.handle)
+		p1:close()
+		p2:close()
+	end
 end
 
 --i/o ------------------------------------------------------------------------
@@ -613,6 +615,15 @@ function test.times_set()
 	assert(fs.remove(testfile))
 end
 
+--common paths ---------------------------------------------------------------
+
+function test.paths()
+	print('homedir', fs.homedir())
+	print('tmpdir ', fs.tmpdir())
+	print('exepath', fs.exepath())
+	print('exedir' , fs.exedir())
+end
+
 --file attributes ------------------------------------------------------------
 
 function test.attr()
@@ -1009,7 +1020,7 @@ end
 
 --test cmdline ---------------------------------------------------------------
 
-local name = 'named_pipe' --...
+local name = ...
 if not name or name == 'fs_test' then
 	--run all tests in the order in which they appear in the code.
 	for i,k in ipairs(test) do
