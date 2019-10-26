@@ -147,3 +147,4 @@ if not ... then
 	dev:close()
 end
 
+return M
