@@ -3,6 +3,7 @@
 --Written by Cosmin Apreutesei. Public Domain.
 
 local ffi = require'ffi'
+local winapi = require'winapi'
 local C = ffi.load'hidapi'
 local M = {}
 
@@ -53,7 +54,6 @@ const wchar_t* hid_error(hid_device *device);
 
 C.hid_init()
 
-local winapi = require'winapi'
 local function mbs(ws)
 	return winapi.mbs(ws)
 end
