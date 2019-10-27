@@ -10,8 +10,10 @@ return function(...)
 
 	local function strip(s)
 		return s
-			:gsub('^%.[\\/][^;]+;', '')
-			:gsub('[\\/]..[\\/]..', '')
+			:gsub('^%.[\\/][^;]+;', '') --remove current dir
+			:gsub(';%.[\\/][^;]+', '') --remove current dir
+			:gsub('[^;]-[\\/]%.%.[\\/]%.%.[^;]+;', '') --remove luapower dir
+			:gsub(';[^;]-[\\/]%.%.[\\/]%.%.[^;]+', '') --remove luapower dir
 	end
 	package.path = strip(package.path)
 	package.cpath = strip(package.cpath)
@@ -45,21 +47,18 @@ return function(...)
 	for lib in libs_str:gmatch'[^%s]+' do
 		libs[lib] = true
 	end
-	local function bundled(name)
-		return libs[name] or false
-	end
 
 	--overload ffi.load to fallback to ffi.C for bundled libs.
 	local ffi_load = ffi.load
 	function ffi.load(name, ...)
 		local ok, C = xpcall(ffi_load, debug.traceback, name, ...)
 		if not ok then
-			if bundled(name) then
+			if libs[name] then
 				return ffi.C
 			else
 				error(C, 2)
 			end
-		elseif bundled(name) and not in_exe_dir(name) then
+		elseif libs[name] and not in_exe_dir(name) then
 			--prevent loading bundled libs from system paths
 			return ffi.C
 		else
