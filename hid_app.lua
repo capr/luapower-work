@@ -28,21 +28,26 @@ function win:repaint()
 	cr:rgb(0, 0, 0)
 	cr:paint()
 
-	::continue::
+	::retry::
 	dev = dev or hid.open(4660, 1)
 
 	if dev then
 		dev:block(false)
-		local i = 0
-		while i < 64 do
-			local n, err = dev:read(ffi.cast('uint8_t*', buf) + i, 64 - i)
-			if not n then
-				dev:close()
-				dev = nil
-				goto continue
+		while true do
+			local i = 0
+			while i < 64 do
+				local n, err = dev:read(ffi.cast('uint8_t*', buf) + i, 64 - i)
+				if not n then
+					dev:close()
+					dev = nil
+					goto retry
+				elseif n == 0 then
+					goto continue
+				end
+				i = i + n
 			end
-			i = i + n
 		end
+		::continue::
 
 		local cw, ch = self:client_size()
 		for i = 0, 31 do
