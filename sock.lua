@@ -33,6 +33,7 @@ local function parse_ip(s)
 end
 
 local M = {}
+local socket = {}
 local bind, check
 
 local function checkz(ret)
@@ -194,9 +195,11 @@ void GetAcceptExSockaddrs(
 );
 ]]
 
-local WSADATA = ffi.new'WSADATA'
-C.WSAStartup(0x101, WSADATA)
-assert(WSADATA.wVersion == 0x101)
+do
+	local WSADATA = ffi.new'WSADATA'
+	C.WSAStartup(0x101, WSADATA)
+	assert(WSADATA.wVersion == 0x101)
+end
 
 --error handling
 
@@ -251,7 +254,7 @@ end
 
 local INVALID_SOCKET = ffi.cast('uintptr_t', -1)
 
-function M.socket(type)
+function M.rawsocket(type)
 	local s
 	if type == 'tcp' then
 		s = C.socket(AF_INET, SOCK_STREAM, 0)
@@ -263,18 +266,57 @@ function M.socket(type)
 	return check(s ~= INVALID_SOCKET and s)
 end
 
+function M.socket(type)
+	local s, err, errcode = M.rawsocket(type)
+	if s == nil then
+		return nil, err, errcode
+	end
+	local s = {s = s, __index = socket}
+	return setmetatable(s, s)
+end
+
 bind = C.bind
 
-function M.close(s)
+function M.rawclose(s)
 	C.closesocket(s)
 end
 
-else
+local wsabuf = ffi.new'WSABUF'
+local WSAOVERLAPPED = ffi.typeof'WSAOVERLAPPED'
+
+local SOCKET_ERROR = -1
+
+function M.rawsend(s, buf, sz, overlapped)
+	wsabuf.len = sz
+	wsabuf.buf = buf
+	local ret = C.WSASend(s, wsabuf, 1, nil, 0, overlapped, nil)
+	if ret == 0 then return sz end
+	if ret == SOCKET_ERROR then
+		return nil, 'error'
+	end
+end
+
+function socket:send(s, buf, sz)
+	self.send_overlapped = self.send_overlapped or WSAOVERLAPPED()
+	return M.rawsend(self.s, buf, sz, self.send_overlapped)
+end
+
+function M.recv()
+int WSARecv(
+  SOCKET                             s,
+  LPWSABUF                           lpBuffers,
+  DWORD                              dwBufferCount,
+  LPDWORD                            lpNumberOfBytesRecvd,
+  LPDWORD                            lpFlags,
+  LPWSAOVERLAPPED                    lpOverlapped,
+  LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
+);
+end
 
 --posix ----------------------------------------------------------------------
 
-
-
+else
+	--
 
 end
 
@@ -297,6 +339,14 @@ function M.bind(s, ip, port)
 	return checkz(bind(s, sa, ffi.sizeof(sa)))
 end
 
+function socket:bind(...)
+	return M.bind(self.s, ...)
+end
+
+function socket:close()
+	M.close(self.s)
+end
+
 --hi-level API ---------------------------------------------------------------
 
 
@@ -304,10 +354,10 @@ end
 --self-test ------------------------------------------------------------------
 
 if not ... then
-	local net = M
-	local s = assert(net.socket'tcp')
-	assert(net.bind(s, '127.0.0.1', 8090))
-	net.close(s)
+	local sock = M
+	local s = assert(sock.socket'tcp')
+	assert(s:bind('127.0.0.1', 8090))
+	s:close()
 end
 
 return M
